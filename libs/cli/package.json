@@ -1,0 +1,40 @@
+{
+  "name": "create-resumable",
+  "version": "0.0.0",
+  "private": false,
+  "description": "Create Resumable apps.",
+  "license": "MIT",
+  "bin": {
+    "create-resumable": "./lib/index.mjs",
+    "resumable": "./lib/index.mjs"
+  },
+  "files": [
+    "lib"
+  ],
+  "type": "module",
+  "main": "./lib/index.mjs",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "dev": "vp pack -F create-resumable --watch",
+    "build": "vp pack -F create-resumable && tsc --build tsconfig.json --force"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.11.0",
+    "citty": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rolldown": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.9.0"
+  }
+}

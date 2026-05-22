@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "allowImportingTsExtensions": true,
+    "composite": true,
+    "emitDeclarationOnly": true,
+    "target": "esnext",
+    "lib": ["es2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "@qwik.dev/core",
+    "moduleResolution": "bundler",
+    "module": "preserve",
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "references": [{ "path": "./libs/core" }, { "path": "./libs/cli" }]
+}

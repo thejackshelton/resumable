@@ -1,0 +1,27 @@
+{
+  "name": "resumable",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "scripts": {
+    "dev": "vp pack -F @resumable.dev/core -F create-resumable --watch",
+    "build": "pnpm run build.packages",
+    "build.packages": "vp run --no-cache --concurrency-limit 1 -F @resumable.dev/core -F create-resumable build",
+    "check": "vp check",
+    "check.format": "vp fmt --check",
+    "check.lint": "vp lint",
+    "fix": "vp check --fix",
+    "format": "vp fmt",
+    "lint": "vp lint --fix",
+    "test": "vp test"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "rolldown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "^8",
+    "vite-plus": "0.1.16"
+  },
+  "packageManager": "pnpm@9.14.4"
+}

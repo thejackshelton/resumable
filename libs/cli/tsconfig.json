@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "lib": ["es2023"],
+    "declaration": true,
+    "declarationDir": "lib",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "incremental": true,
+    "isolatedModules": true
+  },
+  "include": ["src"],
+  "exclude": ["**/*.unit.ts", "**/*.unit.tsx"]
+}
