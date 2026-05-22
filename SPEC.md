@@ -171,7 +171,7 @@ The public core entrypoint exposes the framework-aware document component and
 shared runtime types:
 
 ```ts
-import { Html } from "@resumable.dev/core";
+import { Head, Html } from "@resumable.dev/core";
 import type { PageProps } from "@resumable.dev/core";
 ```
 
@@ -569,6 +569,78 @@ and it is broad enough for global CSS, providers, analytics, `<html>`, `<head>`,
 and `<body>` customization. `root.tsx` conflicts with common `RootLayout`
 component naming, `document.tsx` is too narrow for app providers, and
 `shell.tsx` is more commonly used for ordinary UI components.
+
+## Page Head
+
+Resumable supports a visible `Head` component for route-specific document head
+entries.
+
+Use `Head` in a page, explicit layout component, or nested component:
+
+```tsx
+import { component$ } from "@qwik.dev/core";
+import { Head } from "@resumable.dev/core";
+
+export default component$(() => {
+  return (
+    <>
+      <Head>
+        <title>About</title>
+        <meta name="description" content="About this site" />
+        <link rel="canonical" href="https://example.com/about" />
+      </Head>
+
+      <h1>About</h1>
+    </>
+  );
+});
+```
+
+Core rule:
+
+```txt
+app.tsx owns the base document with Html, <head>, and <body>.
+Head contributes route-specific entries to the document <head>.
+```
+
+`Head` renders no visible body UI. Its children are collected by Resumable and
+rendered into the document `<head>` during SSR.
+
+Reasoning:
+
+- `Head` keeps page metadata next to page UI.
+- `Head` looks like HTML and is easier for junior developers and AI agents to
+  discover than a hidden named export.
+- `Head` avoids requiring users to learn an object schema for common tags such
+  as `<title>`, `<meta>`, and `<link>`.
+- `Head` works naturally with explicit layout components because layouts can
+  render shared metadata without becoming special route files.
+- `Head` matches familiar visible-head patterns from frameworks such as Next,
+  Svelte, and SolidStart while avoiding Qwik City-specific head hooks and
+  route metadata exports.
+
+Do not use framework-owned named exports for page metadata in v0:
+
+```tsx
+export const head = {};
+export const metadata = {};
+```
+
+Those can be added later if implementation pressure proves they are needed.
+
+Deduplication rules:
+
+- `<title>`: last one wins.
+- `<meta>`: dedupe by `key`, then `name`, then `property`, then `httpEquiv`,
+  then `charSet`.
+- `<link rel="canonical">`: last one wins.
+- Other head elements: preserve render order unless `key` is provided.
+- If `key` is provided, the last element with that `key` wins.
+
+The base `<head>` in `app.tsx` should contain document-wide defaults such as
+`charset`, viewport, favicon, global styles, analytics tags, and static site
+metadata. Route-specific `Head` entries should be able to override base entries
+when they describe the same document concern.
 
 ### Dynamic And Catch-All Routes
 
@@ -1071,6 +1143,9 @@ Inside that renderer, Resumable owns the page framework work:
 - Load top-level `app.tsx` when present, or use the built-in default app shell.
 - Render the matched page inside the app shell's `Html` document boundary.
 - Translate `Html` props into Qwik SSR container attributes.
+- Collect `Head` contributions from the app shell, matched page, layouts, and
+  nested components.
+- Merge and dedupe collected head entries into the document `<head>`.
 - Inject client and SSR assets.
 - Return a standard `Response`.
 
@@ -1107,6 +1182,8 @@ The public contract is that:
   possible.
 - `app.tsx` wraps normal pages, status pages, and built-in fallback pages.
 - `app.tsx` can set request-specific `<html>` attributes through `Html` props.
+- `Head` entries are rendered into the document `<head>` with direct,
+  predictable dedupe rules.
 - Users do not manage Resumable-generated server files.
 
 ## Public Assets
@@ -1231,6 +1308,8 @@ Build-time checks:
 - `app.tsx`, when present, must default export a Qwik component.
 - `app.tsx`, when present, should render `Html` from `@resumable.dev/core` as
   the document boundary.
+- Framework-owned page metadata exports such as `head` and `metadata` should
+  produce a direct unsupported feature error.
 - Unsupported app shell aliases such as `root.tsx`, `shell.tsx`,
   `document.tsx`, `pages/app.tsx`, and `pages/_app.tsx` should produce a direct
   unsupported feature error.
@@ -1241,6 +1320,9 @@ Runtime checks:
 - `app.tsx` receives `PageProps` with `status`, `params`, and `url`.
 - `app.tsx` can set route-specific `<html>` attributes through `Html` props.
 - `app.tsx` can set route-specific `<body>` attributes from `PageProps`.
+- `Head` in a page renders entries into the document `<head>`.
+- Route-specific `Head` entries can override matching base `<head>` entries from
+  `app.tsx`.
 - `GET /` renders `pages/index.tsx`.
 - `GET /about` renders `pages/about.tsx`.
 - `GET /blog` renders `pages/blog/index.tsx`.
