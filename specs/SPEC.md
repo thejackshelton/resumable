@@ -6,7 +6,7 @@ Status: Draft
 
 Name: Resumable
 
-Descriptor: A minimal Qwik meta-framework powered by Nitro.
+Descriptor: A minimal Qwik meta-framework for Vite, powered by Nitro.
 
 Domain: `resumable.dev`
 
@@ -22,7 +22,8 @@ Short description:
 
 > Resumable is a minimal Qwik + Nitro framework where `pages/` maps to routes,
 > `api/` maps to Nitro API routes, layouts are normal components, middleware is
-> Nitro-native, and configuration lives in `vite.config.ts`.
+> Nitro-native, configuration lives in `vite.config.ts`, and generated apps use
+> Vite+ for the local command surface.
 
 Even shorter mental model:
 
@@ -30,6 +31,7 @@ Even shorter mental model:
 - Components are Qwik.
 - Server behavior is Nitro.
 - Configuration is Vite.
+- Tooling is Vite+.
 
 ## Framework Boundary
 
@@ -57,6 +59,7 @@ middleware/  -> Nitro request pipeline
 public/      -> Nitro public assets
 nitro: {}    -> native Nitro app config
 vite.config  -> single app configuration surface
+Vite+        -> generated app command surface
 ```
 
 This keeps the beginner path small while preserving an honest escape hatch for
@@ -214,7 +217,7 @@ import type { PageProps } from "@resumable.dev/core";
 The canonical Vite config is:
 
 ```ts
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
 import { qwik } from "qwik-bundler/vite";
 import { resumable } from "@resumable.dev/core/vite";
 
@@ -795,7 +798,7 @@ route-pattern `href` values with `params`. Native anchors should not be globally
 intercepted for SPA navigation. `Link` is the explicit SPA navigation surface.
 
 The detailed typed routing and navigation contract lives in
-`TYPED_ROUTING.md`.
+`./TYPED_ROUTING.md`.
 
 ### Dynamic And Catch-All Routes
 
@@ -1090,7 +1093,7 @@ Top-level `routes/` is not part of the canonical Resumable app shape in v0. For
 advanced non-`/api` server endpoints, use Nitro's native `handlers` config:
 
 ```ts
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
 import { qwik } from "qwik-bundler/vite";
 import { resumable } from "@resumable.dev/core/vite";
 
@@ -1223,7 +1226,7 @@ export default defineMiddleware((event) => {
 Or use native Nitro `handlers`:
 
 ```ts
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
 import { qwik } from "qwik-bundler/vite";
 import { resumable } from "@resumable.dev/core/vite";
 
@@ -1251,7 +1254,7 @@ Resumable has no `resumable.config.ts`.
 Resumable is installed through Vite:
 
 ```ts
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
 import { qwik } from "qwik-bundler/vite";
 import { resumable } from "@resumable.dev/core/vite";
 
@@ -1276,8 +1279,8 @@ user needs Qwik plugin options, they pass them directly to `qwik()`.
 
 Resumable should not expose normal Nitro config through a `nitro` option on
 `resumable()`. If a future escape hatch is needed for rare Nitro Vite plugin
-internals such as `experimental.vite.serverReload`, it should be explicit and
-named after the plugin layer, not confused with app-level Nitro config.
+internals, it should be explicit and named after the plugin layer, not confused
+with app-level Nitro config.
 
 If a user needs Nitro features, they use Nitro config names directly:
 
@@ -1469,7 +1472,7 @@ A minimal app should work with this structure:
 And this config:
 
 ```ts
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
 import { qwik } from "qwik-bundler/vite";
 import { resumable } from "@resumable.dev/core/vite";
 

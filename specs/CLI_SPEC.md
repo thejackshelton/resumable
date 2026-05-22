@@ -2,7 +2,7 @@
 
 Status: Draft
 
-Parent spec: `SPEC.md`
+Parent spec: [`SPEC.md`](./SPEC.md)
 
 ## Decision
 
@@ -14,7 +14,7 @@ Core model:
 ```txt
 create-resumable     -> create a new app
 resumable            -> project CLI commands
-vite                 -> dev and build
+vp                   -> generated app dev, build, check, fmt, and test
 resumable()          -> framework Vite plugin
 nitro: {}            -> native Nitro app config
 ```
@@ -26,6 +26,7 @@ Pages are Resumable.
 Components are Qwik.
 Server behavior is Nitro.
 Configuration is Vite.
+Tooling is Vite+.
 ```
 
 ## Package Shape
@@ -170,10 +171,8 @@ create-resumable
 
 ◇ Project format
 │ Node        package.json
-│ Bun         package.json
 │ Deno        deno.json
-
-> package.json and deno.json here is less visible / grayish text
+│ Bun         package.json
 
 ◇ Starter
 │ Minimal     one page
@@ -206,8 +205,8 @@ create-resumable
 
 ◇ Project format
 │ Node        package.json
-│ Bun         package.json
 │ Deno        deno.json
+│ Bun         package.json
 
 ◇ Starter
 │ Minimal     one page
@@ -249,9 +248,13 @@ muted supporting detail:
 
 ```txt
 Node        package.json
-Bun         package.json
 Deno        deno.json
+Bun         package.json
 ```
+
+In the interactive UI, `package.json` and `deno.json` should be dimmer than the
+runtime label. They explain what files will be generated; they are not part of
+the runtime name.
 
 Do not present this as:
 
@@ -269,8 +272,7 @@ Default:
 Node        package.json
 ```
 
-`Deno` should be shown only when there are fixtures proving the full Resumable
-dev/build/runtime path works with `deno.json`.
+In the local qwik-bundler package, we have proven native deno works as a fixture.
 
 ## Package Manager Inference
 
@@ -458,7 +460,7 @@ larger starters or by users when they need document-shell customization.
 The generated `vite.config.ts` should teach the framework boundary:
 
 ```ts
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
 import { qwik } from "qwik-bundler/vite";
 import { resumable } from "@resumable.dev/core/vite";
 
@@ -469,6 +471,22 @@ export default defineConfig({
 
 The CLI must not add `nitro()` to the generated Vite plugin list. Nitro's Vite
 plugin wiring belongs inside `resumable()`.
+
+Every starter should include Vite+. Generated scripts should use the local
+`vp` command:
+
+```json
+{
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview",
+    "check": "vp check",
+    "format": "vp fmt",
+    "test": "vp test"
+  }
+}
+```
 
 ## Non-Interactive Flow
 
@@ -505,7 +523,7 @@ The default create flow should not ask for a deployment target.
 Deployment and runtime output belong in native Nitro config:
 
 ```ts
-import { defineConfig } from "vite";
+import { defineConfig } from "vite-plus";
 import { qwik } from "qwik-bundler/vite";
 import { resumable } from "@resumable.dev/core/vite";
 

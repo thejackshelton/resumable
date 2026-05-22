@@ -2,7 +2,7 @@
 
 Status: Draft
 
-Parent spec: `SPEC.md`
+Parent spec: [`SPEC.md`](./SPEC.md)
 
 Implementation owner: `@resumable.dev/core`, with compiler and manifest support
 from the `resumable()` Vite plugin.
