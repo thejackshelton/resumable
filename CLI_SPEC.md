@@ -12,10 +12,11 @@ a second framework configuration surface.
 Core model:
 
 ```txt
-create-resumable -> create a new app
-vite             -> dev and build
-resumable()      -> framework Vite plugin
-nitro: {}        -> native Nitro app config
+create-resumable     -> create a new app
+resumable            -> project CLI commands
+vite                 -> dev and build
+resumable()          -> framework Vite plugin
+nitro: {}            -> native Nitro app config
 ```
 
 The CLI should preserve the framework boundary:
@@ -26,6 +27,123 @@ Components are Qwik.
 Server behavior is Nitro.
 Configuration is Vite.
 ```
+
+## Package Shape
+
+The public CLI should follow the same general package shape as Qwik's CLI: one
+official CLI package with two binaries.
+
+Recommended package:
+
+```json
+{
+  "name": "@resumable.dev/cli",
+  "bin": {
+    "create-resumable": "./dist/bin/create-resumable.mjs",
+    "resumable": "./dist/bin/resumable.mjs"
+  },
+  "files": ["dist", "stubs"]
+}
+```
+
+`create-resumable` is the create entrypoint used by package-manager create
+flows.
+
+`resumable` is the project CLI entrypoint for commands such as `add`, `check`,
+`routes`, `doctor`, `generate`, and `preview` when those commands are
+implemented.
+
+This is preferable to permanently splitting the create command and project CLI
+into unrelated packages. The create and project commands need the same console
+UI, package-manager operations, filesystem helpers, project detection, and
+source editing primitives.
+
+The CLI package may still publish a compatibility package or npm alias later if
+package-manager create flows require it, but the primary implementation should
+live in `@resumable.dev/cli`.
+
+## Command Architecture
+
+Commands should use a class-based lifecycle similar to Qwik's CLI command
+programs.
+
+Each command should have the same phases:
+
+```txt
+configure -> validate -> interact -> execute
+```
+
+Phase responsibilities:
+
+- `configure`: register command name, description, positional args, and flags.
+- `validate`: convert raw CLI args into typed input and fail on invalid values.
+- `interact`: ask only for missing choices when running in an interactive TTY.
+- `execute`: perform deterministic filesystem, package-manager, and process
+  work.
+
+This lifecycle keeps agent and CI behavior predictable:
+
+```txt
+non-interactive command + missing required input -> direct error
+interactive command + missing required input     -> prompt
+valid typed input                                -> deterministic execute
+```
+
+Recommended command classes:
+
+```txt
+CreateProgram
+AddProgram
+CheckProgram
+RoutesProgram
+DoctorProgram
+GenerateProgram
+PreviewProgram
+```
+
+The create command should be implemented as `CreateProgram`, not as a one-off
+script, because create and add flows both need package-manager operations,
+template commits, dependency merging, post-install tasks, and direct error
+handling.
+
+## CLI Dependencies
+
+The CLI dependency direction should match Qwik's modern CLI direction: small,
+purpose-built packages for prompts, argument parsing, package-manager
+operations, source parsing, and source edits.
+
+Recommended create-only dependency set:
+
+```txt
+@clack/prompts  -> interactive prompts
+kleur           -> terminal colors
+yargs           -> command and flag parsing
+which-pm-runs   -> package-manager detection
+panam           -> package-manager commands across pnpm, npm, yarn, bun, deno
+semver          -> Node, Vite, Qwik, and Resumable version checks
+```
+
+Recommended project-command dependency additions:
+
+```txt
+ignore          -> file filtering
+oxc-parser      -> parse TypeScript and Vite config
+magic-string    -> safe source edits
+magic-regexp    -> readable route and file-pattern expressions
+```
+
+Recommended dev dependency:
+
+```txt
+vite-plus       -> build, test, lint, and format the CLI package
+```
+
+Avoid building custom package-manager abstractions if `panam` covers the needed
+install, add, remove, exec, dlx, and script-run behavior.
+
+Avoid string-based source edits for `vite.config.ts`, `package.json`, route
+files, or future integration add commands when an AST parser or structured JSON
+edit is practical.
 
 ## Create Flow
 
