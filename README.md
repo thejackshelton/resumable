@@ -10,7 +10,7 @@
     <picture>
       <source srcset="docs/readme-animation.webp" type="image/webp">
       <img
-        alt="Resumable turns pages, API routes, middleware, and Vite config into a Qwik and Nitro app"
+        alt="Resumable keeps apps readable for humans and agents"
         src="docs/readme-animation.gif"
         width="720"
       >
@@ -18,11 +18,11 @@
 
 -->
 
-  <p><strong>A minimal Qwik meta-framework for Vite, powered by Nitro.</strong></p>
+  <p><strong>Apps humans and agents can read.</strong></p>
 
   <p>
-    Pages are Resumable. Components are Qwik. Server behavior is Nitro.
-    Configuration is Vite. Tooling is Vite+.
+    Resumable keeps the app model plain: pages are files, layouts are
+    components, data can resume, and work runs only when your users care.
   </p>
 </div>
 
