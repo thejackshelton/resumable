@@ -26,13 +26,44 @@ Short description:
 
 Even shorter mental model:
 
-- Top-level pages.
-- Top-level API routes.
-- Optional top-level app shell.
-- Astro-style TSX routing.
-- Explicit Qwik layout components.
-- Top-level Nitro middleware.
-- Configured through Vite.
+- Pages are Resumable.
+- Components are Qwik.
+- Server behavior is Nitro.
+- Configuration is Vite.
+
+## Framework Boundary
+
+Resumable should hide Nitro wiring, but it should not hide Nitro itself.
+
+`resumable()` owns the framework glue needed to turn Qwik page modules into a
+Nitro-powered app: page scanning, route manifest generation, Qwik rendering,
+top-level middleware wiring, public asset behavior, and the internal Nitro page
+renderer. A standard Resumable app should not require users to install or call
+Nitro's Vite plugin directly.
+
+When an app needs server behavior, the answer should usually be Nitro-native:
+use Nitro API routes, Nitro middleware, Nitro route rules, Nitro runtime config,
+Nitro storage, Nitro caching, Nitro deployment presets, and Nitro plugins.
+Resumable should not create aliases for Nitro concepts unless there is a clear
+Qwik-specific product reason.
+
+Canonical ownership:
+
+```txt
+pages/       -> Resumable UI routes
+components/  -> Qwik component tree
+api/         -> Nitro API routes
+middleware/  -> Nitro request pipeline
+public/      -> Nitro public assets
+nitro: {}    -> native Nitro app config
+vite.config  -> single app configuration surface
+```
+
+This keeps the beginner path small while preserving an honest escape hatch for
+real applications. Users should be able to build the first page without
+learning Nitro, but when they search for deployment, rewrites, route rules,
+runtime config, storage, or server middleware, the documented answer should use
+Nitro's real names and link to Nitro's docs.
 
 ## Research Baseline
 
@@ -80,6 +111,8 @@ Resumable v0 should provide the smallest useful Qwik + Nitro app model:
 - Optional top-level `app.tsx` for the global document and app shell.
 - Qwik components as page modules.
 - Explicit layout components imported by pages.
+- Typed native anchors for platform navigation.
+- A typed `Link` component for SPA navigation.
 - Top-level `middleware/` that maps to Nitro middleware semantics.
 - Resumable-owned Nitro plugin wiring.
 - Native app-level Nitro configuration under the top-level Vite `nitro` key.
@@ -98,7 +131,7 @@ Resumable v0 should not include:
 - `resumable.config.ts`.
 - `nitro.config.ts` as the documented app config path.
 - Special layout files such as `pages/layout.tsx`.
-- Nested status pages such as `pages/blog/404.tsx`.
+- Nested status pages such as `pages/blog/404.tsx` or `pages/blog/404.mdx`.
 - Generic error route files such as `pages/_error.tsx`, `pages/+error.tsx`,
   `pages/error.tsx`, `pages/not-found.tsx`, or `pages/global-error.tsx`.
 - API routes inside the UI page tree, such as `pages/api/hello.ts`.
@@ -119,14 +152,17 @@ my-app/
   app.tsx
 
   pages/
-    index.tsx
+    index.mdx
     404.tsx
     500.tsx
     about.tsx
+    docs.mdx
     blog/
       index.tsx
       test.tsx
       [slug].tsx
+    docs/
+      [...slug].mdx
 
   api/
     health.ts
@@ -171,7 +207,7 @@ The public core entrypoint exposes the framework-aware document component and
 shared runtime types:
 
 ```ts
-import { Head, Html } from "@resumable.dev/core";
+import { Head, Html, Link } from "@resumable.dev/core";
 import type { PageProps } from "@resumable.dev/core";
 ```
 
@@ -231,20 +267,25 @@ plugin rather than through Resumable.
 
 Resumable uses a top-level `pages/` directory.
 
-Route files are `.tsx` files. Every route file in `pages/` maps mechanically to
-a URL. `index.tsx` maps to the current folder root.
+Route files are `.tsx` or `.mdx` files. Every route file in `pages/` maps
+mechanically to a URL. `index.tsx` and `index.mdx` map to the current folder
+root.
 
 Required v0 mappings:
 
 ```txt
 pages/index.tsx          -> /
+pages/index.mdx          -> / if pages/index.tsx is absent
 pages/404.tsx            -> unmatched page requests, status 404
+pages/404.mdx            -> unmatched page requests, status 404
 pages/500.tsx            -> unhandled page rendering errors, status 500
+pages/500.mdx            -> unhandled page rendering errors, status 500
 pages/about.tsx          -> /about
+pages/docs.mdx           -> /docs
 pages/blog/index.tsx     -> /blog
 pages/blog/test.tsx      -> /blog/test
 pages/blog/[slug].tsx    -> /blog/:slug
-pages/docs/[...slug].tsx -> /docs/**
+pages/docs/[...slug].mdx -> /docs/**
 ```
 
 Prefer this:
@@ -270,9 +311,16 @@ pages/
 Reason: the URL is obvious from the file path. This is better for junior
 developers and AI agents.
 
-`pages/404.tsx` and `pages/500.tsx` are special root status pages. They are not
-normal URL routes and should not be linked as `/404` or `/500` in the route
-manifest.
+`pages/404.tsx`, `pages/404.mdx`, `pages/500.tsx`, and `pages/500.mdx` are
+special root status pages. They are not normal URL routes and should not be
+linked as `/404` or `/500` in the route manifest.
+
+MDX route files are first-class pages, not a separate content collection or
+adapter system. Use `.tsx` for full Qwik page modules and `.mdx` for
+documentation/content pages that can include Qwik components.
+
+Plain `.md` route files are deferred in v0. Use `.mdx` for Markdown-style page
+content so every page module compiles to the same Qwik component shape.
 
 ### Route Modules
 
@@ -326,6 +374,72 @@ The component primitive remains Qwik's component$().
 A route module can contain multiple components. The file path and default export
 identify the route; named exports have no routing meaning in v0.
 
+### MDX Route Modules
+
+MDX route modules use the same file-path routing rules as TSX route modules:
+
+```txt
+pages/docs/index.mdx           -> /docs
+pages/docs/getting-started.mdx -> /docs/getting-started
+pages/blog/[slug].mdx          -> /blog/:slug
+pages/docs/[...slug].mdx       -> /docs/**
+```
+
+An MDX route must compile to a default-exported Qwik component. Users should not
+need to install or configure an MDX adapter in `vite.config.ts`.
+
+Example:
+
+```mdx
+import { DocsLayout } from "../components/layouts/DocsLayout";
+
+<DocsLayout>
+
+# Getting Started
+
+Resumable pages can be written in TSX or MDX.
+
+</DocsLayout>
+```
+
+Core rule:
+
+```txt
+TSX and MDX are both page modules.
+The route is still defined by the file path.
+The UI tree is still explicit.
+```
+
+Do not add MDX-specific route hooks or content hooks in v0:
+
+```txt
+useContent()
+useFrontmatter()
+useTableOfContents()
+```
+
+Do not add side-channel content conventions in v0:
+
+```txt
+menu.md
+docs.config.ts
+content/
+collections/
+```
+
+If frontmatter is supported, it should be parsed internally or exposed as normal
+module metadata later. It must not create implicit layouts or implicit routes in
+v0.
+
+The `resumable()` Vite plugin owns MDX routing and compilation. Satteri is the
+preferred internal compiler candidate because it provides `mdxToJs()`,
+frontmatter extraction, plugin hooks, and static optimization, but it is not a
+public Resumable API. A fixture must prove Satteri output can be normalized into
+Qwik v2-compatible modules before this implementation choice is locked.
+
+The internal MDX plugin should run before Qwik's Vite plugin consumes the
+module, so Qwik sees ordinary Qwik-compatible component code.
+
 ### Page Props
 
 Resumable passes route data to the route module default export as `PageProps`.
@@ -377,8 +491,8 @@ export interface PageProps {
 ```
 
 `url` must be serializable page data, not a live `URL` instance. For normal
-matched pages, `props.status` is `200`. For `pages/404.tsx`, it is `404`. For
-`pages/500.tsx`, it is `500`.
+matched pages, `props.status` is `200`. For `pages/404.tsx` or `pages/404.mdx`,
+it is `404`. For `pages/500.tsx` or `pages/500.mdx`, it is `500`.
 
 For `pages/blog/[slug].tsx`, the page reads:
 
@@ -642,19 +756,63 @@ The base `<head>` in `app.tsx` should contain document-wide defaults such as
 metadata. Route-specific `Head` entries should be able to override base entries
 when they describe the same document concern.
 
+## Navigation
+
+Resumable v0 has two navigation surfaces that share the same generated route
+types.
+
+Use native anchors for typed platform navigation:
+
+```tsx
+<a href="/about">About</a>
+
+<a href="/blog/[slug]" params={{ slug: post.slug }}>
+  {post.title}
+</a>
+```
+
+Use `Link` for typed SPA navigation:
+
+```tsx
+import { Link } from "@resumable.dev/core";
+
+<Link href="/about">About</Link>
+
+<Link href="/blog/[slug]" params={{ slug: post.slug }}>
+  {post.title}
+</Link>
+```
+
+Core rule:
+
+```txt
+<a> is typed and platform-native.
+Link is typed and SPA-capable.
+```
+
+The `resumable()` Vite plugin owns route type generation and JSX lowering for
+route-pattern `href` values with `params`. Native anchors should not be globally
+intercepted for SPA navigation. `Link` is the explicit SPA navigation surface.
+
+The detailed typed routing and navigation contract lives in
+`TYPED_ROUTING.md`.
+
 ### Dynamic And Catch-All Routes
 
-Single dynamic segments use `[param].tsx` and match exactly one URL segment:
+Single dynamic segments use `[param]` before a supported page extension and
+match exactly one URL segment:
 
 ```txt
 pages/blog/[slug].tsx -> /blog/:slug
+pages/blog/[slug].mdx -> /blog/:slug
 ```
 
-Catch-all segments use `[...param].tsx` and match one or more remaining URL
-segments:
+Catch-all segments use `[...param]` before a supported page extension and match
+one or more remaining URL segments:
 
 ```txt
 pages/docs/[...slug].tsx -> /docs/**
+pages/docs/[...slug].mdx -> /docs/**
 ```
 
 Catch-all params are exposed through `PageProps.params` as slash-joined strings,
@@ -665,15 +823,17 @@ GET /docs/guides/getting-started
 props.params.slug === "guides/getting-started"
 ```
 
-Catch-all routes do not match the folder root. Use `index.tsx` for the folder
-root:
+Catch-all routes do not match the folder root. Use `index.tsx` or `index.mdx`
+for the folder root:
 
 ```txt
 pages/docs/index.tsx     -> /docs
+pages/docs/index.mdx     -> /docs
 pages/docs/[...slug].tsx -> /docs/**
+pages/docs/[...slug].mdx -> /docs/**
 ```
 
-This keeps `index.tsx` mechanically tied to the current folder root and avoids
+This keeps index files mechanically tied to the current folder root and avoids
 undefined or array route params in the v0 `PageProps` type.
 
 Catch-all segments must be the final route segment in v0.
@@ -682,7 +842,9 @@ Supported:
 
 ```txt
 pages/[...slug].tsx
+pages/[...slug].mdx
 pages/docs/[...slug].tsx
+pages/docs/[...slug].mdx
 ```
 
 Unsupported in v0:
@@ -698,7 +860,7 @@ pages/docs/[[...slug]].tsx
 Route conflict detection should normalize routes before comparison:
 
 - Remove the `pages/` prefix.
-- Remove the `.tsx` extension.
+- Remove supported page extensions: `.tsx` and `.mdx`.
 - Convert trailing `/index` to the current folder root.
 - Convert `[param]` segments to dynamic URL segments.
 - Convert `[...param]` final segments to catch-all URL segments.
@@ -710,11 +872,15 @@ Examples:
 
 ```txt
 pages/blog.tsx            -> /blog
+pages/blog.mdx            -> /blog
 pages/blog/index.tsx      -> /blog
+pages/blog/index.mdx      -> /blog
 pages/blog/[id].tsx       -> /blog/:param
 pages/blog/[slug].tsx     -> /blog/:param
+pages/blog/[slug].mdx     -> /blog/:param
 pages/docs/[...path].tsx  -> /docs/**
 pages/docs/[...slug].tsx  -> /docs/**
+pages/docs/[...slug].mdx  -> /docs/**
 ```
 
 `pages/blog/[id].tsx` and `pages/blog/[slug].tsx` conflict because both match
@@ -744,6 +910,7 @@ Example conflict:
 ```txt
 pages/blog.tsx
 pages/blog/index.tsx
+pages/blog.mdx
 ```
 
 Both map to:
@@ -758,6 +925,7 @@ Error:
 Route conflict: /blog is defined by both:
 - pages/blog.tsx
 - pages/blog/index.tsx
+- pages/blog.mdx
 
 Choose one.
 ```
@@ -767,14 +935,16 @@ or Nitro error.
 
 ### Status Pages
 
-Resumable v0 supports root status pages:
+Resumable v0 supports root status pages as TSX or MDX:
 
 ```txt
 pages/404.tsx
+pages/404.mdx
 pages/500.tsx
+pages/500.mdx
 ```
 
-Status pages are normal Qwik page modules with a default export:
+Status pages are normal page modules with a default export after compilation:
 
 ```tsx
 import { component$ } from "@qwik.dev/core";
@@ -785,16 +955,19 @@ export default component$((props: PageProps) => {
 });
 ```
 
-`pages/404.tsx` renders unmatched page requests with HTTP status 404.
+`pages/404.tsx` or `pages/404.mdx` renders unmatched page requests with HTTP
+status 404.
 
-`pages/500.tsx` renders unhandled errors thrown while matching or rendering a
-Resumable page with HTTP status 500.
+`pages/500.tsx` or `pages/500.mdx` renders unhandled errors thrown while
+matching or rendering a Resumable page with HTTP status 500.
 
-If `pages/404.tsx` is missing, Resumable renders a minimal built-in 404 page.
-If `pages/500.tsx` is missing, Resumable renders a minimal built-in 500 page.
+If `pages/404.tsx` and `pages/404.mdx` are missing, Resumable renders a minimal
+built-in 404 page. If `pages/500.tsx` and `pages/500.mdx` are missing,
+Resumable renders a minimal built-in 500 page.
 
-If `pages/500.tsx` itself fails to render, Resumable must fall back to Nitro's
-native error response rather than recursively attempting to render the 500 page.
+If the user-defined 500 page itself fails to render, Resumable must fall back to
+Nitro's native error response rather than recursively attempting to render the
+500 page.
 
 Status page props use the same `PageProps` type. For unmatched page requests,
 `props.params` is empty and `props.url` describes the original requested URL.
@@ -803,9 +976,13 @@ The v0 status page convention is intentionally root-only:
 
 ```txt
 pages/404.tsx        supported
+pages/404.mdx        supported
 pages/500.tsx        supported
+pages/500.mdx        supported
 pages/blog/404.tsx   unsupported in v0
+pages/blog/404.mdx   unsupported in v0
 pages/blog/500.tsx   unsupported in v0
+pages/blog/500.mdx   unsupported in v0
 ```
 
 Do not add these in v0:
@@ -830,14 +1007,20 @@ Required in v0:
 - Static routes.
 - Nested routes.
 - `index.tsx`.
+- `index.mdx`.
+- `.tsx` page routes.
+- `.mdx` page routes.
 - Single dynamic segments with `[param].tsx`.
+- Single dynamic segments with `[param].mdx`.
 - Final catch-all segments with `[...param].tsx`.
-- Root status pages with `404.tsx` and `500.tsx`.
+- Final catch-all segments with `[...param].mdx`.
+- Root status pages with `404.tsx`, `404.mdx`, `500.tsx`, and `500.mdx`.
 - Hard route conflict detection.
 
 Deferred unless explicitly added:
 
 - Nested status pages.
+- Plain `.md` page routes.
 - Route-level error boundaries.
 - Optional segments.
 - Route groups.
@@ -1135,6 +1318,8 @@ Resumable renderer.
 Inside that renderer, Resumable owns the page framework work:
 
 - Load a generated or virtual route manifest from `pages/`.
+- Compile `.mdx` page modules into Qwik-compatible page modules before Qwik's
+  optimizer consumes them.
 - Match the request path against the manifest.
 - Prefer static routes over dynamic routes, and dynamic routes over catch-all
   routes.
@@ -1149,17 +1334,18 @@ Inside that renderer, Resumable owns the page framework work:
 - Inject client and SSR assets.
 - Return a standard `Response`.
 
-If no page route matches, the renderer renders `pages/404.tsx` when present, or
-a built-in minimal 404 page when absent, with HTTP status 404.
+If no page route matches, the renderer renders `pages/404.tsx` or
+`pages/404.mdx` when present, or a built-in minimal 404 page when absent, with
+HTTP status 404.
 
 A user-defined catch-all route such as `pages/[...slug].tsx` is still a normal
 page route. It matches before the framework 404 surface because the 404 surface
 only applies after the route manifest has no match.
 
 If page matching or Qwik page rendering throws an unhandled error, the renderer
-renders `pages/500.tsx` when present, or a built-in minimal 500 page when
-absent, with HTTP status 500. If the 500 page itself fails, Nitro's native error
-response is used.
+renders `pages/500.tsx` or `pages/500.mdx` when present, or a built-in minimal
+500 page when absent, with HTTP status 500. If the user-defined 500 page itself
+fails, Nitro's native error response is used.
 
 The app shell receives `PageProps` for normal pages, status pages, and built-in
 fallback pages. This is the primary v0 mechanism for route-specific `<html>`
@@ -1256,6 +1442,7 @@ Suggested initial docs:
 - Project Structure
 - App Shell
 - Pages and Routing
+- Navigation and Typed Routing
 - API Routes
 - Layouts
 - Middleware
@@ -1295,12 +1482,14 @@ Build-time checks:
 
 - Missing `pages/` should produce a direct error or a direct empty-app message.
 - Page files without a default export should produce a direct error.
+- `.mdx` page modules should compile to default-exported Qwik components.
 - Conflicting routes should produce a direct error.
+- `.tsx` and `.mdx` files that map to the same URL should conflict.
 - Unsupported route patterns should produce a direct error.
 - Catch-all routes that are not the final route segment should produce a direct
   error.
-- Nested status pages such as `pages/blog/404.tsx` should produce a direct
-  unsupported feature error.
+- Nested status pages such as `pages/blog/404.tsx` or `pages/blog/404.mdx`
+  should produce a direct unsupported feature error.
 - API routes inside `pages/api/` should produce a direct unsupported feature
   error.
 - Page files that default export a Nitro handler instead of a Qwik component
@@ -1310,6 +1499,9 @@ Build-time checks:
   the document boundary.
 - Framework-owned page metadata exports such as `head` and `metadata` should
   produce a direct unsupported feature error.
+- Generated typed-routing declarations should update from `pages/`.
+- Route-pattern anchors and `Link` usages with missing or invalid params should
+  produce direct type or build errors.
 - Unsupported app shell aliases such as `root.tsx`, `shell.tsx`,
   `document.tsx`, `pages/app.tsx`, and `pages/_app.tsx` should produce a direct
   unsupported feature error.
@@ -1323,7 +1515,10 @@ Runtime checks:
 - `Head` in a page renders entries into the document `<head>`.
 - Route-specific `Head` entries can override matching base `<head>` entries from
   `app.tsx`.
+- Native `<a>` uses typed platform navigation.
+- `Link` uses the same route typing and opts into SPA navigation.
 - `GET /` renders `pages/index.tsx`.
+- `GET /docs` renders `pages/docs.mdx` when present.
 - `GET /about` renders `pages/about.tsx`.
 - `GET /blog` renders `pages/blog/index.tsx`.
 - `GET /blog/test` renders `pages/blog/test.tsx`.
@@ -1331,12 +1526,16 @@ Runtime checks:
   `props.params.slug === "hello"`.
 - `GET /docs/guides/getting-started` renders `pages/docs/[...slug].tsx` with
   `props.params.slug === "guides/getting-started"`.
+- `GET /docs/guides/getting-started` can render
+  `pages/docs/[...slug].mdx` with
+  `props.params.slug === "guides/getting-started"`.
 - Static routes win over dynamic routes, and dynamic routes win over catch-all
   routes.
-- Unmatched page requests render `pages/404.tsx` with status 404 when present.
-- Unhandled page rendering errors render `pages/500.tsx` with status 500 when
-  present.
-- If `pages/500.tsx` fails, Nitro's native error response is used.
+- Unmatched page requests render `pages/404.tsx` or `pages/404.mdx` with status
+  404 when present.
+- Unhandled page rendering errors render `pages/500.tsx` or `pages/500.mdx`
+  with status 500 when present.
+- If the user-defined 500 page fails, Nitro's native error response is used.
 - `GET /api/health` renders `api/health.ts` through Nitro.
 - Top-level middleware runs before page rendering.
 - Top-level middleware runs before API routes.
@@ -1367,6 +1566,10 @@ necessary:
 - Nitro middleware example: https://nitro.build/examples/middleware
 - Nitro Solid SSR example showing `?assets=client` and `?assets=ssr`:
   https://nitro.build/examples/vite-ssr-solid
+- Satteri Markdown and MDX compiler:
+  https://github.com/bruits/satteri
+- Satteri package README:
+  https://raw.githubusercontent.com/bruits/satteri/main/packages/satteri/README.md
 - Grep MCP sample, TanStack Nitro Vite config:
   https://github.com/TanStack/router/blob/main/examples/solid/start-basic-nitro/vite.config.ts
 - Grep MCP sample, SST TanStack Start Nitro config:
