@@ -21,12 +21,14 @@ but AI is not the category.
 Short description:
 
 > Resumable is a minimal Qwik + Nitro framework where `pages/` maps to routes,
-> layouts are normal components, middleware is Nitro-native, and configuration
-> lives in `vite.config.ts`.
+> `api/` maps to Nitro API routes, layouts are normal components, middleware is
+> Nitro-native, and configuration lives in `vite.config.ts`.
 
 Even shorter mental model:
 
 - Top-level pages.
+- Top-level API routes.
+- Optional top-level app shell.
 - Astro-style TSX routing.
 - Explicit Qwik layout components.
 - Top-level Nitro middleware.
@@ -38,7 +40,7 @@ The existing `fixtures/nitro-app` proves that Qwik and Nitro v3 can work
 together through Vite. The fixture combines:
 
 - Nitro's Vite plugin from `nitro/vite`.
-- The Qwik Vite plugin.
+- Qwik's Vite plugin.
 - A server entry that uses Qwik `renderToString`.
 - Nitro asset collection through `?assets=client` and `?assets=ssr`.
 
@@ -58,22 +60,31 @@ inventing parallel server concepts:
   custom HTML responses.
 - Nitro serves `public/` assets and copies them into `.output/public` during
   production builds.
+- Nitro's top-level `api/` directory maps to `/api/*` server routes.
 
 Grep MCP sampling of public repositories also shows active Vite-based
 frameworks and examples using `nitro()` alongside framework Vite plugins, and
 using top-level `nitro: {}` in `vite.config.ts` for native Nitro config.
+Nitro's Vite plugin also accepts a small plugin-specific config surface for
+Vite integration internals, but ordinary app-level Nitro config belongs in the
+top-level `nitro` key.
 
 ## Goals
 
 Resumable v0 should provide the smallest useful Qwik + Nitro app model:
 
-- One core Vite plugin: `resumable()`.
+- Normal Qwik Vite plugin usage.
+- One Resumable Vite plugin: `resumable()`.
 - A top-level `pages/` directory for UI routes.
+- A top-level `api/` directory for Nitro-native API routes.
+- Optional top-level `app.tsx` for the global document and app shell.
 - Qwik components as page modules.
 - Explicit layout components imported by pages.
 - Top-level `middleware/` that maps to Nitro middleware semantics.
-- Native Nitro configuration under the top-level Vite `nitro` key.
+- Resumable-owned Nitro plugin wiring.
+- Native app-level Nitro configuration under the top-level Vite `nitro` key.
 - Hard build errors for ambiguous routing.
+- Root status pages for 404 and 500 UI.
 - No framework config file.
 
 The v0 experience should be obvious to junior developers and reliable for AI
@@ -87,8 +98,16 @@ Resumable v0 should not include:
 - `resumable.config.ts`.
 - `nitro.config.ts` as the documented app config path.
 - Special layout files such as `pages/layout.tsx`.
+- Nested status pages such as `pages/blog/404.tsx`.
+- Generic error route files such as `pages/_error.tsx`, `pages/+error.tsx`,
+  `pages/error.tsx`, `pages/not-found.tsx`, or `pages/global-error.tsx`.
+- API routes inside the UI page tree, such as `pages/api/hello.ts`.
+- Top-level `routes/` as a documented or canonical app directory.
+- Alternative app shell files such as `root.tsx`, `shell.tsx`,
+  `document.tsx`, `pages/app.tsx`, or `pages/_app.tsx`.
 - Page-local middleware files such as `pages/blog/middleware.ts`.
 - A new server runtime abstraction over Nitro.
+- A wrapper over Qwik's Vite plugin or Qwik compiler options.
 - AI-specific framework primitives.
 - A data-loading API unless it is added intentionally after the route contract
   is stable.
@@ -97,13 +116,22 @@ Resumable v0 should not include:
 
 ```txt
 my-app/
+  app.tsx
+
   pages/
     index.tsx
+    404.tsx
+    500.tsx
     about.tsx
     blog/
       index.tsx
       test.tsx
       [slug].tsx
+
+  api/
+    health.ts
+    users/
+      [id].get.ts
 
   middleware/
     00.logger.ts
@@ -123,7 +151,10 @@ my-app/
 The following files and folders are not required:
 
 ```txt
+app.tsx
 src/pages/
+pages/api/
+routes/
 resumable.config.ts
 nitro.config.ts
 ```
@@ -136,14 +167,23 @@ The public Vite entrypoint is:
 import { resumable } from "@resumable.dev/core/vite";
 ```
 
+The public core entrypoint exposes the framework-aware document component and
+shared runtime types:
+
+```ts
+import { Html } from "@resumable.dev/core";
+import type { PageProps } from "@resumable.dev/core";
+```
+
 The canonical Vite config is:
 
 ```ts
 import { defineConfig } from "vite";
+import { qwik } from "qwik-bundler/vite";
 import { resumable } from "@resumable.dev/core/vite";
 
 export default defineConfig({
-  plugins: [resumable()],
+  plugins: [qwik(), resumable()],
 
   nitro: {
     // Native Nitro v3 config.
@@ -154,8 +194,9 @@ export default defineConfig({
 API boundary:
 
 ```txt
-resumable()  -> Resumable framework and plugin wiring
-nitro: {}    -> native Nitro config
+qwik()       -> Qwik compiler, optimizer, and resumability transforms
+resumable()  -> pages/, route manifest, Nitro renderer, and middleware glue
+nitro: {}    -> native app-level Nitro config
 ```
 
 Do not nest Nitro config inside the Resumable plugin:
@@ -174,14 +215,17 @@ Use the top-level Vite config instead:
 
 ```ts
 export default defineConfig({
-  plugins: [resumable()],
+  plugins: [qwik(), resumable()],
   nitro: {}
 });
 ```
 
-`resumable()` is responsible for framework wiring. A user should not need to add
-Nitro's Vite plugin or Qwik's Vite plugin separately in a standard Resumable
-app.
+`resumable()` is responsible for Resumable's framework wiring and should install
+Nitro's Vite plugin internally. A user should not need to add Nitro's Vite
+plugin separately in a standard Resumable app.
+
+Qwik remains explicit. Users should configure Qwik through Qwik's own Vite
+plugin rather than through Resumable.
 
 ## Routing
 
@@ -194,10 +238,13 @@ Required v0 mappings:
 
 ```txt
 pages/index.tsx          -> /
+pages/404.tsx            -> unmatched page requests, status 404
+pages/500.tsx            -> unhandled page rendering errors, status 500
 pages/about.tsx          -> /about
 pages/blog/index.tsx     -> /blog
 pages/blog/test.tsx      -> /blog/test
 pages/blog/[slug].tsx    -> /blog/:slug
+pages/docs/[...slug].tsx -> /docs/**
 ```
 
 Prefer this:
@@ -223,9 +270,14 @@ pages/
 Reason: the URL is obvious from the file path. This is better for junior
 developers and AI agents.
 
+`pages/404.tsx` and `pages/500.tsx` are special root status pages. They are not
+normal URL routes and should not be linked as `/404` or `/500` in the route
+manifest.
+
 ### Route Modules
 
-A page module must default export a Qwik component.
+A page module must default export a Qwik component. The default export is the
+page entry component for that route.
 
 ```tsx
 import { component$ } from "@qwik.dev/core";
@@ -235,8 +287,339 @@ export default component$(() => {
 });
 ```
 
-Named exports are reserved for future features. v0 should not require page
-metadata, route loaders, actions, or static params.
+Named component exports are allowed, but they are normal Qwik components and
+helpers, not route entries. Resumable only treats the route module's default
+export as the page.
+
+```tsx
+import { component$ } from "@qwik.dev/core";
+
+export const AboutHero = component$(() => {
+  return <h1>About</h1>;
+});
+
+export default component$(() => {
+  return (
+    <main>
+      <AboutHero />
+    </main>
+  );
+});
+```
+
+Do not add a Resumable-specific route component wrapper in v0:
+
+```tsx
+export default routeComponent$(() => {
+  return <h1>Home</h1>;
+});
+```
+
+Core rule:
+
+```txt
+The route is defined by the file path.
+The page entry is the default export.
+The component primitive remains Qwik's component$().
+```
+
+A route module can contain multiple components. The file path and default export
+identify the route; named exports have no routing meaning in v0.
+
+### Page Props
+
+Resumable passes route data to the route module default export as `PageProps`.
+This is not a server component model; it is a normal Qwik component rendered by
+Resumable's Qwik SSR renderer.
+
+```tsx
+import { component$ } from "@qwik.dev/core";
+import type { PageProps } from "@resumable.dev/core";
+
+export default component$((props: PageProps) => {
+  return <h1>{props.params.slug}</h1>;
+});
+```
+
+`PageProps` should be annotated on the props argument, not on `component$`.
+
+Prefer this:
+
+```tsx
+export default component$((props: PageProps) => {
+  return <h1>{props.params.slug}</h1>;
+});
+```
+
+Over this:
+
+```tsx
+export default component$<PageProps>(({ params }) => {
+  return <h1>{params.slug}</h1>;
+});
+```
+
+Reason: `component$()` stays visually and conceptually Qwik-owned, while
+`PageProps` is the Resumable page input.
+
+Required v0 type shape:
+
+```ts
+export interface PageProps {
+  readonly params: Readonly<Record<string, string>>;
+  readonly url: {
+    readonly href: string;
+    readonly pathname: string;
+    readonly search: string;
+  };
+  readonly status: number;
+}
+```
+
+`url` must be serializable page data, not a live `URL` instance. For normal
+matched pages, `props.status` is `200`. For `pages/404.tsx`, it is `404`. For
+`pages/500.tsx`, it is `500`.
+
+For `pages/blog/[slug].tsx`, the page reads:
+
+```tsx
+export default component$((props: PageProps) => {
+  return <h1>{props.params.slug}</h1>;
+});
+```
+
+For `pages/users/[id].tsx`, the page reads:
+
+```tsx
+export default component$((props: PageProps) => {
+  return <h1>User {props.params.id}</h1>;
+});
+```
+
+For `pages/docs/[...slug].tsx`, the page reads:
+
+```tsx
+export default component$((props: PageProps) => {
+  return <h1>{props.params.slug}</h1>;
+});
+```
+
+For `GET /docs/guides/getting-started`, `props.params.slug` is:
+
+```txt
+guides/getting-started
+```
+
+Only the default export receives `PageProps`. Nested components and layouts
+receive params explicitly through normal props.
+
+```tsx
+import { component$ } from "@qwik.dev/core";
+import type { PageProps } from "@resumable.dev/core";
+import { DocsLayout } from "../../components/layouts/DocsLayout";
+
+export default component$((props: PageProps) => {
+  return (
+    <DocsLayout section={props.params.slug}>
+      <h1>{props.params.slug}</h1>
+    </DocsLayout>
+  );
+});
+```
+
+Do not make a route params hook the primary v0 API. If a `useParams()` helper is
+added later, it should be a convenience for deeply nested components, not the
+core page contract.
+
+Framework-owned named exports are reserved for future features. v0 should not
+require page metadata, route loaders, actions, or static params. Normal named
+component and helper exports are allowed.
+
+## App Shell
+
+Resumable supports an optional top-level `app.tsx` for the global document and
+app shell.
+
+```txt
+my-app/
+  app.tsx
+  pages/
+    index.tsx
+```
+
+`app.tsx` is not a route. It wraps every rendered page. If it is missing,
+Resumable uses a built-in default app shell.
+
+`app.tsx` must default export a Qwik component. The component should render
+`Html` from `@resumable.dev/core` as the document boundary. `Html` accepts
+normal Qwik `<html>` props.
+
+The default app shell is conceptually:
+
+```tsx
+import { component$, Slot } from "@qwik.dev/core";
+import { Html } from "@resumable.dev/core";
+
+export default component$(() => {
+  return (
+    <Html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
+      <body>
+        <Slot />
+      </body>
+    </Html>
+  );
+});
+```
+
+A custom app shell can import global CSS, add providers, customize `<head>`,
+customize `<html>`, customize `<body>`, and render the selected page through
+`<Slot />`:
+
+```tsx
+import { component$, Slot } from "@qwik.dev/core";
+import { Html } from "@resumable.dev/core";
+import type { PageProps } from "@resumable.dev/core";
+import "./global.css";
+
+export default component$((props: PageProps) => {
+  const section = props.url.pathname.split("/")[1] || "home";
+
+  return (
+    <Html lang="en" data-section={section}>
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
+      <body class={section === "docs" ? "docs" : "default"} data-status={props.status}>
+        <Slot />
+      </body>
+    </Html>
+  );
+});
+```
+
+`app.tsx` receives the same `PageProps` shape as route modules, so
+route-specific document behavior is expressed from route context:
+
+```tsx
+import { component$, Slot } from "@qwik.dev/core";
+import { Html } from "@resumable.dev/core";
+import type { PageProps } from "@resumable.dev/core";
+
+export default component$((props: PageProps) => {
+  return (
+    <Html lang="en" data-path={props.url.pathname}>
+      <head />
+      <body data-status={props.status} data-path={props.url.pathname}>
+        <Slot />
+      </body>
+    </Html>
+  );
+});
+```
+
+Why `Html` exists:
+
+- Qwik's SSR renderer owns the outer application container, usually the
+  `<html>` element, and applies Qwik-required container attributes during SSR.
+- A plain lowercase `<html>` in user JSX would suggest that the app fully owns
+  that container, which is not true for a resumable Qwik document.
+- A hidden named export such as `htmlAttributes` is harder for junior developers
+  and AI agents to discover.
+- `Html` gives users the document-shaped API they expect while making the
+  framework boundary visible in code.
+
+`Html` is not the function that calls Qwik SSR. The internal Nitro renderer
+still calls Qwik `renderToStream()` or `renderToString()`. `Html` is the public
+document component that lets Resumable translate user-authored `<html>`
+attributes into Qwik's container model and preserve framework-required Qwik
+attributes.
+
+Implementation note: `Html` should be typed from Qwik's intrinsic `<html>`
+props, such as `PropsOf<"html">`, while Resumable normalizes the serializable
+attributes it passes to Qwik SSR. Framework-required Qwik container attributes
+always win over user attributes if names conflict.
+
+Core rule:
+
+```txt
+app.tsx defines the global document/app shell through Html.
+pages/ defines route UI.
+components/ defines reusable layouts and UI.
+```
+
+Only support the top-level `app.tsx` name in v0.
+
+Do not add aliases:
+
+```txt
+root.tsx
+shell.tsx
+document.tsx
+pages/app.tsx
+pages/_app.tsx
+```
+
+Reason: `app.tsx` is a familiar app entry name, it is not route-tree-specific,
+and it is broad enough for global CSS, providers, analytics, `<html>`, `<head>`,
+and `<body>` customization. `root.tsx` conflicts with common `RootLayout`
+component naming, `document.tsx` is too narrow for app providers, and
+`shell.tsx` is more commonly used for ordinary UI components.
+
+### Dynamic And Catch-All Routes
+
+Single dynamic segments use `[param].tsx` and match exactly one URL segment:
+
+```txt
+pages/blog/[slug].tsx -> /blog/:slug
+```
+
+Catch-all segments use `[...param].tsx` and match one or more remaining URL
+segments:
+
+```txt
+pages/docs/[...slug].tsx -> /docs/**
+```
+
+Catch-all params are exposed through `PageProps.params` as slash-joined strings,
+matching Nitro and SolidStart behavior:
+
+```txt
+GET /docs/guides/getting-started
+props.params.slug === "guides/getting-started"
+```
+
+Catch-all routes do not match the folder root. Use `index.tsx` for the folder
+root:
+
+```txt
+pages/docs/index.tsx     -> /docs
+pages/docs/[...slug].tsx -> /docs/**
+```
+
+This keeps `index.tsx` mechanically tied to the current folder root and avoids
+undefined or array route params in the v0 `PageProps` type.
+
+Catch-all segments must be the final route segment in v0.
+
+Supported:
+
+```txt
+pages/[...slug].tsx
+pages/docs/[...slug].tsx
+```
+
+Unsupported in v0:
+
+```txt
+pages/docs/[...slug]/edit.tsx
+pages/[...lang]/[...slug].tsx
+pages/docs/[[...slug]].tsx
+```
 
 ### Route Normalization
 
@@ -246,30 +629,39 @@ Route conflict detection should normalize routes before comparison:
 - Remove the `.tsx` extension.
 - Convert trailing `/index` to the current folder root.
 - Convert `[param]` segments to dynamic URL segments.
+- Convert `[...param]` final segments to catch-all URL segments.
 - Ignore the dynamic parameter name for conflict identity.
+- Ignore the catch-all parameter name for conflict identity.
 - Normalize trailing slashes away except for `/`.
 
 Examples:
 
 ```txt
-pages/blog.tsx        -> /blog
-pages/blog/index.tsx  -> /blog
-pages/blog/[id].tsx   -> /blog/:param
-pages/blog/[slug].tsx -> /blog/:param
+pages/blog.tsx            -> /blog
+pages/blog/index.tsx      -> /blog
+pages/blog/[id].tsx       -> /blog/:param
+pages/blog/[slug].tsx     -> /blog/:param
+pages/docs/[...path].tsx  -> /docs/**
+pages/docs/[...slug].tsx  -> /docs/**
 ```
 
 `pages/blog/[id].tsx` and `pages/blog/[slug].tsx` conflict because both match
 the same URL shape.
 
+`pages/docs/[...path].tsx` and `pages/docs/[...slug].tsx` conflict because both
+match the same URL shape.
+
 Static and dynamic siblings are allowed when their normalized route shapes are
 different:
 
 ```txt
-pages/blog/test.tsx   -> /blog/test
-pages/blog/[slug].tsx -> /blog/:param
+pages/blog/test.tsx       -> /blog/test
+pages/blog/[slug].tsx     -> /blog/:param
+pages/blog/[...slug].tsx  -> /blog/**
 ```
 
-The runtime matcher must prefer static routes over dynamic routes.
+The runtime matcher must prefer static routes over dynamic routes, and dynamic
+routes over catch-all routes.
 
 ### Route Conflicts
 
@@ -301,6 +693,64 @@ Choose one.
 The error must name the URL and the exact files. It should not be a generic Vite
 or Nitro error.
 
+### Status Pages
+
+Resumable v0 supports root status pages:
+
+```txt
+pages/404.tsx
+pages/500.tsx
+```
+
+Status pages are normal Qwik page modules with a default export:
+
+```tsx
+import { component$ } from "@qwik.dev/core";
+import type { PageProps } from "@resumable.dev/core";
+
+export default component$((props: PageProps) => {
+  return <h1>Page not found: {props.url.pathname}</h1>;
+});
+```
+
+`pages/404.tsx` renders unmatched page requests with HTTP status 404.
+
+`pages/500.tsx` renders unhandled errors thrown while matching or rendering a
+Resumable page with HTTP status 500.
+
+If `pages/404.tsx` is missing, Resumable renders a minimal built-in 404 page.
+If `pages/500.tsx` is missing, Resumable renders a minimal built-in 500 page.
+
+If `pages/500.tsx` itself fails to render, Resumable must fall back to Nitro's
+native error response rather than recursively attempting to render the 500 page.
+
+Status page props use the same `PageProps` type. For unmatched page requests,
+`props.params` is empty and `props.url` describes the original requested URL.
+
+The v0 status page convention is intentionally root-only:
+
+```txt
+pages/404.tsx        supported
+pages/500.tsx        supported
+pages/blog/404.tsx   unsupported in v0
+pages/blog/500.tsx   unsupported in v0
+```
+
+Do not add these in v0:
+
+```txt
+pages/_error.tsx
+pages/+error.tsx
+pages/error.tsx
+pages/not-found.tsx
+pages/global-error.tsx
+```
+
+Those patterns come from other frameworks' nested error boundary systems and
+would weaken Resumable's v0 mental model. Nitro's native `errorHandler` remains
+available through top-level `nitro` config for advanced runtime/server error
+handling.
+
 ### Route Scope For v0
 
 Required in v0:
@@ -309,20 +759,103 @@ Required in v0:
 - Nested routes.
 - `index.tsx`.
 - Single dynamic segments with `[param].tsx`.
+- Final catch-all segments with `[...param].tsx`.
+- Root status pages with `404.tsx` and `500.tsx`.
 - Hard route conflict detection.
 
 Deferred unless explicitly added:
 
-- Catch-all segments.
+- Nested status pages.
+- Route-level error boundaries.
 - Optional segments.
 - Route groups.
+- Non-final catch-all segments.
+- Multiple catch-all segments in one route.
 - Per-route data loading.
 - File-based layouts.
-- API route files owned by Resumable.
+- Resumable-specific API route syntax beyond Nitro-native `api/`.
 
 Nitro already supports catch-all routes, route groups, HTTP method suffixes, and
-programmatic handlers for server routes. Resumable should not copy those
-features into the UI page convention until there is a clear product reason.
+programmatic handlers for server routes. Resumable adopts Nitro-compatible
+catch-all naming for UI pages, but should not copy the rest of Nitro's server
+routing surface into the page convention until there is a clear product reason.
+
+## API Routes
+
+Resumable v0 supports top-level `api/` as Nitro-native API routes:
+
+```txt
+api/health.ts          -> /api/health
+api/users/[id].get.ts  -> GET /api/users/:id
+api/proxy/[...path].ts -> /api/proxy/**
+```
+
+API route files use Nitro's handler APIs directly:
+
+```ts
+import { defineHandler } from "nitro";
+
+export default defineHandler(() => {
+  return { ok: true };
+});
+```
+
+Dynamic params use Nitro's event APIs:
+
+```ts
+import { defineHandler } from "nitro";
+
+export default defineHandler((event) => {
+  return {
+    id: event.context.params!.id
+  };
+});
+```
+
+Core rule:
+
+```txt
+pages/ defines Qwik UI routes.
+api/ defines Nitro API routes under /api.
+middleware/ defines request pipeline behavior.
+```
+
+Do not put API routes inside `pages/`:
+
+```txt
+pages/api/health.ts
+pages/about.tsx with defineHandler()
+```
+
+Those patterns make `pages/` ambiguous. In Resumable v0, every route module in
+`pages/` must default export a Qwik component. Nitro handlers belong in `api/`,
+middleware, or explicit Nitro config.
+
+Top-level `routes/` is not part of the canonical Resumable app shape in v0. For
+advanced non-`/api` server endpoints, use Nitro's native `handlers` config:
+
+```ts
+import { defineConfig } from "vite";
+import { qwik } from "qwik-bundler/vite";
+import { resumable } from "@resumable.dev/core/vite";
+
+export default defineConfig({
+  plugins: [qwik(), resumable()],
+  nitro: {
+    handlers: [
+      {
+        route: "/webhook",
+        handler: "./server/webhook.post.ts",
+        method: "post"
+      }
+    ]
+  }
+});
+```
+
+Nitro's broader server routing surface remains available through Nitro config,
+but Resumable documentation should keep the normal app structure focused on
+`pages/`, `api/`, and `middleware/`.
 
 ## Layouts
 
@@ -435,8 +968,12 @@ export default defineMiddleware((event) => {
 Or use native Nitro `handlers`:
 
 ```ts
+import { defineConfig } from "vite";
+import { qwik } from "qwik-bundler/vite";
+import { resumable } from "@resumable.dev/core/vite";
+
 export default defineConfig({
-  plugins: [resumable()],
+  plugins: [qwik(), resumable()],
   nitro: {
     handlers: [
       {
@@ -460,10 +997,11 @@ Resumable is installed through Vite:
 
 ```ts
 import { defineConfig } from "vite";
+import { qwik } from "qwik-bundler/vite";
 import { resumable } from "@resumable.dev/core/vite";
 
 export default defineConfig({
-  plugins: [resumable()],
+  plugins: [qwik(), resumable()],
 
   nitro: {
     preset: "node_server",
@@ -474,9 +1012,17 @@ export default defineConfig({
 });
 ```
 
-The `nitro` key is native Nitro config. Resumable should pass it through and
-merge only the internal defaults required for Qwik rendering, page routing, and
-top-level middleware.
+The `nitro` key is native app-level Nitro config. Resumable should pass it
+through and merge only the internal defaults required for Qwik rendering, page
+routing, and top-level middleware.
+
+Resumable should not forward, mirror, or rename Qwik Vite plugin options. If a
+user needs Qwik plugin options, they pass them directly to `qwik()`.
+
+Resumable should not expose normal Nitro config through a `nitro` option on
+`resumable()`. If a future escape hatch is needed for rare Nitro Vite plugin
+internals such as `experimental.vite.serverReload`, it should be explicit and
+named after the plugin layer, not confused with app-level Nitro config.
 
 If a user needs Nitro features, they use Nitro config names directly:
 
@@ -507,21 +1053,60 @@ The fixture proves the viable shape:
 Resumable v0 should hide this ceremony. A user writes page components; the
 framework supplies the renderer.
 
-Implementation should generate or virtualize:
+Decision: Resumable v0 uses Nitro's renderer as the page rendering entrypoint.
 
-- A route manifest from `pages/`.
-- A Qwik SSR entry that selects the matched page component.
-- Client and SSR asset injection.
-- Nitro route or renderer wiring.
+Nitro's renderer is a lowest-priority catch-all handler for unmatched requests.
+Nitro still owns middleware, public assets, route rules, API/server routes, and
+deployment behavior. When no more specific Nitro route matches, Nitro calls the
+Resumable renderer.
 
-The exact internal mechanism can be virtual modules, generated files under a
-build directory, Nitro `routes`, Nitro `handlers`, or a Nitro renderer. The
-public contract is that:
+Inside that renderer, Resumable owns the page framework work:
+
+- Load a generated or virtual route manifest from `pages/`.
+- Match the request path against the manifest.
+- Prefer static routes over dynamic routes, and dynamic routes over catch-all
+  routes.
+- Extract route params into `PageProps`.
+- Load the matched route module's default export.
+- Load top-level `app.tsx` when present, or use the built-in default app shell.
+- Render the matched page inside the app shell's `Html` document boundary.
+- Translate `Html` props into Qwik SSR container attributes.
+- Inject client and SSR assets.
+- Return a standard `Response`.
+
+If no page route matches, the renderer renders `pages/404.tsx` when present, or
+a built-in minimal 404 page when absent, with HTTP status 404.
+
+A user-defined catch-all route such as `pages/[...slug].tsx` is still a normal
+page route. It matches before the framework 404 surface because the 404 surface
+only applies after the route manifest has no match.
+
+If page matching or Qwik page rendering throws an unhandled error, the renderer
+renders `pages/500.tsx` when present, or a built-in minimal 500 page when
+absent, with HTTP status 500. If the 500 page itself fails, Nitro's native error
+response is used.
+
+The app shell receives `PageProps` for normal pages, status pages, and built-in
+fallback pages. This is the primary v0 mechanism for route-specific `<html>`
+and `<body>` attributes through the `Html` component.
+
+This means Resumable should not generate one Nitro handler per page route in v0.
+There is one internal Nitro renderer/dispatcher backed by a generated or virtual
+route manifest.
+
+The public contract is that:
 
 - Nitro middleware runs before page rendering.
+- More specific Nitro API/server routes run before page rendering.
 - Nitro route rules apply to page requests.
 - Nitro public assets are served before page rendering.
 - Route conflicts fail before production output is emitted.
+- Unmatched page requests render the Resumable 404 surface after static,
+  dynamic, and user-defined catch-all routes have failed to match.
+- Unhandled page rendering errors render the Resumable 500 surface when
+  possible.
+- `app.tsx` wraps normal pages, status pages, and built-in fallback pages.
+- `app.tsx` can set request-specific `<html>` attributes through `Html` props.
 - Users do not manage Resumable-generated server files.
 
 ## Public Assets
@@ -559,6 +1144,7 @@ Use Resumable terms for:
 
 Use Nitro terms for:
 
+- API routes.
 - Middleware.
 - Route rules.
 - Runtime config.
@@ -579,7 +1165,9 @@ The docs site will live at `resumable.dev`.
 Primary docs pages should start with the working mental model:
 
 ```txt
+app.tsx customizes the document shell.
 pages/ maps to routes.
+api/ maps to Nitro API routes.
 layouts are components.
 middleware is Nitro-native.
 config lives in vite.config.ts.
@@ -589,7 +1177,9 @@ Suggested initial docs:
 
 - Getting Started
 - Project Structure
+- App Shell
 - Pages and Routing
+- API Routes
 - Layouts
 - Middleware
 - Vite and Nitro Config
@@ -604,7 +1194,8 @@ headline positioning.
 A minimal app should work with this structure:
 
 ```txt
-my-app/
+  my-app/
+  app.tsx
   pages/
     index.tsx
   vite.config.ts
@@ -615,10 +1206,11 @@ And this config:
 
 ```ts
 import { defineConfig } from "vite";
+import { qwik } from "qwik-bundler/vite";
 import { resumable } from "@resumable.dev/core/vite";
 
 export default defineConfig({
-  plugins: [resumable()]
+  plugins: [qwik(), resumable()]
 });
 ```
 
@@ -628,16 +1220,44 @@ Build-time checks:
 - Page files without a default export should produce a direct error.
 - Conflicting routes should produce a direct error.
 - Unsupported route patterns should produce a direct error.
+- Catch-all routes that are not the final route segment should produce a direct
+  error.
+- Nested status pages such as `pages/blog/404.tsx` should produce a direct
+  unsupported feature error.
+- API routes inside `pages/api/` should produce a direct unsupported feature
+  error.
+- Page files that default export a Nitro handler instead of a Qwik component
+  should produce a direct error.
+- `app.tsx`, when present, must default export a Qwik component.
+- `app.tsx`, when present, should render `Html` from `@resumable.dev/core` as
+  the document boundary.
+- Unsupported app shell aliases such as `root.tsx`, `shell.tsx`,
+  `document.tsx`, `pages/app.tsx`, and `pages/_app.tsx` should produce a direct
+  unsupported feature error.
 
 Runtime checks:
 
+- `app.tsx` wraps rendered pages when present.
+- `app.tsx` receives `PageProps` with `status`, `params`, and `url`.
+- `app.tsx` can set route-specific `<html>` attributes through `Html` props.
+- `app.tsx` can set route-specific `<body>` attributes from `PageProps`.
 - `GET /` renders `pages/index.tsx`.
 - `GET /about` renders `pages/about.tsx`.
 - `GET /blog` renders `pages/blog/index.tsx`.
 - `GET /blog/test` renders `pages/blog/test.tsx`.
-- `GET /blog/hello` renders `pages/blog/[slug].tsx`.
-- Static routes win over dynamic routes.
+- `GET /blog/hello` renders `pages/blog/[slug].tsx` with
+  `props.params.slug === "hello"`.
+- `GET /docs/guides/getting-started` renders `pages/docs/[...slug].tsx` with
+  `props.params.slug === "guides/getting-started"`.
+- Static routes win over dynamic routes, and dynamic routes win over catch-all
+  routes.
+- Unmatched page requests render `pages/404.tsx` with status 404 when present.
+- Unhandled page rendering errors render `pages/500.tsx` with status 500 when
+  present.
+- If `pages/500.tsx` fails, Nitro's native error response is used.
+- `GET /api/health` renders `api/health.ts` through Nitro.
 - Top-level middleware runs before page rendering.
+- Top-level middleware runs before API routes.
 - `public/` assets are served directly.
 - Native Nitro `routeRules` still apply.
 
@@ -646,12 +1266,6 @@ Runtime checks:
 These should remain unresolved until implementation pressure makes them
 necessary:
 
-- Should v0 support catch-all page routes with `[...slug].tsx`, or defer them?
-- Should route params be passed to pages through props, context, or a Qwik hook?
-- Should Resumable generate one Nitro handler per page route or use one renderer
-  dispatcher?
-- Should API routes be part of Resumable's public app shape, or should v0 direct
-  users to Nitro-native `routes/` and `api/` conventions only?
 - Should `src/` be allowed as an optional source root for advanced users while
   keeping top-level `pages/` canonical?
 

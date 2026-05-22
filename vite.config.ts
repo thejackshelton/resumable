@@ -15,25 +15,21 @@ const workspacePath = (path: string) => resolve(rootDir, path);
 
 const packageDirs = {
   core: workspacePath("libs/core"),
-  cli: workspacePath("libs/cli"),
+  cli: workspacePath("libs/cli")
 };
 
 const readPackageManifest = (packagePath: string): PackageJson =>
-  JSON.parse(
-    readFileSync(resolve(workspacePath(packagePath), "package.json"), "utf-8"),
-  );
+  JSON.parse(readFileSync(resolve(workspacePath(packagePath), "package.json"), "utf-8"));
 
 const packageImportPattern = (packageName: string) =>
-  new RegExp(
-    `^${packageName.replaceAll("/", "\\/").replaceAll(".", "\\.")}(\\/.*)?$`,
-  );
+  new RegExp(`^${packageName.replaceAll("/", "\\/").replaceAll(".", "\\.")}(\\/.*)?$`);
 
 const dependencyImportPatterns = (dependencies: Record<string, string> = {}) =>
   Object.keys(dependencies).map(packageImportPattern);
 
 const externalPackageImports = (
   packagePath: string,
-  options?: { devDependencies?: boolean },
+  options?: { devDependencies?: boolean }
 ) => {
   const pkg = readPackageManifest(packagePath);
 
@@ -41,24 +37,22 @@ const externalPackageImports = (
     /^node:/,
     ...dependencyImportPatterns(pkg.dependencies),
     ...dependencyImportPatterns(pkg.peerDependencies),
-    ...(options?.devDependencies
-      ? dependencyImportPatterns(pkg.devDependencies)
-      : []),
+    ...(options?.devDependencies ? dependencyImportPatterns(pkg.devDependencies) : [])
   ];
 };
 
 const buildDefaults = {
   format: "esm" as const,
   clean: ["lib/**/*", "dist/**/*"],
-  outDir: "./lib",
+  outDir: "./lib"
 };
 
 const externalDependencies = (
-  neverBundle: NonNullable<PackUserConfig["deps"]>["neverBundle"],
+  neverBundle: NonNullable<PackUserConfig["deps"]>["neverBundle"]
 ) =>
   ({
     neverBundle,
-    onlyBundle: false,
+    onlyBundle: false
   }) satisfies NonNullable<PackUserConfig["deps"]>;
 
 const coreBuild = {
@@ -67,7 +61,7 @@ const coreBuild = {
   cwd: packageDirs.core,
   entry: {
     index: "./src/index.ts",
-    vite: "./src/vite.ts",
+    vite: "./src/vite.ts"
   },
   root: "src",
   platform: "neutral",
@@ -75,8 +69,8 @@ const coreBuild = {
   deps: externalDependencies(externalPackageImports("libs/core")),
   outputOptions: {
     dir: "./lib",
-    entryFileNames: "[name].mjs",
-  },
+    entryFileNames: "[name].mjs"
+  }
 } satisfies PackUserConfig;
 
 const cliBuild = {
@@ -84,22 +78,22 @@ const cliBuild = {
   name: "create-resumable",
   cwd: packageDirs.cli,
   entry: {
-    index: "./src/index.ts",
+    index: "./src/index.ts"
   },
   root: "src",
   platform: "node",
   dts: false,
   deps: externalDependencies(
-    externalPackageImports("libs/cli", { devDependencies: true }),
+    externalPackageImports("libs/cli", { devDependencies: true })
   ),
   define: {
-    __VERSION__: JSON.stringify(readPackageManifest("libs/cli").version),
+    __VERSION__: JSON.stringify(readPackageManifest("libs/cli").version)
   },
   banner: "#!/usr/bin/env node",
   outputOptions: {
     dir: "./lib",
-    entryFileNames: "index.mjs",
-  },
+    entryFileNames: "index.mjs"
+  }
 } satisfies PackUserConfig;
 
 const ignores = [
@@ -112,7 +106,7 @@ const ignores = [
   ".vite",
   "fixtures/nitro-app/**",
   "fixtures/nitro-app/node_modules",
-  "fixtures/nitro-app/.output",
+  "fixtures/nitro-app/.output"
 ];
 
 export default defineConfig({
@@ -130,7 +124,7 @@ export default defineConfig({
     arrowParens: "always",
     bracketSameLine: false,
     bracketSpacing: true,
-    endOfLine: "lf",
+    endOfLine: "lf"
   },
   lint: {
     ignorePatterns: ignores,
@@ -138,19 +132,19 @@ export default defineConfig({
     categories: {
       correctness: "error",
       suspicious: "error",
-      perf: "warn",
+      perf: "warn"
     },
     rules: {
       "no-unused-vars": "error",
       "no-shadow-restricted-names": "off",
-      "typescript/no-floating-promises": "error",
-    },
+      "typescript/no-floating-promises": "error"
+    }
   },
   test: {
     include: ["**/*.unit.ts", "**/*.unit.tsx"],
-    exclude: ["**/node_modules/**", "**/lib/**", "**/dist/**"],
+    exclude: ["**/node_modules/**", "**/lib/**", "**/dist/**"]
   },
   staged: {
-    "*": "vp check --fix",
-  },
+    "*": "vp check --fix"
+  }
 });
