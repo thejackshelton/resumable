@@ -4,7 +4,7 @@ import type { PageProps } from "@resumable.dev/core";
 export default component$((props: PageProps) => {
   return (
     <div>
-      <h1>404</h1>
+      <h1>500</h1>
       <p>Status: {props.status}</p>
       <p>Pathname: {props.url.pathname}</p>
       <p>Search: {props.url.search}</p>

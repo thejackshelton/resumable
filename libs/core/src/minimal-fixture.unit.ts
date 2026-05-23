@@ -11,7 +11,9 @@ describe("minimal Resumable fixture", () => {
     await expectPath("pages/index.tsx", true);
     await expectPath("pages/about.tsx", true);
     await expectPath("pages/404.tsx", true);
+    await expectPath("pages/500.tsx", true);
     await expectPath("pages/missing-default.tsx", true);
+    await expectPath("pages/throws.tsx", true);
     await expectPath("public", true);
     await expectPath("package.json", true);
     await expectPath("tsconfig.json", true);
@@ -63,14 +65,27 @@ describe("minimal Resumable fixture", () => {
       renderPage(serverEntry, "/docs/guides/getting-started")
     ).resolves.toContain("Docs catch-all slug: guides/getting-started");
 
-    const notFoundResponse = await fetchPage(serverEntry, "/ccc");
+    const notFoundResponse = await fetchPage(serverEntry, "/ccc?hello=test");
     expect(notFoundResponse.status).toBe(404);
     expect(notFoundResponse.headers.get("content-type")).toContain("text/html");
     const notFoundHtml = await notFoundResponse.text();
     expect(notFoundHtml).toContain(">404</h1>");
     expect(notFoundHtml).toContain("Status: 404");
     expect(notFoundHtml).toContain("Pathname: /ccc");
+    expect(notFoundHtml).toContain("Search: ?hello=test");
+    expect(notFoundHtml).toContain("Href: http://resumable.test/ccc?hello=test");
     expect(notFoundHtml).toContain("Params: 0");
+
+    const renderFailureResponse = await fetchPage(serverEntry, "/throws?debug=yes");
+    expect(renderFailureResponse.status).toBe(500);
+    expect(renderFailureResponse.headers.get("content-type")).toContain("text/html");
+    const renderFailureHtml = await renderFailureResponse.text();
+    expect(renderFailureHtml).toContain(">500</h1>");
+    expect(renderFailureHtml).toContain("Status: 500");
+    expect(renderFailureHtml).toContain("Pathname: /throws");
+    expect(renderFailureHtml).toContain("Search: ?debug=yes");
+    expect(renderFailureHtml).toContain("Href: http://resumable.test/throws?debug=yes");
+    expect(renderFailureHtml).toContain("Params: 0");
 
     const invalidPageResponse = await fetchPage(serverEntry, "/missing-default");
     expect(invalidPageResponse.status).toBe(500);

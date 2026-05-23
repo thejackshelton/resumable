@@ -557,11 +557,19 @@ Goal: `Link` can enhance navigation without changing platform semantics.
 Build:
 
 - `Link` renders an anchor.
+- Navigation runtime uses the browser Navigation API.
+- `@virtualstate/navigation/polyfill` provides the fallback Navigation API
+  surface when `window.navigation` is missing.
+- Polyfill loading is conditional and should not enable global anchor/form
+  interception.
+- No custom `popstate`/History API router unless the Navigation API polyfill
+  cannot satisfy a required behavior.
 - External links are not intercepted.
 - Download/reload behavior is preserved.
 - Internal page payload endpoint or renderer mode.
 - Route module transition.
 - Status page behavior during SPA navigation.
+- Native anchors are not globally intercepted.
 
 Exit criteria:
 

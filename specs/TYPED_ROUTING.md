@@ -474,6 +474,86 @@ The `Link` navigation runtime should intercept a click only when:
 
 If any condition fails, the browser should handle the anchor normally.
 
+## Navigation Runtime Backend
+
+`Link` SPA navigation should be built on the browser Navigation API.
+
+Resumable should use `window.navigation` when it is available, and should use
+`@virtualstate/navigation/polyfill` to provide the same runtime shape in
+browsers that do not expose the native API.
+
+Preferred runtime shape:
+
+```ts
+async function ensureNavigationRuntime() {
+  if ("navigation" in window) {
+    return window.navigation;
+  }
+
+  const { applyPolyfill } = await import("@virtualstate/navigation");
+  applyPolyfill({
+    interceptEvents: false
+  });
+
+  return window.navigation;
+}
+```
+
+Core rule:
+
+```txt
+Link uses the Navigation API.
+@virtualstate/navigation covers non-native environments.
+Resumable should not own a parallel History API router unless the polyfill
+cannot satisfy a required behavior.
+Resumable should not manage popstate, pushState, replaceState, or scroll
+restoration directly except as a narrow fallback around the Navigation API
+or polyfill.
+```
+
+Do not rely on the polyfill's default global anchor/form event interception.
+Resumable's SPA surface is `Link`, so `Link` should be the bridge from a user
+click to `navigation.navigate(...)`.
+
+This keeps navigation state, transitions, focus, scroll behavior, abort signals,
+and back/forward handling centered on a platform-shaped API instead of a custom
+Resumable history abstraction.
+
+Native anchors still stay native. Installing a `navigate` listener must not mean
+that every same-origin `<a>` is SPA-intercepted. The runtime should only
+intercept navigations that come from:
+
+- a Resumable `Link` element, identified by an internal marker or source
+  element check; or
+- a future Resumable programmatic navigation API.
+
+In browsers with native Navigation API support, normal user clicks on `Link`
+may be handled through the global `navigate` event when `event.sourceElement`
+identifies the marked `Link` anchor, or through the `Link` click bridge calling
+`navigation.navigate(...)`.
+
+In polyfilled environments, normal anchor clicks may not produce the same native
+`navigate` event behavior. `Link` should keep a small click handler that
+performs the same eligibility checks, prevents the default browser navigation
+only for accepted SPA navigations, conditionally loads the polyfill when
+`window.navigation` is missing, and calls `navigation.navigate(...)` or
+`navigation.reload(...)` as appropriate.
+
+The click bridge should not call `preventDefault()` until the link is eligible
+for SPA navigation. If the runtime cannot load or the link fails any eligibility
+check, the anchor should continue as normal browser navigation.
+
+The polyfill reduces the need for custom scroll/history machinery, but it does
+not remove the need for acceptance tests. SPA navigation fixtures should verify:
+
+- same-origin `Link` navigation commits through `navigation`;
+- back and forward traversal restore the expected route state;
+- hash, scroll, and focus behavior match the public `Link` props;
+- aborted navigations do not commit stale payloads;
+- non-`Link` anchors are not intercepted;
+- `reload`, `download`, external, modifier-key, and non-`_self` target cases
+  remain native.
+
 ## Prefetching
 
 Prefetching belongs on `Link`, not native anchors.

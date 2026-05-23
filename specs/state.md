@@ -4,17 +4,17 @@ Last updated: 2026-05-23
 
 Status: M1 CLI create flow, M2 core Vite plugin skeleton, M3 route manifest,
 and M4 Qwik SSR renderer are implemented with focused red/green evidence.
-The first M6 status-page slice is implemented for root `404.tsx` rendering on
-unmatched page requests. Route discovery belongs to the Vite plugin instead of
-a Node-backed manifest scanner, environment entry wiring uses Vite
-`configEnvironment()` with `consumer` and `rolldownOptions`, and the renderer
-now matches static, dynamic, catch-all, and 404 status `.tsx` page routes with
-`PageProps`.
+M6 root `404.tsx` and `500.tsx` status-page rendering is implemented for
+unmatched page requests and Qwik page render failures. Route discovery belongs
+to the Vite plugin instead of a Node-backed manifest scanner, environment entry
+wiring uses Vite `configEnvironment()` with `consumer` and `rolldownOptions`,
+and the renderer now matches static, dynamic, catch-all, 404 status, and 500
+status `.tsx` page routes with `PageProps`.
 
 ## Current Objective
 
-Continue M6 Status Pages in focused TDD slices. Do not expand into app shell
-rendering, typed routing, MDX, SPA navigation, or data/form APIs.
+Finish M6 Status Pages with focused Nitro API semantics QA. Do not expand into
+app shell rendering, typed routing, MDX, SPA navigation, or data/form APIs.
 
 ## Spec Files
 
@@ -52,8 +52,8 @@ rendering, typed routing, MDX, SPA navigation, or data/form APIs.
 - Optional `app.tsx` owns document shell.
 - Root `404.tsx` is reserved by the route manifest and renders unmatched page
   requests through Qwik SSR with status 404 when present.
-- Root `500.tsx` is reserved by the route manifest, but 500 status-page
-  rendering is not implemented yet.
+- Root `500.tsx` is reserved by the route manifest and renders Qwik page render
+  failures through Qwik SSR with status 500 when present.
 - CLI uses `Starter`, not `Template`.
 - CLI runtime/project format is separate from starter.
 - Initial starters: `Minimal`, `App`, `Full-stack`.
@@ -96,12 +96,11 @@ rendering, typed routing, MDX, SPA navigation, or data/form APIs.
 
 ## Next Recommended Goal
 
-Continue M6 in TDD slices:
+Finish M6 in a focused QA slice:
 
-1. Add fixture-backed red evidence for root `500.tsx` rendering on page render
-   failures while preserving Nitro API error semantics.
-2. Implement only the smallest 500 status-page renderer support needed for that
-   evidence.
+1. Add fixture-backed evidence that Nitro-owned API routes and API failures do
+   not render Resumable `404.tsx` or `500.tsx` pages.
+2. Keep the existing root `404.tsx` and `500.tsx` page behavior unchanged.
 3. Keep app shell rendering, typed routing, MDX, SPA navigation, and data/form
    APIs out of this slice.
 
@@ -380,6 +379,31 @@ Do not parallelize yet:
   `{ params: {}, status: 404 }`. After rebuilding `@resumable.dev/core`, the
   minimal fixture test passed for `GET /ccc`.
 - M6 404 verification passed:
+  `pnpm --filter @resumable.dev/core build`,
+  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
+  `git diff --check`.
+- M6 404 query-string QA evidence: updated the existing 404 fixture to render
+  `PageProps.url.search` and `PageProps.url.href`, then changed the fixture QA
+  to request `GET /ccc?hello=test`. `params` stayed empty because query
+  parameters are not route params, while `props.url.search` preserved
+  `?hello=test`. `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`
+  passed without production changes.
+- M6 500 red evidence: added `fixtures/minimal/pages/500.tsx`,
+  `fixtures/minimal/pages/throws.tsx`, and fixture QA for
+  `GET /throws?debug=yes` expecting status 500, `text/html`, rendered `500`
+  UI, `PageProps.status === 500`, the original pathname/search/href, and empty
+  params. `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts` failed
+  because `Fixture page render failure` bubbled out of Qwik SSR.
+- M6 500 green evidence: grep MCP research re-checked Vite
+  `configEnvironment()` and `import.meta.glob()` patterns before editing the
+  Vite plugin/server-entry code. The internal server entry now catches normal
+  page render failures and routes them through `manifest.statusPages.error`
+  using the same Qwik `renderToString()` path as normal pages, passing
+  `PageProps` with `{ params: {}, status: 500 }`. After rebuilding
+  `@resumable.dev/core`, the minimal fixture test passed.
+- M6 500 verification passed:
   `pnpm --filter @resumable.dev/core build`,
   `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
   `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,

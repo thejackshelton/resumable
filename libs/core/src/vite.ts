@@ -111,7 +111,16 @@ export async function fetch(request) {
     return renderStatusPage(url, manifest.statusPages.notFound, 404, "Not found");
   }
 
-  return renderPage(url, match.route.file, match.params, 200);
+  try {
+    return await renderPage(url, match.route.file, match.params, 200);
+  } catch {
+    return renderStatusPage(
+      url,
+      manifest.statusPages.error,
+      500,
+      "Internal Server Error"
+    );
+  }
 }
 
 async function renderStatusPage(url, file, status, fallbackText) {

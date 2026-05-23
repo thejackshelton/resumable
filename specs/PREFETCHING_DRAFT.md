@@ -28,6 +28,24 @@ Generic prefetching libraries can help with heuristics, but they cannot decide
 which Resumable route payloads, Qwik symbols, or query records are safe and
 useful to fetch.
 
+## Draft Action Items
+
+These are the only items currently worth carrying forward. They are still not
+implementation instructions until promoted into the owning specs.
+
+- Split prefetching into two lanes: Resumable SPA prefetch and browser document
+  speculation.
+- Keep v0 scoped to explicit `prefetch="intent"` unless measurements prove a
+  stronger default is safe.
+- Design a small Resumable scheduler before designing prediction features.
+- Add route discovery as an internal concept separate from payload prefetching.
+- Track Speculation Rules and `prerender_until_script`, but do not make them v0
+  scope.
+- Keep ForesightJS as a possible optional adapter for a future smart mode, not a
+  core dependency.
+- Define fixture measurements before turning this draft into implementation
+  scope.
+
 ## Draft Decision
 
 Resumable should roll its own core prefetch scheduler.
@@ -56,6 +74,31 @@ type FuturePrefetchMode = "smart" | "press";
 ```
 
 Those modes are intentionally not part of the current typed routing API.
+
+## Two Prefetch Lanes
+
+Resumable should treat SPA prefetching and browser-native document speculation
+as separate lanes.
+
+```txt
+Link SPA prefetch:
+  Resumable owns route modules, SPA page payloads, query deltas, and reuse.
+
+Browser document speculation:
+  The browser owns document prefetch/prerender when a normal navigation is safe.
+```
+
+The SPA lane is core to Resumable. It is route-aware, query-aware, and
+framework-specific.
+
+The browser document speculation lane is a future enhancement. It may use the
+Speculation Rules API for full document navigations, especially when JavaScript
+is disabled, SPA navigation is opted out, or the app intentionally wants a
+browser-level prerender.
+
+The two lanes should not be mixed casually. A `Link` prefetch should not
+secretly full-prerender a document, and a browser speculation rule should not
+pretend it has populated Resumable's internal query cache.
 
 ## Why Not Use A Library In Core?
 
@@ -103,6 +146,30 @@ Resumable's needs better than a URL prefetcher.
 It should still stay optional. Its prediction layer can trigger Resumable's
 own prefetch callback, but it should not own Resumable's route/data semantics.
 
+### Speculation Rules API
+
+The Speculation Rules API is the main browser-level breakthrough to track.
+
+It gives browsers a declarative way to prefetch or prerender future document
+navigations using `<script type="speculationrules">` or the
+`Speculation-Rules` HTTP header. This is more powerful than older document
+prefetch hints, but it targets document navigations rather than framework-owned
+SPA payloads.
+
+For Resumable, this means:
+
+- It may be valuable for normal document navigations.
+- It does not replace the `Link` SPA prefetch scheduler.
+- It should stay out of v0 unless a fixture proves a simple integration is safe.
+- It needs CSP, browser support, analytics, side-effect, memory, CPU, and
+  bandwidth guardrails before becoming a product feature.
+
+`prerender_until_script` is especially interesting because it aims to fetch and
+parse the document and discover subresources without executing JavaScript before
+activation. That is philosophically aligned with Resumable, but it is still
+emerging and should be tracked as a future browser speculation feature, not a v0
+commitment.
+
 ## Strategy Model
 
 Prefetching has three separate layers:
@@ -112,6 +179,19 @@ Trigger strategy  -> when a prefetch may start
 Scheduler         -> which eligible prefetch runs first
 Payload builder   -> what framework resources are fetched
 ```
+
+Resumable may also need an internal route discovery layer:
+
+```txt
+Route discovery   -> identify route/module shape without fetching payload data
+```
+
+Route discovery is cheaper than a full prefetch. It may let Resumable learn the
+matched route, generated manifest entry, and module boundary before deciding
+whether data or page payload work is justified.
+
+Do not expose a public `discover` prop in v0. Keep this internal unless real
+usage proves developers need separate control.
 
 ### Trigger Strategy
 
@@ -233,6 +313,19 @@ Likely inputs:
 - query freshness metadata
 
 The exact key format is intentionally not specified yet.
+
+## Deferred Work
+
+These items are not worth doing now:
+
+- Full document prerendering as part of `Link` SPA prefetch.
+- Speculation Rules integration in core v0.
+- `prerender_until_script` integration before it is broadly available.
+- `No-Vary-Search` support as a public Resumable feature.
+- ForesightJS or another predictor as a core dependency.
+- `prefetch="smart"`.
+- Default-on prefetching.
+- A public `discover` prop.
 
 ## Interaction With Query Records
 
