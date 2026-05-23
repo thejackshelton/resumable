@@ -75,7 +75,7 @@ const coreBuild = {
 
 const cliBuild = {
   ...buildDefaults,
-  name: "create-resumable",
+  name: "@resumable.dev/cli",
   cwd: packageDirs.cli,
   entry: {
     index: "./src/index.ts"

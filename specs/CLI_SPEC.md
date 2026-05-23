@@ -146,6 +146,63 @@ Avoid string-based source edits for `vite.config.ts`, `package.json`, route
 files, or future integration add commands when an AST parser or structured JSON
 edit is practical.
 
+## CLI Test Evidence
+
+Create-flow tests must prove generated output on disk, not only returned data
+structures or mocked filesystem calls.
+
+Use a real temporary root under `/tmp`, with a Resumable-specific prefix such
+as:
+
+```txt
+/tmp/resumable-cli-test
+/tmp/resumable-cli-create-*
+```
+
+Each create-flow test should clean its temporary root before or after the test
+so runs are repeatable. On macOS, `/tmp` may resolve to `/private/tmp`; the test
+intent is still a real temporary directory outside the repository.
+
+The reference pattern is the local QwikDev Astro create package:
+
+```txt
+QwikDev/astro build/v2
+libs/create-qwikdev-astro/tests/cli.spec.ts
+```
+
+That package runs the real create command into a `/tmp/...` destination and then
+asserts generated directories and files through path helpers. Resumable should
+use the same evidence style:
+
+- Run the create flow with a real destination path under `/tmp`.
+- Assert the project directory exists and is a directory.
+- Assert every required generated directory exists.
+- Assert every required generated file exists and is a file.
+- Read important generated files such as `package.json` and `vite.config.ts`
+  from disk and assert their contents.
+- Assert forbidden files and directories are absent.
+- Keep unit tests for argument parsing, prompt choices, and lifecycle defaults,
+  but do not treat those as sufficient proof that a generated app is correct.
+
+For the Minimal starter, the disk test should verify at least:
+
+```txt
+pages/index.tsx
+public/
+vite.config.ts
+package.json
+tsconfig.json
+```
+
+And verify these are absent:
+
+```txt
+resumable.config.ts
+nitro.config.ts
+src/pages/
+pages/api/
+```
+
 ## Create Flow
 
 The primary command is:

@@ -60,6 +60,132 @@ https://nitro.build/docs
 When Nitro behavior is unclear, consult the Nitro docs instead of creating a
 Resumable-specific abstraction or alias.
 
+## Shared Path And URL Helpers
+
+Resumable should not hand-roll path or URL normalization when a small shared
+helper already exists. Use these packages as the default implementation
+building blocks:
+
+- `pathe` for filesystem-like paths and Vite file IDs: `normalize`, `join`,
+  `relative`, `dirname`, `basename`, `extname`, and `resolve`.
+- `ufo` for URL/pathname behavior: leading/trailing slash handling, URL
+  parsing, URL path joining, query parsing/stringifying, and route pathname
+  normalization.
+
+Do not use Node `path` or `url` helpers for framework path/URL normalization in
+`libs/core` or the CLI create flow. The CLI may still use Node APIs for actual
+Node-only responsibilities such as filesystem writes, temp directories,
+process spawning, and standard streams.
+
+Do not add local slash-normalization regexes such as replacing backslashes with
+slashes, stripping leading slashes, trimming trailing slashes, or joining URL
+segments unless `pathe`/`ufo` cannot represent the behavior. If an exception is
+needed, keep it local, explain why the helper package does not cover it, and
+add focused evidence.
+
+Before changing routing, CLI path handling, generated file paths, request URL
+matching, typed-route generation, SPA navigation, or data endpoint URLs, audit
+the touched files for:
+
+```txt
+node:path
+node:url
+pathToFileURL
+replace(/\\/g, "/")
+replace(/^\/+/, "")
+manual URL query/string parsing
+manual route pathname joining
+```
+
+If one of those patterns is present in production code, either replace it with
+`pathe`/`ufo` or record why it is intentionally kept.
+
+## TDD And Surgical Change Requirements
+
+Implementation must be test-driven and surgical. Do not add framework code,
+CLI behavior, package changes, dependencies, fixtures, or generated output until
+there is concrete evidence for the exact behavior being implemented.
+
+Required loop for every implementation slice:
+
+1. Pick one acceptance criterion or one directly related cluster of criteria.
+2. Add or identify the smallest test, fixture, type-check, smoke command, or
+   source inspection that proves the current behavior is missing.
+3. Run that evidence and record the failing output or observed gap.
+4. Make the smallest code change that can satisfy only that evidence.
+5. Re-run the narrow evidence first.
+6. Run the relevant package/workspace checks for the touched surface.
+7. Update `specs/state.md` with the evidence before marking milestone progress.
+
+Production code changes without prior failing or missing-behavior evidence are
+not allowed. If a behavior is already covered by an existing failing test,
+state that and use it. If a behavior is not practical to prove with a test yet,
+create the smallest fixture or smoke verifier first, then add code.
+
+Surgical change rules:
+
+- Keep each patch scoped to the acceptance criterion under test.
+- Prefer one failing test or fixture per behavioral change.
+- Do not perform opportunistic refactors, formatting churn, file moves, package
+  renames, or dependency changes while implementing unrelated behavior.
+- Do not add placeholders, broad skeletons, future APIs, or compatibility
+  layers unless the current failing evidence requires them.
+- Do not widen milestone scope to make a test easier to pass.
+- Use existing local patterns and helpers before adding abstractions.
+- Prefer `pathe` and `ufo` over local path/URL helper functions or Node
+  `path`/`url` imports for normalization behavior.
+- When changing generated output, assert both required files and forbidden
+  files so the generator cannot drift.
+- CLI generated-output evidence must run on disk under `/tmp`, invoke the real
+  create flow or built CLI against a destination path, and assert generated
+  directories/files plus forbidden paths from the filesystem. This follows the
+  QwikDev Astro create-package pattern in
+  `QwikDev/astro` `build/v2`, `libs/create-qwikdev-astro/tests/cli.spec.ts`.
+- When changing Vite/Nitro/Qwik wiring, prove plugin order, duplicate-plugin
+  behavior, top-level config passthrough, and generated-user-config shape with
+  focused tests or fixtures before broad smoke testing.
+- Treat a green broad command as supporting evidence only after the narrow
+  acceptance evidence has passed.
+
+## Naming For Framework Glue
+
+Use names that junior developers and AI agents can understand from the call
+site without unpacking framework history. Prefer direct intent and ownership
+over ceremonial names.
+
+Good examples:
+
+```ts
+createNitroConfig(userConfig.nitro);
+throwIfUserAddedNitro(config.plugins, nitroPluginsFromResumable);
+routesPlugin();
+configPlugin(nitroPlugins);
+```
+
+Avoid names that sound abstract, pattern-driven, or overly framework-branded
+when the code does a simple thing:
+
+```ts
+withResumableNitroDefaults(...)
+assertNoUserNitroPlugin(...)
+routeManifestPlugin(...)
+```
+
+Naming rules for future implementation:
+
+- Name functions after the action they perform or the object they return.
+- Include ownership only when it resolves ambiguity, such as
+  `nitroPluginsFromResumable`.
+- Avoid `with*`, `handle*`, `process*`, `manager`, `orchestrator`, and similar
+  vague glue names unless the surrounding code already uses that convention and
+  the name is genuinely clearer.
+- Prefer domain nouns users see in specs: `routes`, `pages`, `nitro`,
+  `config`, `manifest`, `renderer`, `app`, and `status`.
+- If a helper exists only to satisfy a framework hook, make the hook role clear:
+  `routesPlugin`, `configPlugin`, `createNitroConfig`.
+- Keep names short, but not cryptic. A reader should not need to inspect the
+  function body to know why it exists.
+
 ## Final Direction
 
 ```txt
@@ -145,6 +271,22 @@ Exit criteria:
 
 Goal: create a working generated app with the agreed DX.
 
+TDD sequence:
+
+- First add focused tests or fixtures proving CLI package name/bins, argument
+  validation, package-manager inference, prompt visibility, `--yes` defaults,
+  generated Minimal files, generated Vite+ scripts, and forbidden file absence.
+- Prove CLI path handling uses `pathe`/`ufo` rather than Node `path`/`url` or
+  local slash-normalization helpers.
+- Generated-app assertions must be disk-backed integration tests under `/tmp`,
+  not only in-memory/unit assertions. Use a cleaned temporary root, run the
+  create flow into `/tmp/.../my-app`, then assert the generated directory/file
+  tree and key file contents from disk.
+- Run those tests before implementation and preserve the failing evidence.
+- Implement only the smallest CLI/package/template change needed for the next
+  failing assertion.
+- Re-run the focused create-flow tests before running workspace checks.
+
 Build:
 
 - `CreateProgram` with lifecycle:
@@ -202,6 +344,17 @@ Exit criteria:
 
 Goal: `resumable()` exists and installs the framework wiring points.
 
+TDD sequence:
+
+- First add focused tests or a minimal fixture proving
+  `plugins: [qwik(), resumable()]`, absence of an added/wrapped Qwik plugin,
+  internal Nitro wiring, duplicate user `nitro()` guardrails, and top-level
+  `nitro: {}` passthrough.
+- Run those tests before implementation and preserve the failing evidence.
+- Implement only the smallest plugin change needed for the next failing
+  assertion.
+- Re-run the focused plugin tests before running workspace checks.
+
 Research before coding:
 
 - Inspect local Qwik `build/v2` Vite plugin and optimizer behavior.
@@ -230,6 +383,9 @@ Goal: turn `pages/` into a deterministic UI route manifest.
 Build:
 
 - Scan top-level `pages/`.
+- Keep discovery in Vite and route manifest normalization in pure logic fed by
+  Vite-discovered file IDs.
+- Use `pathe` for file-ID normalization and `ufo` for route pathname shaping.
 - Support `.tsx`.
 - Normalize routes.
 - Support `index.tsx`.
@@ -261,8 +417,25 @@ Research before coding:
 
 Build:
 
+- Create a new Resumable app fixture for renderer evidence. Start with
+  `fixtures/minimal` using the canonical user shape:
+
+```txt
+fixtures/minimal/
+  pages/
+    index.tsx
+  public/
+  vite.config.ts
+  package.json
+  tsconfig.json
+```
+
+- `fixtures/minimal/vite.config.ts` must use `plugins: [qwik(), resumable()]`.
+- Do not copy the hand-written Nitro ceremony from `fixtures/nitro-app`.
 - One internal Nitro page renderer/dispatcher.
 - Virtual or generated route manifest import.
+- No Node `path`/`url` or local slash-normalization helpers in route matching;
+  use `pathe` for file IDs and `ufo` for request/route pathnames.
 - Qwik server entry.
 - Client entry.
 - Asset injection using the proven fixture pattern.
@@ -464,10 +637,26 @@ fixtures/nitro-app
 ```
 
 Use `fixtures/nitro-app` as proof that Qwik and Nitro can work together, but do
-not let its hand-written ceremony leak into user templates.
+not let its hand-written ceremony leak into user templates or the new
+Resumable app fixtures.
+
+The first Resumable-owned fixture should be `fixtures/minimal`. It should prove
+the canonical user-facing app shape with:
+
+```txt
+plugins: [qwik(), resumable()]
+pages/index.tsx
+```
+
+It should not include user-authored `nitro()`, `resumable.config.ts`,
+`nitro.config.ts`, copied Nitro server-entry ceremony, `src/pages`, or
+`pages/api`.
 
 ## Implementation Guardrails
 
+- Work test-first: failing or missing-behavior evidence comes before code.
+- Keep changes surgical: one acceptance criterion or tightly related evidence
+  cluster per patch.
 - Prefer generated or virtual modules over user-visible generated server files.
 - Do not create `resumable.config.ts`.
 - Do not require `nitro.config.ts`.
@@ -485,6 +674,9 @@ not let its hand-written ceremony leak into user templates.
 
 Before claiming v0 core complete:
 
+- Each completed milestone has recorded red/green evidence in `specs/state.md`.
+- Each production behavior was introduced behind a focused failing test,
+  fixture, type-check, or smoke verifier.
 - `pnpm check.format` passes.
 - Package build passes.
 - Minimal generated app builds.

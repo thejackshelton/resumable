@@ -5,9 +5,9 @@
   "type": "module",
   "sideEffects": false,
   "scripts": {
-    "dev": "vp pack -F @resumable.dev/core -F create-resumable --watch",
+    "dev": "vp pack -F @resumable.dev/core -F @resumable.dev/cli --watch",
     "build": "pnpm run build.packages",
-    "build.packages": "vp run --no-cache --concurrency-limit 1 -F @resumable.dev/core -F create-resumable build",
+    "build.packages": "vp run --no-cache --concurrency-limit 1 -F @resumable.dev/core -F @resumable.dev/cli build",
     "check": "vp check",
     "check.format": "vp fmt --check",
     "check.lint": "vp lint",
