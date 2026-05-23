@@ -30,6 +30,11 @@ export interface RouteManifest {
   readonly statusPages: RouteManifestStatusPages;
 }
 
+export interface RouteManifestMatch {
+  readonly route: RouteManifestRoute;
+  readonly params: Readonly<Record<string, string>>;
+}
+
 type InternalRouteManifestRoute = RouteManifestRoute & {
   readonly identity: string;
   readonly relativeFile: string;
@@ -81,6 +86,20 @@ export function normalizeRequestPathname(pathname: string) {
 
 export function normalizeRouteFileId(fileId: string) {
   return withoutLeadingSlash(normalize(fileId));
+}
+
+export function matchRouteManifest(
+  pathname: string,
+  manifest: RouteManifest
+): RouteManifestMatch | undefined {
+  const requestPathname = normalizeRequestPathname(pathname);
+
+  for (const route of manifest.routes) {
+    const params = matchRoutePathname(route, requestPathname);
+    if (params) {
+      return { route, params };
+    }
+  }
 }
 
 function isPageModuleFile(file: string) {
@@ -256,6 +275,54 @@ function compareRoutes(left: RouteManifestRoute, right: RouteManifestRoute) {
 function splitRoutePathname(pathname: string) {
   const route = withoutLeadingSlash(pathname);
   return route === "" ? [] : route.split("/");
+}
+
+function matchRoutePathname(
+  route: RouteManifestRoute,
+  requestPathname: string
+): Readonly<Record<string, string>> | undefined {
+  const routeSegments = splitRoutePathname(route.pathname);
+  const requestSegments = splitRoutePathname(requestPathname);
+  const catchAllIndex = routeSegments.indexOf("**");
+
+  if (catchAllIndex === -1 && routeSegments.length !== requestSegments.length) {
+    return undefined;
+  }
+
+  if (catchAllIndex !== -1 && requestSegments.length <= catchAllIndex) {
+    return undefined;
+  }
+
+  const params: Record<string, string> = {};
+
+  for (let index = 0; index < routeSegments.length; index += 1) {
+    const routeSegment = routeSegments[index]!;
+    const requestSegment = requestSegments[index]!;
+
+    if (routeSegment === "**") {
+      const catchAllParam = route.params.find((param) => param.kind === "catch-all");
+      if (!catchAllParam) {
+        return undefined;
+      }
+
+      params[catchAllParam.name] = joinURL(
+        requestSegment,
+        ...requestSegments.slice(index + 1)
+      );
+      return params;
+    }
+
+    if (routeSegment.startsWith(":")) {
+      params[routeSegment.slice(1)] = requestSegment;
+      continue;
+    }
+
+    if (routeSegment !== requestSegment) {
+      return undefined;
+    }
+  }
+
+  return params;
 }
 
 function segmentRank(segment: string) {

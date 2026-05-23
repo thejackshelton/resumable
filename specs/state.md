@@ -3,15 +3,18 @@
 Last updated: 2026-05-23
 
 Status: M1 CLI create flow, M2 core Vite plugin skeleton, M3 route manifest,
-and the first M4 Qwik SSR renderer slice are implemented with focused
+and the first M4 Qwik SSR renderer slices are implemented with focused
 red/green evidence. Route discovery belongs to the Vite plugin instead of a
-Node-backed manifest scanner, and environment entry wiring now uses Vite
-`configEnvironment()` with `consumer` and `rolldownOptions`.
+Node-backed manifest scanner, environment entry wiring uses Vite
+`configEnvironment()` with `consumer` and `rolldownOptions`, and the renderer
+now matches static, dynamic, and catch-all `.tsx` page routes with `PageProps`.
 
 ## Current Objective
 
-Continue M4 with fixture-backed route matching slices without expanding into
-app shell rendering, typed routing, MDX, SPA navigation, or data/form APIs.
+Continue M4 with a final renderer-scope audit before moving to M5. Do not
+expand into app shell rendering, status-page rendering, typed routing, MDX, SPA
+navigation, or data/form APIs until any remaining M4 renderer gaps have focused
+fixture evidence.
 
 ## Spec Files
 
@@ -92,11 +95,11 @@ app shell rendering, typed routing, MDX, SPA navigation, or data/form APIs.
 
 Continue M4 in TDD slices:
 
-1. Add fixture-backed red evidence for `GET /about` and then dynamic route
-   matching such as `/blog/test` versus `/blog/[slug]`.
-2. Implement only the smallest route matcher needed for that failing evidence.
-3. Keep app shell, status-page rendering, typed routing, MDX, SPA navigation,
-   and data/form APIs out of the first renderer slice.
+1. Audit M4 against `specs/IMPLEMENTATION_PLAN.md` and current fixture
+   evidence.
+2. If M4 has a remaining renderer-only gap, add fixture-backed red evidence and
+   implement only that gap.
+3. If M4 is complete, start M5 App Shell and Head in a new TDD slice.
 
 Before coding more M4 or any Qwik-facing runtime code, verify the local Qwik
 repo is still on branch `build/v2` and inspect the relevant core/server/Vite
@@ -289,6 +292,56 @@ Do not parallelize yet:
   references from `libs/core/src/vite.ts`.
 - Vite environment API verification passed:
   `pnpm exec vp test libs/core/src/vite.unit.ts`,
+  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm format`, `pnpm check`, `pnpm test`, and `pnpm build`.
+- M4 static/dynamic route matching research re-verified local Qwik on
+  `build/v2`, used grep MCP route matcher examples showing sorted route
+  iteration and first-match behavior, and confirmed the implementation plan's
+  next slice should not include app shell, status pages, typed routing, MDX,
+  SPA navigation, or data APIs.
+- M4 `/about` QA evidence: `fixtures/minimal/pages/about.tsx` was manually
+  added before this slice. Added fixture QA for `GET /about` through the real
+  built SSR entry; `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`
+  passed, proving it was existing green behavior rather than new production
+  implementation.
+- M4 dynamic route red evidence: added `fixtures/minimal/pages/blog/test.tsx`,
+  `fixtures/minimal/pages/blog/[slug].tsx`, fixture assertions for
+  `GET /blog/test` and `GET /blog/hello`, and a narrow
+  `matchRouteManifest()` unit test. The fixture test failed because
+  `/blog/hello` returned 404, and the unit test failed because
+  `matchRouteManifest` did not exist.
+- M4 dynamic route green evidence: `route-manifest.ts` now exports
+  `matchRouteManifest()` for sorted static-before-dynamic route matching,
+  `@resumable.dev/core` exports the public `PageProps` type, and the internal
+  server entry passes `{ params, url, status: 200 }` only to the matched default
+  page component. `GET /blog/test` renders the static page and
+  `GET /blog/hello` renders `pages/blog/[slug].tsx` with
+  `props.params.slug === "hello"`.
+- M4 dynamic route verification passed:
+  `pnpm --filter @resumable.dev/core build`,
+  `pnpm exec vp test libs/core/src/route-manifest.unit.ts`,
+  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm format`, `pnpm check`, `pnpm test`, and `pnpm build`.
+- M4 catch-all route red evidence: added
+  `fixtures/minimal/pages/docs/[...slug].tsx`, fixture QA for
+  `GET /docs/guides/getting-started`, and a focused `matchRouteManifest()`
+  unit case proving static routes win over dynamic routes, dynamic routes win
+  over catch-all routes, catch-all params are slash-joined, and catch-all does
+  not match the folder root. `pnpm exec vp test libs/core/src/route-manifest.unit.ts`
+  failed because the catch-all match returned `undefined`; after rebuilding
+  core for fixture package exports, `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`
+  failed because the docs catch-all request returned 404.
+- M4 catch-all route green evidence: `matchRouteManifest()` now handles final
+  `**` segments as one-or-more remaining URL segments, captures the catch-all
+  param with `ufo`'s `joinURL`, preserves static/dynamic/catch-all priority
+  through manifest sort order, and still rejects the folder root. The minimal
+  fixture now renders `pages/docs/[...slug].tsx` with
+  `props.params.slug === "guides/getting-started"`.
+- M4 catch-all route verification passed:
+  `pnpm exec vp test libs/core/src/route-manifest.unit.ts`,
+  `pnpm --filter @resumable.dev/core build`,
   `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
   `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, and `pnpm build`.

@@ -51,6 +51,15 @@ research. Use it before making non-trivial choices about CLI structure, routing,
 typed routing, server function transport, Nitro integration, SSR, MDX, and data
 fetching. Prefer real framework/source examples over recalled patterns.
 
+Before changing bundler integration code such as `libs/core/src/vite.ts`,
+Vite plugins, Nitro/Vite wiring, virtual modules, environment entries, or build
+inputs, use grep MCP to research current Vite environment API patterns for the
+specific task. Prefer `configEnvironment()`, `applyToEnvironment()`,
+`environment.config.consumer`, and `build.rolldownOptions` patterns that match
+current Vite/Nitro usage over name-specific environment checks or deprecated
+`rollupOptions` wiring. Record the relevant red/green evidence in
+`specs/state.md`.
+
 Nitro v3 docs are the primary server/runtime reference:
 
 ```txt

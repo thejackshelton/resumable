@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vite-plus/test";
-import { buildRouteManifestFromFileIds, type RouteManifest } from "./route-manifest.ts";
+import {
+  buildRouteManifestFromFileIds,
+  matchRouteManifest,
+  type RouteManifest
+} from "./route-manifest.ts";
 
 const routePairs = (manifest: RouteManifest) =>
   manifest.routes.map((route) => [route.pathname, route.file]);
@@ -56,6 +60,45 @@ describe("route manifest", () => {
         }
       ]
     });
+  });
+
+  it("matches static routes before dynamic routes and extracts dynamic params", () => {
+    const manifest = buildRouteManifestFromFileIds([
+      "/pages/blog/[slug].tsx",
+      "/pages/blog/test.tsx"
+    ]);
+
+    expect(matchRouteManifest("/blog/test", manifest)).toMatchObject({
+      route: { file: "pages/blog/test.tsx" },
+      params: {}
+    });
+    expect(matchRouteManifest("/blog/hello", manifest)).toMatchObject({
+      route: { file: "pages/blog/[slug].tsx" },
+      params: { slug: "hello" }
+    });
+    expect(matchRouteManifest("/missing", manifest)).toBeUndefined();
+  });
+
+  it("matches catch-all routes after static and dynamic routes", () => {
+    const manifest = buildRouteManifestFromFileIds([
+      "/pages/docs/[...slug].tsx",
+      "/pages/docs/[section].tsx",
+      "/pages/docs/guides.tsx"
+    ]);
+
+    expect(matchRouteManifest("/docs/guides", manifest)).toMatchObject({
+      route: { file: "pages/docs/guides.tsx" },
+      params: {}
+    });
+    expect(matchRouteManifest("/docs/reference", manifest)).toMatchObject({
+      route: { file: "pages/docs/[section].tsx" },
+      params: { section: "reference" }
+    });
+    expect(matchRouteManifest("/docs/guides/getting-started", manifest)).toMatchObject({
+      route: { file: "pages/docs/[...slug].tsx" },
+      params: { slug: "guides/getting-started" }
+    });
+    expect(matchRouteManifest("/docs", manifest)).toBeUndefined();
   });
 
   it("reserves root status pages without adding normal /404 or /500 routes", () => {

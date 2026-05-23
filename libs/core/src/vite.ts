@@ -97,7 +97,7 @@ const CLIENT_ENTRY_CODE = `export const pageModules = import.meta.glob("/pages/*
 
 const SERVER_ENTRY_CODE = `import { Fragment, jsx, jsxs } from "@qwik.dev/core/jsx-runtime";
 import { renderToString } from "@qwik.dev/core/server";
-import { buildRouteManifestFromFileIds, normalizeRequestPathname } from "@resumable.dev/core";
+import { buildRouteManifestFromFileIds, matchRouteManifest } from "@resumable.dev/core";
 import { pageModuleLoaders, routeFileIds } from "virtual:resumable/routes";
 
 const manifest = buildRouteManifestFromFileIds(routeFileIds);
@@ -105,11 +105,13 @@ const manifest = buildRouteManifestFromFileIds(routeFileIds);
 export default { fetch };
 
 export async function fetch(request) {
-  const route = findRoute(new URL(request.url).pathname);
-  if (!route) {
+  const url = new URL(request.url);
+  const match = matchRouteManifest(url.pathname, manifest);
+  if (!match) {
     return new Response("Not found", { status: 404 });
   }
 
+  const route = match.route;
   const loadPageModule = pageModuleLoaders[route.file];
   if (!loadPageModule) {
     return new Response(\`Page module not found: \${route.file}\`, { status: 500 });
@@ -125,7 +127,20 @@ export async function fetch(request) {
 
   const result = await renderToString(
     jsxs(Fragment, {
-      children: [jsx("head", {}), jsx("body", { children: jsx(Page, {}) })]
+      children: [
+        jsx("head", {}),
+        jsx("body", {
+          children: jsx(Page, {
+            params: match.params,
+            url: {
+              href: url.href,
+              pathname: url.pathname,
+              search: url.search
+            },
+            status: 200
+          })
+        })
+      ]
     }),
     {
       base: import.meta.env.DEV ? "/" : undefined,
@@ -136,11 +151,6 @@ export async function fetch(request) {
   return new Response(result.html, {
     headers: { "content-type": "text/html;charset=utf-8" }
   });
-}
-
-function findRoute(pathname) {
-  const requestPathname = normalizeRequestPathname(pathname);
-  return manifest.routes.find((route) => route.pathname === requestPathname);
 }`;
 
 function throwIfUserAddedNitro(
