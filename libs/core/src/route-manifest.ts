@@ -1,5 +1,10 @@
 import { extname, join, normalize, relative } from "pathe";
-import { joinURL, withLeadingSlash, withoutLeadingSlash } from "ufo";
+import {
+  joinURL,
+  withLeadingSlash,
+  withoutLeadingSlash,
+  withoutTrailingSlash
+} from "ufo";
 
 const PAGES_DIR = "pages";
 const PAGE_EXTENSION = ".tsx";
@@ -48,7 +53,7 @@ type NormalizedRouteSegment = {
 };
 
 export function buildRouteManifestFromFileIds(fileIds: readonly string[]): RouteManifest {
-  const pages = unique(fileIds.map(normalizeFileId))
+  const pages = unique(fileIds.map(normalizeRouteFileId))
     .filter(isPageModuleFile)
     .toSorted((left, right) => left.localeCompare(right))
     .map(normalizePage);
@@ -69,7 +74,12 @@ export function buildRouteManifestFromFileIds(fileIds: readonly string[]): Route
   };
 }
 
-function normalizeFileId(fileId: string) {
+export function normalizeRequestPathname(pathname: string) {
+  const normalizedPathname = withoutTrailingSlash(withLeadingSlash(pathname));
+  return normalizedPathname === "" ? "/" : normalizedPathname;
+}
+
+export function normalizeRouteFileId(fileId: string) {
   return withoutLeadingSlash(normalize(fileId));
 }
 

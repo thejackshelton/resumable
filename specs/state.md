@@ -2,14 +2,16 @@
 
 Last updated: 2026-05-23
 
-Status: M1 CLI create flow, M2 core Vite plugin skeleton, and M3 route
-manifest are implemented with focused red/green evidence. Route discovery now
-belongs to the Vite plugin instead of a Node-backed manifest scanner.
+Status: M1 CLI create flow, M2 core Vite plugin skeleton, M3 route manifest,
+and the first M4 Qwik SSR renderer slice are implemented with focused
+red/green evidence. Route discovery belongs to the Vite plugin instead of a
+Node-backed manifest scanner, and environment entry wiring now uses Vite
+`configEnvironment()` with `consumer` and `rolldownOptions`.
 
 ## Current Objective
 
-Move next to the Qwik SSR renderer without expanding into app shell rendering,
-typed routing, MDX, SPA navigation, or data/form APIs.
+Continue M4 with fixture-backed route matching slices without expanding into
+app shell rendering, typed routing, MDX, SPA navigation, or data/form APIs.
 
 ## Spec Files
 
@@ -32,6 +34,11 @@ typed routing, MDX, SPA navigation, or data/form APIs.
 - `api/`, `middleware/`, and `public/` are Nitro-native.
 - `resumable()` exposes lazy page discovery through the internal
   `virtual:resumable/routes` module.
+- `resumable()` wires Vite environment entries in `configEnvironment()` by
+  reading `EnvironmentOptions.consumer`, writing
+  `build.rolldownOptions.input`, and preserving explicit environment inputs.
+  It keeps a minimal `ssr` environment shell because Nitro's current renderer
+  service detection keys off that service environment.
 - Route manifest normalization consumes Vite-discovered file IDs, uses `pathe`
   for file IDs and `ufo` for route pathnames, and does not import Node `fs` or
   `path`.
@@ -58,8 +65,8 @@ typed routing, MDX, SPA navigation, or data/form APIs.
 - CLI generated-app tests should use real disk destinations under `/tmp`, run
   the create flow against those destinations, and assert generated files,
   directories, contents, and forbidden paths from the filesystem.
-- `fixtures/nitro-app` is reference evidence only; Resumable renderer work
-  should create a new Resumable-owned fixture such as `fixtures/minimal` with
+- `fixtures/nitro-app` is reference evidence only; Resumable renderer work uses
+  the Resumable-owned `fixtures/minimal` fixture with
   `plugins: [qwik(), resumable()]`.
 
 ## Milestone State
@@ -70,7 +77,7 @@ typed routing, MDX, SPA navigation, or data/form APIs.
 | M1  | CLI create flow              | Complete | M2 package/plugin skeleton       | M0                            |
 | M2  | Core Vite plugin skeleton    | Complete | M1 CLI create flow               | M0                            |
 | M3  | Route manifest               | Complete | starter file content             | M2                            |
-| M4  | Qwik SSR renderer            | Pending  | Nitro passthrough fixtures       | M2, M3                        |
+| M4  | Qwik SSR renderer            | Active   | Nitro passthrough fixtures       | M2, M3                        |
 | M5  | App shell and Head           | Pending  | status page tests                | M4                            |
 | M6  | Status pages                 | Pending  | M5 app shell                     | M4                            |
 | M7  | Nitro passthrough            | Pending  | M4 renderer work                 | M2                            |
@@ -83,17 +90,17 @@ typed routing, MDX, SPA navigation, or data/form APIs.
 
 ## Next Recommended Goal
 
-Start M4 in TDD slices:
+Continue M4 in TDD slices:
 
-1. Re-verify local Qwik `build/v2` server rendering APIs.
-2. Add failing renderer tests or a minimal fixture using the M3 manifest.
-3. Implement the smallest internal Nitro page dispatcher/renderer.
-4. Keep app shell, status-page rendering, typed routing, MDX, SPA navigation,
+1. Add fixture-backed red evidence for `GET /about` and then dynamic route
+   matching such as `/blog/test` versus `/blog/[slug]`.
+2. Implement only the smallest route matcher needed for that failing evidence.
+3. Keep app shell, status-page rendering, typed routing, MDX, SPA navigation,
    and data/form APIs out of the first renderer slice.
 
-Before coding M4 or any Qwik-facing runtime code, verify the local Qwik repo is
-still on branch `build/v2` and inspect the relevant core/server/Vite plugin
-APIs. Use grep MCP for comparable public implementation patterns.
+Before coding more M4 or any Qwik-facing runtime code, verify the local Qwik
+repo is still on branch `build/v2` and inspect the relevant core/server/Vite
+plugin APIs. Use grep MCP for comparable public implementation patterns.
 
 ## Parallel Work Notes
 
@@ -229,3 +236,59 @@ Do not parallelize yet:
   direct action/object names that junior developers and AI agents can understand
   from the call site, avoid ceremonial `with*`/`handle*`/manager-style names,
   and use ownership qualifiers only when they clarify ambiguity.
+- Added implementation-plan fixture QA guidance: fixture-backed behavior must
+  be proven through failing red evidence first, exercised through the real app
+  integration path where practical, assert both required and forbidden behavior,
+  and record red/green evidence in this state file.
+- M4 first-slice research verified `/Users/jacksm5pro/dev/open-source/qwik` is
+  on `build/v2`, inspected Qwik `renderToString()`/`renderToStream()` server
+  APIs and container attributes, and sampled grep MCP examples for Qwik SSR
+  entries and Nitro/Vite usage.
+- M4 first-slice red evidence: added `fixtures/minimal` with canonical
+  `plugins: [qwik(), resumable()]` and a fixture-backed build/render test;
+  `pnpm exec vp test fixtures/minimal/minimal.unit.ts` failed because the
+  fixture had no Resumable-provided client/SSR entry and Vite tried to resolve
+  the default `fixtures/minimal/index.html`. Follow-up fixture failures exposed
+  that virtual app modules must not import `pathe`/`ufo` as app dependencies,
+  and that the duplicate Nitro guard must tolerate Vite plugin entries without
+  string names.
+- M4 first-slice green evidence: `resumable()` now wires virtual client and SSR
+  service entries, the SSR service imports the existing route manifest logic,
+  renders the matched `/` page with Qwik `renderToString()`, and returns HTML
+  with Qwik resume/runtime evidence. Core-owned helpers keep `pathe`/`ufo`
+  normalization inside `@resumable.dev/core` instead of leaking those packages
+  into fixture app dependencies.
+- M4 first-slice verification passed:
+  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm test`, `pnpm format`, `pnpm check`, and `pnpm build`.
+- M4 fixture QA correction: the initial fixture assertion only proved that page
+  text appeared in production SSR output, which missed a dev/runtime Qwik
+  `Q12` invalid HTML error where a page `<main>` rendered directly under the
+  Qwik `<html>` container. Added failing evidence requiring `<main>` to render
+  inside `<body>`, fixed the internal renderer to provide a default
+  `<head>`/`<body>` document wrapper around page components, and moved the
+  fixture-backed test out of `fixtures/minimal` into
+  `libs/core/src/minimal-fixture.unit.ts` so the fixture stays user-shaped.
+- Vite environment API research used grep MCP examples from Nitro and Fresh
+  showing `config.consumer`/`env.config.consumer` usage, and checked local Vite
+  8 types confirming `configEnvironment()` is the per-environment hook while
+  `rollupOptions` is deprecated in favor of `rolldownOptions`. Local Nitro
+  source confirmed its renderer service detection still depends on the `ssr`
+  service environment.
+- Vite environment API red evidence: `pnpm exec vp test libs/core/src/vite.unit.ts`
+  failed 3 tests because `resumable:vite` had no `configEnvironment()` hook,
+  returned no consumer-derived environment entry config, and still used
+  name-specific `createEnvironmentConfig`/`createEnvironmentWithInput` helpers
+  with `rollupOptions`.
+- Vite environment API green evidence: `resumable:vite` now creates only the
+  minimal `ssr` environment shell needed by Nitro, then uses
+  `configEnvironment()` to assign default client/server virtual entries based
+  on `config.consumer` through `build.rolldownOptions.input`, preserving
+  existing environment inputs and removing production `rollupOptions`
+  references from `libs/core/src/vite.ts`.
+- Vite environment API verification passed:
+  `pnpm exec vp test libs/core/src/vite.unit.ts`,
+  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm format`, `pnpm check`, `pnpm test`, and `pnpm build`.

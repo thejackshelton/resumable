@@ -147,6 +147,25 @@ Surgical change rules:
 - Treat a green broad command as supporting evidence only after the narrow
   acceptance evidence has passed.
 
+## Fixture QA Responsibility
+
+Fixtures are executable QA evidence, not examples to keep green by assumption.
+When implementing behavior that depends on a generated app, framework runtime,
+Vite/Nitro integration, routing, SSR, or browser-visible output, the agent owns
+proving that behavior through fixture tests before and after the code change.
+
+For each fixture-backed implementation slice:
+
+- Add or update the fixture test first so it fails for the missing behavior.
+- Run the fixture like a user app where practical, using the real Vite, Nitro,
+  Qwik, and Resumable integration path.
+- Assert both positive behavior and forbidden behavior.
+- Inspect actual generated, served, or rendered output, not only object shapes.
+- Keep the fixture minimal, but make the QA deep enough to catch a broken app.
+- Do not mark a slice complete because unit tests pass if the fixture path for
+  that behavior has not been exercised.
+- Record red and green fixture evidence in `specs/state.md`.
+
 ## Naming For Framework Glue
 
 Use names that junior developers and AI agents can understand from the call

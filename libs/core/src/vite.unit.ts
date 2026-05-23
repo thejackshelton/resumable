@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { readFile } from "node:fs/promises";
-import type { Plugin, UserConfig } from "vite";
+import type { EnvironmentOptions, Plugin, UserConfig } from "vite";
 import { nitro } from "nitro/vite";
 import { resumable } from "./vite.ts";
 
@@ -55,10 +55,12 @@ describe("resumable Vite plugin", () => {
 
     const code = await load?.("\0virtual:resumable/routes");
 
-    expect(code).toContain('import { withoutLeadingSlash } from "ufo";');
+    expect(code).toContain('import { normalizeRouteFileId } from "@resumable.dev/core";');
     expect(code).toContain('import.meta.glob("/pages/**/*.tsx")');
     expect(code).toContain("export const pageModuleLoaders");
     expect(code).toContain("export const routeFileIds");
+    expect(code).not.toContain('from "pathe"');
+    expect(code).not.toContain('from "ufo"');
     expect(code).not.toContain("replace(/^\\\\/+");
   });
 
@@ -94,6 +96,70 @@ describe("resumable Vite plugin", () => {
     });
   });
 
+  it("sets environment entries from consumer using rolldownOptions", () => {
+    const [plugin] = flattenPlugins([resumable()]);
+    const configEnvironment = hookHandler(plugin.configEnvironment) as
+      | ((name: string, config: EnvironmentOptions) => EnvironmentOptions | null | void)
+      | undefined;
+
+    expect(configEnvironment).toBeDefined();
+
+    const clientResult = configEnvironment?.("browser", {
+      consumer: "client",
+      build: {
+        rolldownOptions: {}
+      }
+    });
+    const serverResult = configEnvironment?.("server-function", {
+      consumer: "server",
+      build: {
+        rolldownOptions: {
+          external: ["nitro"]
+        }
+      }
+    });
+
+    expect(clientResult).toMatchObject({
+      build: {
+        rolldownOptions: {
+          input: "virtual:resumable/client-entry"
+        }
+      }
+    });
+    expect(serverResult).toMatchObject({
+      build: {
+        rolldownOptions: {
+          external: ["nitro"],
+          input: "virtual:resumable/server-entry"
+        }
+      }
+    });
+  });
+
+  it("preserves environment rolldown input choices", () => {
+    const [plugin] = flattenPlugins([resumable()]);
+    const configEnvironment = hookHandler(plugin.configEnvironment) as
+      | ((name: string, config: EnvironmentOptions) => EnvironmentOptions | null | void)
+      | undefined;
+
+    const result = configEnvironment?.("custom", {
+      consumer: "server",
+      build: {
+        rolldownOptions: {
+          input: "custom-server-entry.ts"
+        }
+      }
+    });
+
+    expect(result).toMatchObject({
+      build: {
+        rolldownOptions: {
+          input: "custom-server-entry.ts"
+        }
+      }
+    });
+  });
+
   it("throws when users add nitro() directly alongside resumable()", () => {
     const [plugin] = flattenPlugins([resumable()]);
     const directNitro = nitro();
@@ -117,5 +183,18 @@ describe("resumable Vite plugin", () => {
     expect(source).toContain("sortUserPlugins");
     expect(source).not.toContain("function flattenPlugins");
     expect(source).not.toContain("...nitroPlugins");
+  });
+
+  it("uses Vite environment hooks instead of name-specific environment input helpers", async () => {
+    const source = await readFile(new URL("./vite.ts", import.meta.url), "utf-8");
+
+    expect(source).toContain("configEnvironment");
+    expect(source).toContain(".consumer");
+    expect(source).toContain("rolldownOptions");
+    expect(source).not.toContain("rollupOptions");
+    expect(source).not.toContain("createEnvironmentConfig");
+    expect(source).not.toContain("createEnvironmentWithInput");
+    expect(source).not.toContain("environments?.client");
+    expect(source).not.toContain("environments?.ssr");
   });
 });
