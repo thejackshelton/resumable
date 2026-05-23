@@ -4,17 +4,18 @@ Last updated: 2026-05-23
 
 Status: M1 CLI create flow, M2 core Vite plugin skeleton, M3 route manifest,
 and M4 Qwik SSR renderer are implemented with focused red/green evidence.
-M6 root `404.tsx` and `500.tsx` status-page rendering is implemented for
-unmatched page requests and Qwik page render failures. Route discovery belongs
-to the Vite plugin instead of a Node-backed manifest scanner, environment entry
-wiring uses Vite `configEnvironment()` with `consumer` and `rolldownOptions`,
-and the renderer now matches static, dynamic, catch-all, 404 status, and 500
-status `.tsx` page routes with `PageProps`.
+M6 root `404.tsx` and `500.tsx` status pages are implemented with focused
+red/green evidence, including Nitro-owned API route semantics through the built
+Nitro server entry. Route discovery belongs to the Vite plugin instead of a
+Node-backed manifest scanner, environment entry wiring uses Vite
+`configEnvironment()` with `consumer` and `rolldownOptions`, and the renderer
+now matches static, dynamic, catch-all, 404 status, and 500 status `.tsx` page
+routes with `PageProps`.
 
 ## Current Objective
 
-Finish M6 Status Pages with focused Nitro API semantics QA. Do not expand into
-app shell rendering, typed routing, MDX, SPA navigation, or data/form APIs.
+Start M5 App Shell and Head in a focused TDD slice. Do not expand into typed
+routing, MDX, SPA navigation, or data/form APIs.
 
 ## Spec Files
 
@@ -85,7 +86,7 @@ app shell rendering, typed routing, MDX, SPA navigation, or data/form APIs.
 | M3  | Route manifest               | Complete | starter file content             | M2                            |
 | M4  | Qwik SSR renderer            | Complete | Nitro passthrough fixtures       | M2, M3                        |
 | M5  | App shell and Head           | Pending  | status page tests                | M4                            |
-| M6  | Status pages                 | Active   | M5 app shell                     | M4                            |
+| M6  | Status pages                 | Complete | M5 app shell                     | M4                            |
 | M7  | Nitro passthrough            | Pending  | M4 renderer work                 | M2                            |
 | M8  | Typed routing                | Pending  | CLI doctor/routes commands       | M3                            |
 | M9  | Link and SPA navigation      | Pending  | none                             | M4, M8                        |
@@ -96,18 +97,18 @@ app shell rendering, typed routing, MDX, SPA navigation, or data/form APIs.
 
 ## Next Recommended Goal
 
-Finish M6 in a focused QA slice:
+Start M5 in TDD slices:
 
-1. Add fixture-backed evidence that Nitro-owned API routes and API failures do
-   not render Resumable `404.tsx` or `500.tsx` pages.
-2. Keep the existing root `404.tsx` and `500.tsx` page behavior unchanged.
-3. Keep app shell rendering, typed routing, MDX, SPA navigation, and data/form
-   APIs out of this slice.
+1. Add fixture-backed red evidence for optional top-level `app.tsx` document
+   customization while preserving the default internal document for Minimal.
+2. Implement only the smallest app-shell renderer support needed for that
+   evidence.
+3. Keep typed routing, MDX, SPA navigation, and data/form APIs out of this
+   slice.
 
-Before coding more status-page or Qwik-facing runtime code, verify the local
-Qwik repo is still on branch `build/v2` and inspect the relevant
-core/server/Vite plugin APIs. Use grep MCP for comparable public implementation
-patterns.
+Before coding M5 or any Qwik-facing runtime code, verify the local Qwik repo is
+still on branch `build/v2` and inspect the relevant core/server/Vite plugin
+APIs. Use grep MCP for comparable public implementation patterns.
 
 ## Parallel Work Notes
 
@@ -409,3 +410,25 @@ Do not parallelize yet:
   `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
   `git diff --check`.
+- M6 Nitro API semantics red evidence: added top-level
+  `fixtures/minimal/api/health.ts` and `fixtures/minimal/api/throws.ts` using
+  Nitro's native `defineHandler`/`HTTPError` APIs. Added fixture QA that imports
+  the built Nitro server entry `.output/server/index.mjs` in a child process and
+  calls `globalThis.__nitro__.default.fetch`, proving API requests go through
+  Nitro routing instead of direct `_ssr/ssr.mjs`. `GET /api/health` and
+  `GET /api/throws` kept Nitro semantics, but `GET /api/missing` failed because
+  it rendered Resumable's HTML 404 page instead of Nitro's JSON 404 response.
+- M6 Nitro API semantics green evidence: after grep MCP re-checked Vite
+  `configEnvironment()` and `import.meta.glob()` patterns and local Nitro/H3
+  docs confirmed `defineHandler`/`HTTPError`, the internal SSR entry now throws
+  `HTTPError.status(404)` when Nitro's catch-all renderer receives an unmatched
+  `/api` request. The built Nitro entry now returns JSON 404 for
+  `GET /api/missing`, preserves JSON 503 for `GET /api/throws`, preserves JSON
+  200 for `GET /api/health`, and still renders page-side `404.tsx` and
+  `500.tsx` for `/ccc?hello=test` and `/throws?debug=yes`.
+- M6 final verification passed:
+  `pnpm --filter @resumable.dev/core build`,
+  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
+  `git diff --check`. M6 is complete enough to move to M5 App Shell and Head.

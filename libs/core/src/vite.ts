@@ -98,6 +98,7 @@ const CLIENT_ENTRY_CODE = `export const pageModules = import.meta.glob("/pages/*
 const SERVER_ENTRY_CODE = `import { Fragment, jsx, jsxs } from "@qwik.dev/core/jsx-runtime";
 import { renderToString } from "@qwik.dev/core/server";
 import { buildRouteManifestFromFileIds, matchRouteManifest } from "@resumable.dev/core";
+import { HTTPError } from "nitro";
 import { pageModuleLoaders, routeFileIds } from "virtual:resumable/routes";
 
 const manifest = buildRouteManifestFromFileIds(routeFileIds);
@@ -106,6 +107,10 @@ export default { fetch };
 
 export async function fetch(request) {
   const url = new URL(request.url);
+  if (isNitroApiPathname(url.pathname)) {
+    throw HTTPError.status(404);
+  }
+
   const match = matchRouteManifest(url.pathname, manifest);
   if (!match) {
     return renderStatusPage(url, manifest.statusPages.notFound, 404, "Not found");
@@ -121,6 +126,10 @@ export async function fetch(request) {
       "Internal Server Error"
     );
   }
+}
+
+function isNitroApiPathname(pathname) {
+  return pathname === "/api" || pathname.startsWith("/api/");
 }
 
 async function renderStatusPage(url, file, status, fallbackText) {
