@@ -51,7 +51,7 @@ research. Use it before making non-trivial choices about CLI structure, routing,
 typed routing, server function transport, Nitro integration, SSR, MDX, and data
 fetching. Prefer real framework/source examples over recalled patterns.
 
-Before changing bundler integration code such as `libs/core/src/vite.ts`,
+Before changing bundler integration code such as `libs/core/src/vite/vite.ts`,
 Vite plugins, Nitro/Vite wiring, virtual modules, environment entries, or build
 inputs, use grep MCP to research current Vite environment API patterns for the
 specific task. Prefer `configEnvironment()`, `applyToEnvironment()`,
@@ -135,6 +135,13 @@ Surgical change rules:
 
 - Keep each patch scoped to the acceptance criterion under test.
 - Prefer one failing test or fixture per behavioral change.
+- Before editing, list the behavior that is in scope and the nearby behaviors
+  that are intentionally out of scope. Thinking longer is preferred to shipping
+  a broad patch that happens to pass tests.
+- If a change starts pulling in extra virtual modules, public exports,
+  generated files, aliases, fixture variants, or compatibility behavior, stop
+  and split the work into a later TDD slice unless the current red evidence
+  directly requires it.
 - Do not perform opportunistic refactors, formatting churn, file moves, package
   renames, or dependency changes while implementing unrelated behavior.
 - Do not add placeholders, broad skeletons, future APIs, or compatibility
@@ -153,6 +160,19 @@ Surgical change rules:
 - When changing Vite/Nitro/Qwik wiring, prove plugin order, duplicate-plugin
   behavior, top-level config passthrough, and generated-user-config shape with
   focused tests or fixtures before broad smoke testing.
+- Keep Vite plugin source organized as `src/vite/vite.ts` plus focused
+  `src/vite/entries/*` virtual entry source files and
+  `src/vite/runtime/*` reusable helpers when virtual entry code grows beyond
+  trivial glue. The entry source files are real TypeScript files, are
+  typechecked, and must keep app-root-sensitive `import.meta.glob("/...")`
+  calls and Qwik runtime imports in the user's Vite graph. `src/vite/vite.ts`
+  should resolve Resumable virtual IDs to those entry files and let Vite own
+  loading, transformation, dependency analysis, and source maps. Avoid
+  embedding multi-line entry modules as strings. Do not add plugin-local file
+  reads, Node path/URL helpers, or custom transforms unless focused failing
+  evidence proves Vite cannot handle the source file directly. Runtime helper
+  modules hold typechecked pure logic that can be emitted and imported as
+  package subpaths.
 - Treat a green broad command as supporting evidence only after the narrow
   acceptance evidence has passed.
 
@@ -492,6 +512,20 @@ Build:
 - Default internal document when no `app.tsx` exists.
 - Page/layout-level visible `Head` support.
 - Direct error for unsupported shell filenames.
+
+TDD slices:
+
+1. Add optional top-level `app.tsx` discovery only. The first slice should use
+   Vite-native lazy discovery in the existing server/client entries, pass
+   `PageProps`, and render the matched page as the app child. Do not add a
+   separate app virtual module, `Html`, `Head`, unsupported-alias detection, or
+   document attribute translation in this slice.
+2. Add `Html` as its own public API slice, with focused evidence for translating
+   `Html` props to Qwik SSR container attributes.
+3. Add `Head` as its own slice, with fixture evidence that visible head entries
+   render in `<head>` and not in `<body>`.
+4. Add unsupported shell filename errors as a separate validation slice, with
+   direct fixture evidence for the rejected filenames.
 
 Exit criteria:
 

@@ -10,12 +10,18 @@ Nitro server entry. Route discovery belongs to the Vite plugin instead of a
 Node-backed manifest scanner, environment entry wiring uses Vite
 `configEnvironment()` with `consumer` and `rolldownOptions`, and the renderer
 now matches static, dynamic, catch-all, 404 status, and 500 status `.tsx` page
-routes with `PageProps`.
+routes with `PageProps`. The first M5 slice is implemented: top-level
+`app.tsx` is discovered lazily by Vite inside the generated server/client
+entries, receives `PageProps`, wraps normal, 404, and 500 pages, and the
+default internal document still works without `app.tsx`. `Html`, `Head`, and
+unsupported app-shell alias validation remain separate M5 slices. The Vite
+plugin resolves Resumable virtual IDs to real `src/vite/entries/*` source
+files and uses Vite dependency config to keep Qwik on one runtime instance.
 
 ## Current Objective
 
-Start M5 App Shell and Head in a focused TDD slice. Do not expand into typed
-routing, MDX, SPA navigation, or data/form APIs.
+Continue M5 with a focused `Html` component slice. Do not expand into `Head`,
+typed routing, MDX, SPA navigation, or data/form APIs.
 
 ## Spec Files
 
@@ -43,6 +49,10 @@ routing, MDX, SPA navigation, or data/form APIs.
   `build.rolldownOptions.input`, and preserving explicit environment inputs.
   It keeps a minimal `ssr` environment shell because Nitro's current renderer
   service detection keys off that service environment.
+- `resumable()` keeps Qwik on one Vite runtime instance by adding only
+  `@qwik.dev/core` to environment `resolve.dedupe`,
+  `optimizeDeps.exclude`, and server `resolve.noExternal`. This is a narrow
+  Vite-native bridge until Qwik's duplicate-runtime singleton work is ready.
 - Route manifest normalization consumes Vite-discovered file IDs, uses `pathe`
   for file IDs and `ufo` for route pathnames, and does not import Node `fs` or
   `path`.
@@ -85,7 +95,7 @@ routing, MDX, SPA navigation, or data/form APIs.
 | M2  | Core Vite plugin skeleton    | Complete | M1 CLI create flow               | M0                            |
 | M3  | Route manifest               | Complete | starter file content             | M2                            |
 | M4  | Qwik SSR renderer            | Complete | Nitro passthrough fixtures       | M2, M3                        |
-| M5  | App shell and Head           | Pending  | status page tests                | M4                            |
+| M5  | App shell and Head           | Active   | status page tests                | M4                            |
 | M6  | Status pages                 | Complete | M5 app shell                     | M4                            |
 | M7  | Nitro passthrough            | Pending  | M4 renderer work                 | M2                            |
 | M8  | Typed routing                | Pending  | CLI doctor/routes commands       | M3                            |
@@ -97,17 +107,17 @@ routing, MDX, SPA navigation, or data/form APIs.
 
 ## Next Recommended Goal
 
-Start M5 in TDD slices:
+Continue M5 in TDD slices:
 
-1. Add fixture-backed red evidence for optional top-level `app.tsx` document
-   customization while preserving the default internal document for Minimal.
-2. Implement only the smallest app-shell renderer support needed for that
-   evidence.
-3. Keep typed routing, MDX, SPA navigation, and data/form APIs out of this
-   slice.
+1. Add fixture-backed red evidence for `Html` in `app.tsx`, proving attributes
+   are translated to Qwik SSR container attributes without adding `Head`.
+2. Implement only the smallest `Html` marker/translation support needed for
+   that evidence.
+3. Keep `Head`, typed routing, MDX, SPA navigation, and data/form APIs out of
+   this slice.
 
-Before coding M5 or any Qwik-facing runtime code, verify the local Qwik repo is
-still on branch `build/v2` and inspect the relevant core/server/Vite plugin
+Before coding more M5 or Qwik-facing runtime code, verify the local Qwik repo
+is still on branch `build/v2` and inspect the relevant core/server/Vite plugin
 APIs. Use grep MCP for comparable public implementation patterns.
 
 ## Parallel Work Notes
@@ -221,7 +231,7 @@ Do not parallelize yet:
   `pnpm test`, and `pnpm build`.
 - Current `pathe`/`ufo` implementation audit:
   `libs/core/src/route-manifest.ts` uses `pathe` for Vite file IDs and `ufo`
-  for route pathname shaping; `libs/core/src/vite.ts` emits a virtual route
+  for route pathname shaping; `libs/core/src/vite/vite.ts` emits a virtual route
   module that uses `pathe`/`ufo` instead of a local leading-slash helper;
   `libs/cli/src/index.ts` uses `pathe`/`ufo` for create-flow path handling,
   package-name path basename extraction, and CLI file URL entrypoint parsing.
@@ -232,10 +242,10 @@ Do not parallelize yet:
   `Plugin[]`, which Vite accepts as a nested `PluginOption`; Resumable does not
   need a custom recursive plugin flattener or a spread of Nitro plugins.
 - Vite plugin simplification red evidence: `pnpm test` failed because
-  `libs/core/src/vite.ts` did not use `sortUserPlugins()`, still defined
+  `libs/core/src/vite/vite.ts` did not use `sortUserPlugins()`, still defined
   `flattenPlugins()`, and still returned `...nitroPlugins`.
 - Vite plugin simplification green evidence: `pnpm test` passes 20 focused
-  tests after `libs/core/src/vite.ts` uses `sortUserPlugins()`, returns Nitro's
+  tests after `libs/core/src/vite/vite.ts` uses `sortUserPlugins()`, returns Nitro's
   `Plugin[]` as a nested `PluginOption`, moves virtual route module source to a
   constant, renames helpers to direct intent names such as `createNitroConfig`
   and `throwIfUserAddedNitro`, and simplifies Nitro default merging.
@@ -268,7 +278,7 @@ Do not parallelize yet:
   into fixture app dependencies.
 - M4 first-slice verification passed:
   `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
   `pnpm test`, `pnpm format`, `pnpm check`, and `pnpm build`.
 - M4 fixture QA correction: the initial fixture assertion only proved that page
   text appeared in production SSR output, which missed a dev/runtime Qwik
@@ -284,7 +294,7 @@ Do not parallelize yet:
   `rollupOptions` is deprecated in favor of `rolldownOptions`. Local Nitro
   source confirmed its renderer service detection still depends on the `ssr`
   service environment.
-- Vite environment API red evidence: `pnpm exec vp test libs/core/src/vite.unit.ts`
+- Vite environment API red evidence: `pnpm exec vp test libs/core/src/vite/vite.unit.ts`
   failed 3 tests because `resumable:vite` had no `configEnvironment()` hook,
   returned no consumer-derived environment entry config, and still used
   name-specific `createEnvironmentConfig`/`createEnvironmentWithInput` helpers
@@ -294,11 +304,11 @@ Do not parallelize yet:
   `configEnvironment()` to assign default client/server virtual entries based
   on `config.consumer` through `build.rolldownOptions.input`, preserving
   existing environment inputs and removing production `rollupOptions`
-  references from `libs/core/src/vite.ts`.
+  references from `libs/core/src/vite/vite.ts`.
 - Vite environment API verification passed:
-  `pnpm exec vp test libs/core/src/vite.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite/vite.unit.ts`,
   `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, and `pnpm build`.
 - M4 static/dynamic route matching research re-verified local Qwik on
   `build/v2`, used grep MCP route matcher examples showing sorted route
@@ -327,7 +337,7 @@ Do not parallelize yet:
   `pnpm --filter @resumable.dev/core build`,
   `pnpm exec vp test libs/core/src/route-manifest.unit.ts`,
   `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, and `pnpm build`.
 - M4 catch-all route red evidence: added
   `fixtures/minimal/pages/docs/[...slug].tsx`, fixture QA for
@@ -348,7 +358,7 @@ Do not parallelize yet:
   `pnpm exec vp test libs/core/src/route-manifest.unit.ts`,
   `pnpm --filter @resumable.dev/core build`,
   `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, and `pnpm build`.
 - M4 default-export validation evidence: added
   `fixtures/minimal/pages/missing-default.tsx` with no default export and
@@ -359,7 +369,7 @@ Do not parallelize yet:
 - M4 final verification passed:
   `pnpm --filter @resumable.dev/core build`,
   `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
   `git diff --check`. M4 is complete enough to move to M5 App Shell and Head.
 - M6 404 status-page mismatch audit: `pages/404.tsx` and `pages/500.tsx` were
@@ -382,7 +392,7 @@ Do not parallelize yet:
 - M6 404 verification passed:
   `pnpm --filter @resumable.dev/core build`,
   `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
   `git diff --check`.
 - M6 404 query-string QA evidence: updated the existing 404 fixture to render
@@ -407,7 +417,7 @@ Do not parallelize yet:
 - M6 500 verification passed:
   `pnpm --filter @resumable.dev/core build`,
   `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
   `git diff --check`.
 - M6 Nitro API semantics red evidence: added top-level
@@ -429,6 +439,58 @@ Do not parallelize yet:
 - M6 final verification passed:
   `pnpm --filter @resumable.dev/core build`,
   `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
   `git diff --check`. M6 is complete enough to move to M5 App Shell and Head.
+- M5 app-shell foundation research verified
+  `/Users/jacksm5pro/dev/open-source/qwik` is on `build/v2`, inspected Qwik
+  `renderToString()`/`renderToStream()`, `containerAttributes`, `Slot`,
+  `PropsOf`, `useServerData`, and SSR container behavior, and used grep MCP for
+  current Qwik SSR `containerAttributes` examples plus Vite
+  `configEnvironment()` patterns before touching `libs/core/src/vite/vite.ts`.
+- M5 app-shell foundation red evidence: added fixture-backed tests outside the
+  fixture. The app-less `fixtures/minimal` assertion failed because the default
+  document had no charset/viewport metadata. A temporary user-shaped app-shell
+  fixture under `/tmp` failed because top-level `app.tsx` was ignored, so app
+  `<body>` props and shell content were absent from normal, 404, and 500
+  responses. The Vite unit also failed because the generated server/client
+  entries did not discover `/app.tsx`.
+- M5 app-shell foundation green evidence was narrowed after a surgical-scope
+  audit: `resumable()` uses Vite `import.meta.glob("/app.tsx")` directly in the
+  generated server/client entries instead of a separate
+  `virtual:resumable/app` module, and includes `app.tsx` in the client entry.
+  The server entry renders the built-in default document when no `app.tsx`
+  exists, and wraps normal, 404, and 500 pages with user `app.tsx` when present.
+  `Html`, `Head`, root export separation, and unsupported alias validation are
+  intentionally deferred into separate TDD slices.
+- M5 Vite entry split follow-up: grep MCP research found modern Vite tooling
+  patterns using Vite 8/Rolldown hook filters, `this.addWatchFile()`,
+  `this.fs.readFile()`, and Vite-provided `transformWithOxc()` for generated TS
+  or source-backed virtual modules. The accepted split is smaller:
+  `src/vite/vite.ts` resolves Resumable virtual IDs to typechecked raw
+  `src/vite/entries/*` source files and lets Vite own loading, transformation,
+  dependency analysis, and source maps. App-root globs and Qwik runtime imports
+  stay in those entry files, and reusable pure logic lives in emitted
+  `src/vite/runtime/*` package subpaths.
+- M5 entry-helper cleanup: grep MCP examples showed trivial `import.meta.glob`
+  entry plumbing is commonly kept inline, while helpers carry lookup,
+  normalization, error, or handler behavior. Removed the trivial
+  `create-client-entry` and `get-app-module-loader` runtime subpaths; the
+  client and app module globs now stay directly in the typed entry files.
+- M5 Qwik runtime dedupe red evidence: after the entry split, the fixture tests
+  failed with Qwik `Q30` duplicate-runtime errors and empty SSR bodies. A
+  focused Vite unit also failed because `configEnvironment()` preserved user
+  resolver config but did not add Qwik to Vite's singleton/de-optimization
+  path.
+- M5 Qwik runtime dedupe green evidence: `resumable:vite` now adds only
+  `@qwik.dev/core` to environment `resolve.dedupe`,
+  `optimizeDeps.exclude`, and server `resolve.noExternal`, while preserving
+  user entries. This avoids relying on the unfinished upstream Qwik singleton
+  PR.
+- M5 app-shell foundation verification passed after the entry split and Qwik
+  runtime dedupe fix:
+  `pnpm --filter @resumable.dev/core build`,
+  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
+  `git diff --check`. M5 remains active because `Html`, `Head`, and
+  unsupported app-shell alias validation are still pending.

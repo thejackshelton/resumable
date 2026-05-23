@@ -1,7 +1,18 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { rm, stat, readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  symlink,
+  writeFile
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { join } from "pathe";
 import { describe, expect, it } from "vite-plus/test";
 import { createBuilder } from "vite";
 
@@ -18,6 +29,7 @@ interface BuiltNitroResponse {
 
 describe("minimal Resumable fixture", () => {
   it("renders static pages through Resumable's internal Qwik SSR renderer", async () => {
+    await expectPath("app.tsx", false);
     await expectPath("pages/index.tsx", true);
     await expectPath("pages/about.tsx", true);
     await expectPath("pages/404.tsx", true);
@@ -61,6 +73,9 @@ describe("minimal Resumable fixture", () => {
     const html = await renderPage(serverEntry, "/");
 
     expect(html).toContain("Minimal Resumable Fixture");
+    expect(html).toContain('lang="en"');
+    expect(html).toContain('<meta charSet="utf-8"');
+    expect(html).toContain('name="viewport"');
     expect(html.indexOf("<body")).toBeGreaterThan(-1);
     expect(html.indexOf("<main")).toBeGreaterThan(html.indexOf("<body"));
     expect(html.indexOf("</body>")).toBeGreaterThan(html.indexOf("<main"));
@@ -156,6 +171,54 @@ describe("minimal Resumable fixture", () => {
     expect(nitroRenderFailureResponse.body).toContain(">500</h1>");
     expect(nitroRenderFailureResponse.body).toContain("Search: ?debug=yes");
   });
+
+  it("uses top-level app.tsx as the document app shell", async () => {
+    const appFixtureUrl = await createTemporaryAppShellFixture({
+      "app.tsx": appShellCode,
+      "pages/index.tsx": pageCode("App shell page"),
+      "pages/404.tsx": statusPageCode("Shell 404"),
+      "pages/500.tsx": statusPageCode("Shell 500"),
+      "pages/throws.tsx": throwingPageCode
+    });
+
+    try {
+      await buildFixture(appFixtureUrl);
+      const responses = await fetchBuiltSsrServer(appFixtureUrl, [
+        "/",
+        "/missing?from=test",
+        "/throws"
+      ]);
+
+      const homeResponse = responses.get("/")!;
+      expect(homeResponse.status).toBe(200);
+      expect(homeResponse.contentType).toContain("text/html");
+      const homeHtml = homeResponse.body;
+      expect(homeHtml).toMatch(/<body[^>]*data-status="200"/);
+      expect(homeHtml).toMatch(/<body[^>]*data-path="\/"/);
+      expect(homeHtml.indexOf("Shell home")).toBeLessThan(
+        homeHtml.indexOf("App shell page")
+      );
+
+      const notFoundResponse = responses.get("/missing?from=test")!;
+      expect(notFoundResponse.status).toBe(404);
+      expect(notFoundResponse.contentType).toContain("text/html");
+      const notFoundHtml = notFoundResponse.body;
+      expect(notFoundHtml).toMatch(/<body[^>]*data-status="404"/);
+      expect(notFoundHtml).toMatch(/<body[^>]*data-path="\/missing"/);
+      expect(notFoundHtml.indexOf("Shell missing")).toBeLessThan(
+        notFoundHtml.indexOf("Shell 404")
+      );
+
+      const errorResponse = responses.get("/throws")!;
+      expect(errorResponse.status).toBe(500);
+      expect(errorResponse.contentType).toContain("text/html");
+      const errorHtml = errorResponse.body;
+      expect(errorHtml).toMatch(/<body[^>]*data-status="500"/);
+      expect(errorHtml).toContain("Shell 500");
+    } finally {
+      await rm(appFixtureUrl, { recursive: true, force: true });
+    }
+  });
 });
 
 async function renderPage(
@@ -222,6 +285,50 @@ process.exit(0);
   return new Map(results.map((result) => [result.path, result]));
 }
 
+async function buildFixture(rootUrl: URL) {
+  await cleanBuildOutput(rootUrl);
+
+  const builder = await createBuilder({
+    root: fileURLToPath(rootUrl),
+    configFile: fileURLToPath(new URL("vite.config.ts", rootUrl)),
+    logLevel: "silent"
+  });
+  await builder.buildApp();
+}
+
+async function fetchBuiltSsrServer(rootUrl: URL, paths: readonly string[]) {
+  const script = `
+const serverEntry = await import(${JSON.stringify(
+    new URL(".output/server/_ssr/ssr.mjs", rootUrl).href
+  )});
+
+const paths = ${JSON.stringify(paths)};
+const responses = [];
+for (const path of paths) {
+  const response = await serverEntry.default.fetch(new Request(\`http://resumable.test\${path}\`));
+  responses.push({
+    path,
+    status: response.status,
+    contentType: response.headers.get("content-type"),
+    body: await response.text()
+  });
+}
+
+console.log(JSON.stringify(responses));
+process.exit(0);
+`;
+  const { stdout } = await execFile(
+    process.execPath,
+    ["--input-type=module", "-e", script],
+    {
+      cwd: fileURLToPath(rootUrl)
+    }
+  );
+  const results = JSON.parse(stdout.trim().split("\n").at(-1)!) as BuiltNitroResponse[];
+
+  return new Map(results.map((result) => [result.path, result]));
+}
+
 async function expectPath(path: string, exists: boolean) {
   await expect(pathExists(path)).resolves.toBe(exists);
 }
@@ -239,7 +346,104 @@ function fixturePath(path: string) {
   return new URL(path, fixtureUrl);
 }
 
-async function cleanBuildOutput() {
-  await rm(fixturePath(".output"), { recursive: true, force: true });
-  await rm(fixturePath("node_modules/.nitro"), { recursive: true, force: true });
+async function cleanBuildOutput(rootUrl = fixtureUrl) {
+  await rm(new URL(".output", rootUrl), { recursive: true, force: true });
+  await rm(new URL("node_modules/.nitro", rootUrl), { recursive: true, force: true });
 }
+
+async function createTemporaryAppShellFixture(files: Record<string, string>) {
+  const root = await mkdtemp(join(tmpdir(), "resumable-app-shell-"));
+  const rootUrl = pathToFileURL(`${root}/`);
+
+  await writeFile(new URL("package.json", rootUrl), minimalPackageJson);
+  await writeFile(new URL("tsconfig.json", rootUrl), minimalTsconfigJson);
+  await writeFile(new URL("vite.config.ts", rootUrl), minimalViteConfig);
+  await symlink(fixturePath("node_modules"), new URL("node_modules", rootUrl), "dir");
+
+  await Promise.all(
+    Object.entries(files).map(async ([path, contents]) => {
+      const fileUrl = new URL(path, rootUrl);
+      await mkdir(new URL("./", fileUrl), { recursive: true });
+      await writeFile(fileUrl, contents);
+    })
+  );
+
+  await cp(fixturePath("public"), new URL("public", rootUrl), {
+    recursive: true,
+    errorOnExist: false
+  });
+
+  return rootUrl;
+}
+
+const minimalPackageJson = `{
+  "name": "resumable-fixture-app-shell",
+  "private": true,
+  "type": "module"
+}
+`;
+
+const minimalTsconfigJson = `{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@qwik.dev/core",
+    "strict": true,
+    "types": ["vite/client"]
+  },
+  "include": ["app.tsx", "pages", "vite.config.ts"]
+}
+`;
+
+const minimalViteConfig = `import { defineConfig } from "vite-plus";
+import { qwik } from "qwik-bundler/vite";
+import { resumable } from "@resumable.dev/core/vite";
+
+export default defineConfig({
+  plugins: [qwik(), resumable()]
+});
+`;
+
+const appShellCode = `import { component$, Slot } from "@qwik.dev/core";
+import type { PageProps } from "@resumable.dev/core";
+
+export default component$((props: PageProps) => {
+  const section = props.url.pathname.split("/")[1] || "home";
+
+  return (
+    <>
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
+      <body data-status={String(props.status)} data-path={props.url.pathname}>
+        <header>Shell {section}</header>
+        <Slot />
+      </body>
+    </>
+  );
+});
+`;
+
+const pageCode = (title: string) => `import { component$ } from "@qwik.dev/core";
+
+export default component$(() => {
+  return <main>${title}</main>;
+});
+`;
+
+const statusPageCode = (title: string) => `import { component$ } from "@qwik.dev/core";
+
+export default component$(() => {
+  return <main>${title}</main>;
+});
+`;
+
+const throwingPageCode = `import { component$ } from "@qwik.dev/core";
+
+export default component$(() => {
+  throw new Error("Fixture render failure");
+});
+`;

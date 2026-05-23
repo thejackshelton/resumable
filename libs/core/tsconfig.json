@@ -7,7 +7,11 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "incremental": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "paths": {
+      "@resumable.dev/core/vite/runtime/*": ["./src/vite/runtime/*"]
+    },
+    "types": ["node", "vite/client"]
   },
   "include": ["src"],
   "exclude": ["**/*.unit.ts", "**/*.unit.tsx"]

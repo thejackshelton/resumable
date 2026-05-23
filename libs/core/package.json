@@ -17,14 +17,22 @@
       "import": "./lib/index.mjs"
     },
     "./vite": {
-      "types": "./lib/vite.d.ts",
-      "import": "./lib/vite.mjs"
+      "types": "./lib/vite/vite.d.ts",
+      "import": "./lib/vite/vite.mjs"
+    },
+    "./vite/runtime/create-route-discovery": {
+      "types": "./lib/vite/runtime/create-route-discovery.d.ts",
+      "import": "./lib/vite/runtime/create-route-discovery.mjs"
+    },
+    "./vite/runtime/create-server-entry": {
+      "types": "./lib/vite/runtime/create-server-entry.d.ts",
+      "import": "./lib/vite/runtime/create-server-entry.mjs"
     },
     "./package.json": "./package.json"
   },
   "scripts": {
-    "dev": "vp pack -F @resumable.dev/core --watch",
-    "build": "vp pack -F @resumable.dev/core && tsc --build tsconfig.json --force"
+    "dev": "vp pack -F @resumable.dev/core src/index.ts src/vite/vite.ts src/vite/runtime/create-route-discovery.ts src/vite/runtime/create-server-entry.ts --copy src/vite/entries --watch",
+    "build": "vp pack -F @resumable.dev/core src/index.ts src/vite/vite.ts src/vite/runtime/create-route-discovery.ts src/vite/runtime/create-server-entry.ts --copy src/vite/entries && tsc --build tsconfig.json --force"
   },
   "dependencies": {
     "nitro": "3.0.260429-beta",

@@ -11,8 +11,8 @@ export type {
   RouteManifestRoute,
   RouteManifestStatusPages
 } from "./route-manifest.ts";
-export type { ResumableOptions } from "./vite.ts";
-export { resumable } from "./vite.ts";
+export type { ResumableOptions } from "./vite/vite.ts";
+export { resumable } from "./vite/vite.ts";
 
 export interface PageProps {
   readonly params: Readonly<Record<string, string>>;
