@@ -61,8 +61,11 @@ const coreBuild = {
   cwd: packageDirs.core,
   entry: {
     index: "./src/index.ts",
-    vite: "./src/vite.ts"
+    "vite/vite": "./src/vite/vite.ts",
+    "vite/runtime/create-route-discovery": "./src/vite/runtime/create-route-discovery.ts",
+    "vite/runtime/create-server-entry": "./src/vite/runtime/create-server-entry.ts"
   },
+  copy: "src/vite/entries",
   root: "src",
   platform: "neutral",
   dts: false,
