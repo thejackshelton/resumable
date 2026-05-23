@@ -10,6 +10,8 @@ describe("minimal Resumable fixture", () => {
   it("renders static pages through Resumable's internal Qwik SSR renderer", async () => {
     await expectPath("pages/index.tsx", true);
     await expectPath("pages/about.tsx", true);
+    await expectPath("pages/404.tsx", true);
+    await expectPath("pages/missing-default.tsx", true);
     await expectPath("public", true);
     await expectPath("package.json", true);
     await expectPath("tsconfig.json", true);
@@ -60,6 +62,21 @@ describe("minimal Resumable fixture", () => {
     await expect(
       renderPage(serverEntry, "/docs/guides/getting-started")
     ).resolves.toContain("Docs catch-all slug: guides/getting-started");
+
+    const notFoundResponse = await fetchPage(serverEntry, "/ccc");
+    expect(notFoundResponse.status).toBe(404);
+    expect(notFoundResponse.headers.get("content-type")).toContain("text/html");
+    const notFoundHtml = await notFoundResponse.text();
+    expect(notFoundHtml).toContain(">404</h1>");
+    expect(notFoundHtml).toContain("Status: 404");
+    expect(notFoundHtml).toContain("Pathname: /ccc");
+    expect(notFoundHtml).toContain("Params: 0");
+
+    const invalidPageResponse = await fetchPage(serverEntry, "/missing-default");
+    expect(invalidPageResponse.status).toBe(500);
+    await expect(invalidPageResponse.text()).resolves.toContain(
+      "Page module must default export a Qwik component: pages/missing-default.tsx"
+    );
   });
 });
 
@@ -71,15 +88,24 @@ async function renderPage(
   },
   pathname: string
 ) {
-  const response = await serverEntry.default.fetch(
-    new Request(`http://resumable.test${pathname}`)
-  );
+  const response = await fetchPage(serverEntry, pathname);
   const html = await response.text();
 
   expect(response.status).toBe(200);
   expect(response.headers.get("content-type")).toContain("text/html");
 
   return html;
+}
+
+async function fetchPage(
+  serverEntry: {
+    default: {
+      fetch(request: Request): Promise<Response>;
+    };
+  },
+  pathname: string
+) {
+  return serverEntry.default.fetch(new Request(`http://resumable.test${pathname}`));
 }
 
 async function expectPath(path: string, exists: boolean) {

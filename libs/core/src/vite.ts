@@ -108,19 +108,30 @@ export async function fetch(request) {
   const url = new URL(request.url);
   const match = matchRouteManifest(url.pathname, manifest);
   if (!match) {
-    return new Response("Not found", { status: 404 });
+    return renderStatusPage(url, manifest.statusPages.notFound, 404, "Not found");
   }
 
-  const route = match.route;
-  const loadPageModule = pageModuleLoaders[route.file];
+  return renderPage(url, match.route.file, match.params, 200);
+}
+
+async function renderStatusPage(url, file, status, fallbackText) {
+  if (!file) {
+    return new Response(fallbackText, { status });
+  }
+
+  return renderPage(url, file, {}, status);
+}
+
+async function renderPage(url, file, params, status) {
+  const loadPageModule = pageModuleLoaders[file];
   if (!loadPageModule) {
-    return new Response(\`Page module not found: \${route.file}\`, { status: 500 });
+    return new Response(\`Page module not found: \${file}\`, { status: 500 });
   }
 
   const pageModule = await loadPageModule();
   const Page = pageModule.default;
   if (!Page) {
-    return new Response(\`Page module must default export a Qwik component: \${route.file}\`, {
+    return new Response(\`Page module must default export a Qwik component: \${file}\`, {
       status: 500
     });
   }
@@ -131,13 +142,13 @@ export async function fetch(request) {
         jsx("head", {}),
         jsx("body", {
           children: jsx(Page, {
-            params: match.params,
+            params,
             url: {
               href: url.href,
               pathname: url.pathname,
               search: url.search
             },
-            status: 200
+            status
           })
         })
       ]
@@ -149,6 +160,7 @@ export async function fetch(request) {
   );
 
   return new Response(result.html, {
+    status,
     headers: { "content-type": "text/html;charset=utf-8" }
   });
 }`;

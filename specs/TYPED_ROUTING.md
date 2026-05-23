@@ -498,6 +498,10 @@ prefetch={false}
 Default behavior should be conservative. Resumable should not prefetch every
 link by default in v0 unless performance work proves that is safe.
 
+Detailed prefetching behavior is being explored in
+[`PREFETCHING_DRAFT.md`](./PREFETCHING_DRAFT.md). That file is not an
+implementation contract.
+
 ## Relationship To href()
 
 A public `href()` helper is not required in v0.

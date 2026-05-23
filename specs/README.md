@@ -15,6 +15,9 @@ documents.
 5. [`TYPED_ROUTING.md`](./TYPED_ROUTING.md)
 6. [`DATA_FETCHING.md`](./DATA_FETCHING.md)
 
+Exploratory drafts are intentionally excluded from this read order. They are
+research notes, not implementation scope.
+
 `state.md` is the current execution state for `/goal` work. It should be kept
 short and updated when a milestone starts, finishes, or is intentionally
 deferred.
@@ -55,6 +58,11 @@ Resumable examples. Resumable docs and generated code should use
 - [`DATA_FETCHING.md`](./DATA_FETCHING.md): future data layer direction for
   `schema`, `query$`, `action$`, native typed forms, query records, cache
   semantics, and SPA reuse.
+
+## Exploratory Drafts
+
+- [`PREFETCHING_DRAFT.md`](./PREFETCHING_DRAFT.md): prefetching research and
+  direction. Do not implement directly from this file.
 
 ## Non-Negotiable Boundaries
 

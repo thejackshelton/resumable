@@ -3,18 +3,18 @@
 Last updated: 2026-05-23
 
 Status: M1 CLI create flow, M2 core Vite plugin skeleton, M3 route manifest,
-and the first M4 Qwik SSR renderer slices are implemented with focused
-red/green evidence. Route discovery belongs to the Vite plugin instead of a
-Node-backed manifest scanner, environment entry wiring uses Vite
+and M4 Qwik SSR renderer are implemented with focused red/green evidence.
+The first M6 status-page slice is implemented for root `404.tsx` rendering on
+unmatched page requests. Route discovery belongs to the Vite plugin instead of
+a Node-backed manifest scanner, environment entry wiring uses Vite
 `configEnvironment()` with `consumer` and `rolldownOptions`, and the renderer
-now matches static, dynamic, and catch-all `.tsx` page routes with `PageProps`.
+now matches static, dynamic, catch-all, and 404 status `.tsx` page routes with
+`PageProps`.
 
 ## Current Objective
 
-Continue M4 with a final renderer-scope audit before moving to M5. Do not
-expand into app shell rendering, status-page rendering, typed routing, MDX, SPA
-navigation, or data/form APIs until any remaining M4 renderer gaps have focused
-fixture evidence.
+Continue M6 Status Pages in focused TDD slices. Do not expand into app shell
+rendering, typed routing, MDX, SPA navigation, or data/form APIs.
 
 ## Spec Files
 
@@ -50,7 +50,10 @@ fixture evidence.
 - Route files are `.tsx` and, after proof, `.mdx`.
 - Layouts are explicit Qwik components.
 - Optional `app.tsx` owns document shell.
-- Root `404.tsx` and `500.tsx` are supported.
+- Root `404.tsx` is reserved by the route manifest and renders unmatched page
+  requests through Qwik SSR with status 404 when present.
+- Root `500.tsx` is reserved by the route manifest, but 500 status-page
+  rendering is not implemented yet.
 - CLI uses `Starter`, not `Template`.
 - CLI runtime/project format is separate from starter.
 - Initial starters: `Minimal`, `App`, `Full-stack`.
@@ -80,9 +83,9 @@ fixture evidence.
 | M1  | CLI create flow              | Complete | M2 package/plugin skeleton       | M0                            |
 | M2  | Core Vite plugin skeleton    | Complete | M1 CLI create flow               | M0                            |
 | M3  | Route manifest               | Complete | starter file content             | M2                            |
-| M4  | Qwik SSR renderer            | Active   | Nitro passthrough fixtures       | M2, M3                        |
+| M4  | Qwik SSR renderer            | Complete | Nitro passthrough fixtures       | M2, M3                        |
 | M5  | App shell and Head           | Pending  | status page tests                | M4                            |
-| M6  | Status pages                 | Pending  | M5 app shell                     | M4                            |
+| M6  | Status pages                 | Active   | M5 app shell                     | M4                            |
 | M7  | Nitro passthrough            | Pending  | M4 renderer work                 | M2                            |
 | M8  | Typed routing                | Pending  | CLI doctor/routes commands       | M3                            |
 | M9  | Link and SPA navigation      | Pending  | none                             | M4, M8                        |
@@ -93,17 +96,19 @@ fixture evidence.
 
 ## Next Recommended Goal
 
-Continue M4 in TDD slices:
+Continue M6 in TDD slices:
 
-1. Audit M4 against `specs/IMPLEMENTATION_PLAN.md` and current fixture
+1. Add fixture-backed red evidence for root `500.tsx` rendering on page render
+   failures while preserving Nitro API error semantics.
+2. Implement only the smallest 500 status-page renderer support needed for that
    evidence.
-2. If M4 has a remaining renderer-only gap, add fixture-backed red evidence and
-   implement only that gap.
-3. If M4 is complete, start M5 App Shell and Head in a new TDD slice.
+3. Keep app shell rendering, typed routing, MDX, SPA navigation, and data/form
+   APIs out of this slice.
 
-Before coding more M4 or any Qwik-facing runtime code, verify the local Qwik
-repo is still on branch `build/v2` and inspect the relevant core/server/Vite
-plugin APIs. Use grep MCP for comparable public implementation patterns.
+Before coding more status-page or Qwik-facing runtime code, verify the local
+Qwik repo is still on branch `build/v2` and inspect the relevant
+core/server/Vite plugin APIs. Use grep MCP for comparable public implementation
+patterns.
 
 ## Parallel Work Notes
 
@@ -345,3 +350,38 @@ Do not parallelize yet:
   `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
   `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, and `pnpm build`.
+- M4 default-export validation evidence: added
+  `fixtures/minimal/pages/missing-default.tsx` with no default export and
+  fixture QA asserting `GET /missing-default` returns 500 with the direct
+  message `Page module must default export a Qwik component`. The fixture test
+  passed without production changes, proving the existing renderer validation
+  branch through the real built SSR entry.
+- M4 final verification passed:
+  `pnpm --filter @resumable.dev/core build`,
+  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
+  `git diff --check`. M4 is complete enough to move to M5 App Shell and Head.
+- M6 404 status-page mismatch audit: `pages/404.tsx` and `pages/500.tsx` were
+  reserved by `buildRouteManifestFromFileIds()`, but the SSR entry still
+  returned a literal `new Response("Not found", { status: 404 })` for
+  unmatched page requests. grep MCP research re-checked Vite
+  `configEnvironment()` and `import.meta.glob()` patterns before editing the
+  Vite plugin/server-entry code.
+- M6 404 red evidence: with the user-added `fixtures/minimal/pages/404.tsx`,
+  added fixture QA for `GET /ccc` expecting status 404, `text/html`, and the
+  rendered `404` page body with `PageProps.status === 404`,
+  `PageProps.url.pathname === "/ccc"`, and empty params.
+  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts` failed because the
+  response was still `text/plain;charset=UTF-8`.
+- M6 404 green evidence: the internal server entry now routes unmatched page
+  requests through `manifest.statusPages.notFound` and the same Qwik
+  `renderToString()` path as normal pages, passing `PageProps` with
+  `{ params: {}, status: 404 }`. After rebuilding `@resumable.dev/core`, the
+  minimal fixture test passed for `GET /ccc`.
+- M6 404 verification passed:
+  `pnpm --filter @resumable.dev/core build`,
+  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/src/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
+  `git diff --check`.
