@@ -106,11 +106,15 @@ describe("CreateProgram", () => {
     expect(packageJson.dependencies).toHaveProperty("@qwik.dev/core");
     expect(packageJson.devDependencies).toMatchObject({
       "@resumable.dev/core": expect.any(String),
+      "@resumable.dev/typescript-plugin": expect.any(String),
       "qwik-bundler": expect.any(String),
       nitro: expect.any(String),
       vite: expect.any(String),
       "vite-plus": expect.any(String)
     });
+    await expect(readFile(join(appDir, "tsconfig.json"), "utf-8")).resolves.toContain(
+      '"name": "@resumable.dev/typescript-plugin"'
+    );
     expect(viteConfig).toContain('import { defineConfig } from "vite-plus";');
     expect(viteConfig).toContain('import { qwik } from "qwik-bundler/vite";');
     expect(viteConfig).toContain('import { resumable } from "@resumable.dev/core/vite";');

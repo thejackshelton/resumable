@@ -6,7 +6,13 @@
     "jsx": "react-jsx",
     "jsxImportSource": "@qwik.dev/core",
     "strict": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "plugins": [
+      {
+        "name": "@resumable.dev/typescript-plugin",
+        "pagesDir": "./pages"
+      }
+    ]
   },
   "include": ["pages", "vite.config.ts"]
 }

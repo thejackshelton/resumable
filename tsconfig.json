@@ -13,5 +13,15 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "references": [{ "path": "./libs/core" }, { "path": "./libs/cli" }]
+  "references": [
+    {
+      "path": "./libs/core"
+    },
+    {
+      "path": "./libs/cli"
+    },
+    {
+      "path": "./libs/typescript-plugin"
+    }
+  ]
 }

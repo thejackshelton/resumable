@@ -97,6 +97,7 @@ const DEFAULT_DEPENDENCIES = {
 
 const DEFAULT_DEV_DEPENDENCIES = {
   "@resumable.dev/core": "latest",
+  "@resumable.dev/typescript-plugin": "latest",
   nitro: "3.0.260429-beta",
   "qwik-bundler": "0.1",
   typescript: "^6.0.0",
@@ -501,6 +502,12 @@ function tsconfig() {
       jsx: "react-jsx",
       jsxImportSource: "@qwik.dev/core",
       strict: true,
+      plugins: [
+        {
+          name: "@resumable.dev/typescript-plugin",
+          pagesDir: "./pages"
+        }
+      ],
       types: ["vite/client"]
     },
     include: ["pages", "app.tsx", "404.tsx", "500.tsx", "vite.config.ts"]

@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@resumable.dev/core": "workspace:*",
+    "@resumable.dev/typescript-plugin": "workspace:*",
     "nitro": "3.0.260429-beta",
     "qwik-bundler": "0.1",
     "typescript": "catalog:",

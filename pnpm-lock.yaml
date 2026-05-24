@@ -45,6 +45,9 @@ importers:
       '@resumable.dev/core':
         specifier: workspace:*
         version: link:../../libs/core
+      '@resumable.dev/typescript-plugin':
+        specifier: workspace:*
+        version: link:../../libs/typescript-plugin
       nitro:
         specifier: 3.0.260429-beta
         version: 3.0.260429-beta(rollup@4.60.4)(vite@8.0.14(@types/node@24.12.4))
@@ -70,6 +73,9 @@ importers:
       '@resumable.dev/core':
         specifier: workspace:*
         version: link:../../libs/core
+      '@resumable.dev/typescript-plugin':
+        specifier: workspace:*
+        version: link:../../libs/typescript-plugin
       nitro:
         specifier: 3.0.260429-beta
         version: 3.0.260429-beta(rollup@4.60.4)(vite@8.0.14(@types/node@24.12.4))
@@ -160,6 +166,19 @@ importers:
       vite:
         specifier: ^8
         version: 8.0.14(@types/node@24.10.1)
+
+  libs/typescript-plugin:
+    dependencies:
+      pathe:
+        specifier: 2.0.3
+        version: 2.0.3
+      ufo:
+        specifier: 1.6.4
+        version: 1.6.4
+    devDependencies:
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.2
 
 packages:
 

@@ -7,7 +7,13 @@
     "jsxImportSource": "@qwik.dev/core",
     "strict": true,
     "skipLibCheck": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "plugins": [
+      {
+        "name": "@resumable.dev/typescript-plugin",
+        "pagesDir": "./pages"
+      }
+    ]
   },
   "include": ["app.tsx", "pages", "vite.config.ts"]
 }

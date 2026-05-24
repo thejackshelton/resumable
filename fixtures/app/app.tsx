@@ -1,11 +1,17 @@
 import { component$, Slot, useComputed$ } from "@qwik.dev/core";
-import { Html, type PageProps } from "@resumable.dev/core";
+import { Html } from "@resumable.dev/core";
 
-export default component$((props: PageProps) => {
-  const section = useComputed$(() => props.url.pathname.split("/")[1] || "home");
+export default component$((props) => {
+  const section = useComputed$(
+    () => props.url.pathname.split("/")[1] || "home",
+  );
 
   return (
-    <Html lang="en" data-path={props.url.pathname} data-status={String(props.status)}>
+    <Html
+      lang="en"
+      data-path={props.url.pathname}
+      data-status={String(props.status)}
+    >
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
