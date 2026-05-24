@@ -4,7 +4,7 @@ import {
   buildRouteManifestFromFileIds,
   matchRouteManifest,
   type RouteManifest
-} from "./route-manifest.ts";
+} from "../src/route-manifest.ts";
 
 const routePairs = (manifest: RouteManifest) =>
   manifest.routes.map((route) => [route.pathname, route.file]);
@@ -153,7 +153,7 @@ describe("route manifest", () => {
 
   it("keeps manifest normalization free of Node filesystem and path imports", async () => {
     const source = await readFile(
-      new URL("./route-manifest.ts", import.meta.url),
+      new URL("../src/route-manifest.ts", import.meta.url),
       "utf-8"
     );
 

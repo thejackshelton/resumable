@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import { parseAst } from "vite";
-import { transformHtmlSource } from "./html-transform.ts";
+import { transformHtmlSource } from "../../src/vite/html-transform.ts";
 
 describe("html transform", () => {
   it("appends html attribute helper from app.tsx root Html props", () => {

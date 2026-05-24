@@ -4,7 +4,7 @@ import { dirname, join } from "pathe";
 import { decodePath, parseURL } from "ufo";
 import type { EnvironmentOptions, Plugin, UserConfig } from "vite";
 import { nitro } from "nitro/vite";
-import { resumable } from "./vite.ts";
+import { resumable } from "../../src/vite/vite.ts";
 
 const flattenPlugins = (plugins: unknown[]): Plugin[] =>
   plugins.flatMap((plugin) =>
@@ -29,7 +29,11 @@ const hookHandler = (hook: unknown) => {
 };
 
 const expectedEntryPath = (file: string) =>
-  join(dirname(decodePath(parseURL(import.meta.url).pathname)), "entries", file);
+  join(
+    dirname(decodePath(parseURL(import.meta.url).pathname)),
+    "../../src/vite/entries",
+    file
+  );
 
 describe("resumable Vite plugin", () => {
   it("wires Nitro internally without adding Qwik", () => {
@@ -75,10 +79,13 @@ describe("resumable Vite plugin", () => {
       expectedEntryPath("route-discovery.ts")
     );
     const entrySource = await readFile(
-      new URL("./entries/route-discovery.ts", import.meta.url),
+      new URL("../../src/vite/entries/route-discovery.ts", import.meta.url),
       "utf-8"
     );
-    const pluginSource = await readFile(new URL("./vite.ts", import.meta.url), "utf-8");
+    const pluginSource = await readFile(
+      new URL("../../src/vite/vite.ts", import.meta.url),
+      "utf-8"
+    );
 
     expect(entrySource).toContain('import.meta.glob("/pages/**/*.tsx")');
     expect(entrySource).toContain("createRouteDiscovery");
@@ -115,15 +122,15 @@ describe("resumable Vite plugin", () => {
       expectedEntryPath("server-entry.ts")
     );
     const clientEntrySource = await readFile(
-      new URL("./entries/client-entry.ts", import.meta.url),
+      new URL("../../src/vite/entries/client-entry.ts", import.meta.url),
       "utf-8"
     );
     const serverEntrySource = await readFile(
-      new URL("./entries/server-entry.ts", import.meta.url),
+      new URL("../../src/vite/entries/server-entry.ts", import.meta.url),
       "utf-8"
     );
     const serverRuntimeSource = await readFile(
-      new URL("./runtime/create-server-entry.ts", import.meta.url),
+      new URL("../../src/vite/runtime/create-server-entry.ts", import.meta.url),
       "utf-8"
     );
 
@@ -358,7 +365,10 @@ describe("resumable Vite plugin", () => {
   });
 
   it("uses Vite plugin helpers instead of local plugin-flattening ceremony", async () => {
-    const source = await readFile(new URL("./vite.ts", import.meta.url), "utf-8");
+    const source = await readFile(
+      new URL("../../src/vite/vite.ts", import.meta.url),
+      "utf-8"
+    );
 
     expect(source).toContain("sortUserPlugins");
     expect(source).not.toContain("function flattenPlugins");
@@ -366,7 +376,10 @@ describe("resumable Vite plugin", () => {
   });
 
   it("uses Vite environment hooks instead of name-specific environment input helpers", async () => {
-    const source = await readFile(new URL("./vite.ts", import.meta.url), "utf-8");
+    const source = await readFile(
+      new URL("../../src/vite/vite.ts", import.meta.url),
+      "utf-8"
+    );
 
     expect(source).toContain("configEnvironment");
     expect(source).toContain(".consumer");

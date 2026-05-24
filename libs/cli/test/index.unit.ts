@@ -7,7 +7,7 @@ import {
   PROJECT_FORMAT_CHOICES,
   STARTER_CHOICES,
   type ProgramRuntime
-} from "./index.ts";
+} from "../src/index.ts";
 
 const fakeRuntime = (cwd: string): ProgramRuntime => ({
   cwd: () => cwd,
@@ -56,7 +56,7 @@ describe("CreateProgram", () => {
   });
 
   it("uses shared path and URL helpers instead of Node path/url imports", async () => {
-    const source = await readFile(new URL("./index.ts", import.meta.url), "utf-8");
+    const source = await readFile(new URL("../src/index.ts", import.meta.url), "utf-8");
 
     expect(source).toContain('from "pathe"');
     expect(source).toContain('from "ufo"');

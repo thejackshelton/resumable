@@ -281,8 +281,8 @@ Do not parallelize yet:
   normalization inside `@resumable.dev/core` instead of leaking those packages
   into fixture app dependencies.
 - M4 first-slice verification passed:
-  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/vite/vite.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts`,
   `pnpm test`, `pnpm format`, `pnpm check`, and `pnpm build`.
 - M4 fixture QA correction: the initial fixture assertion only proved that page
   text appeared in production SSR output, which missed a dev/runtime Qwik
@@ -291,14 +291,14 @@ Do not parallelize yet:
   inside `<body>`, fixed the internal renderer to provide a default
   `<head>`/`<body>` document wrapper around page components, and moved the
   fixture-backed test out of `fixtures/minimal` into
-  `libs/core/src/minimal-fixture.unit.ts` so the fixture stays user-shaped.
+  `libs/core/test/minimal-fixture.unit.ts` so the fixture stays user-shaped.
 - Vite environment API research used grep MCP examples from Nitro and Fresh
   showing `config.consumer`/`env.config.consumer` usage, and checked local Vite
   8 types confirming `configEnvironment()` is the per-environment hook while
   `rollupOptions` is deprecated in favor of `rolldownOptions`. Local Nitro
   source confirmed its renderer service detection still depends on the `ssr`
   service environment.
-- Vite environment API red evidence: `pnpm exec vp test libs/core/src/vite/vite.unit.ts`
+- Vite environment API red evidence: `pnpm exec vp test libs/core/test/vite/vite.unit.ts`
   failed 3 tests because `resumable:vite` had no `configEnvironment()` hook,
   returned no consumer-derived environment entry config, and still used
   name-specific `createEnvironmentConfig`/`createEnvironmentWithInput` helpers
@@ -310,9 +310,9 @@ Do not parallelize yet:
   existing environment inputs and removing production `rollupOptions`
   references from `libs/core/src/vite/vite.ts`.
 - Vite environment API verification passed:
-  `pnpm exec vp test libs/core/src/vite/vite.unit.ts`,
-  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/vite/vite.unit.ts`,
+  `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/vite/vite.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, and `pnpm build`.
 - M4 static/dynamic route matching research re-verified local Qwik on
   `build/v2`, used grep MCP route matcher examples showing sorted route
@@ -321,7 +321,7 @@ Do not parallelize yet:
   SPA navigation, or data APIs.
 - M4 `/about` QA evidence: `fixtures/minimal/pages/about.tsx` was manually
   added before this slice. Added fixture QA for `GET /about` through the real
-  built SSR entry; `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`
+  built SSR entry; `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`
   passed, proving it was existing green behavior rather than new production
   implementation.
 - M4 dynamic route red evidence: added `fixtures/minimal/pages/blog/test.tsx`,
@@ -339,18 +339,18 @@ Do not parallelize yet:
   `props.params.slug === "hello"`.
 - M4 dynamic route verification passed:
   `pnpm --filter @resumable.dev/core build`,
-  `pnpm exec vp test libs/core/src/route-manifest.unit.ts`,
-  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/route-manifest.unit.ts`,
+  `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/vite/vite.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, and `pnpm build`.
 - M4 catch-all route red evidence: added
   `fixtures/minimal/pages/docs/[...slug].tsx`, fixture QA for
   `GET /docs/guides/getting-started`, and a focused `matchRouteManifest()`
   unit case proving static routes win over dynamic routes, dynamic routes win
   over catch-all routes, catch-all params are slash-joined, and catch-all does
-  not match the folder root. `pnpm exec vp test libs/core/src/route-manifest.unit.ts`
+  not match the folder root. `pnpm exec vp test libs/core/test/route-manifest.unit.ts`
   failed because the catch-all match returned `undefined`; after rebuilding
-  core for fixture package exports, `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`
+  core for fixture package exports, `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`
   failed because the docs catch-all request returned 404.
 - M4 catch-all route green evidence: `matchRouteManifest()` now handles final
   `**` segments as one-or-more remaining URL segments, captures the catch-all
@@ -359,10 +359,10 @@ Do not parallelize yet:
   fixture now renders `pages/docs/[...slug].tsx` with
   `props.params.slug === "guides/getting-started"`.
 - M4 catch-all route verification passed:
-  `pnpm exec vp test libs/core/src/route-manifest.unit.ts`,
+  `pnpm exec vp test libs/core/test/route-manifest.unit.ts`,
   `pnpm --filter @resumable.dev/core build`,
-  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/vite/vite.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, and `pnpm build`.
 - M4 default-export validation evidence: added
   `fixtures/minimal/pages/missing-default.tsx` with no default export and
@@ -372,8 +372,8 @@ Do not parallelize yet:
   branch through the real built SSR entry.
 - M4 final verification passed:
   `pnpm --filter @resumable.dev/core build`,
-  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/vite/vite.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
   `git diff --check`. M4 is complete enough to move to M5 App Shell and Head.
 - M6 404 status-page mismatch audit: `pages/404.tsx` and `pages/500.tsx` were
@@ -386,7 +386,7 @@ Do not parallelize yet:
   added fixture QA for `GET /ccc` expecting status 404, `text/html`, and the
   rendered `404` page body with `PageProps.status === 404`,
   `PageProps.url.pathname === "/ccc"`, and empty params.
-  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts` failed because the
+  `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts` failed because the
   response was still `text/plain;charset=UTF-8`.
 - M6 404 green evidence: the internal server entry now routes unmatched page
   requests through `manifest.statusPages.notFound` and the same Qwik
@@ -395,21 +395,21 @@ Do not parallelize yet:
   minimal fixture test passed for `GET /ccc`.
 - M6 404 verification passed:
   `pnpm --filter @resumable.dev/core build`,
-  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/vite/vite.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
   `git diff --check`.
 - M6 404 query-string QA evidence: updated the existing 404 fixture to render
   `PageProps.url.search` and `PageProps.url.href`, then changed the fixture QA
   to request `GET /ccc?hello=test`. `params` stayed empty because query
   parameters are not route params, while `props.url.search` preserved
-  `?hello=test`. `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`
+  `?hello=test`. `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`
   passed without production changes.
 - M6 500 red evidence: added `fixtures/minimal/pages/500.tsx`,
   `fixtures/minimal/pages/throws.tsx`, and fixture QA for
   `GET /throws?debug=yes` expecting status 500, `text/html`, rendered `500`
   UI, `PageProps.status === 500`, the original pathname/search/href, and empty
-  params. `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts` failed
+  params. `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts` failed
   because `Fixture page render failure` bubbled out of Qwik SSR.
 - M6 500 green evidence: grep MCP research re-checked Vite
   `configEnvironment()` and `import.meta.glob()` patterns before editing the
@@ -420,8 +420,8 @@ Do not parallelize yet:
   `@resumable.dev/core`, the minimal fixture test passed.
 - M6 500 verification passed:
   `pnpm --filter @resumable.dev/core build`,
-  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/vite/vite.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
   `git diff --check`.
 - M6 Nitro API semantics red evidence: added top-level
@@ -442,8 +442,8 @@ Do not parallelize yet:
   `500.tsx` for `/ccc?hello=test` and `/throws?debug=yes`.
 - M6 final verification passed:
   `pnpm --filter @resumable.dev/core build`,
-  `pnpm exec vp test libs/core/src/minimal-fixture.unit.ts`,
-  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/vite/vite.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
   `git diff --check`. M6 is complete enough to move to M5 App Shell and Head.
 - M5 app-shell foundation research verified
@@ -494,7 +494,7 @@ Do not parallelize yet:
 - M5 app-shell foundation verification passed after the entry split and Qwik
   runtime dedupe fix:
   `pnpm --filter @resumable.dev/core build`,
-  `pnpm exec vp test libs/core/src/vite/vite.unit.ts libs/core/src/route-manifest.unit.ts libs/core/src/minimal-fixture.unit.ts`,
+  `pnpm exec vp test libs/core/test/vite/vite.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
   `git diff --check`. M5 remains active because `Html`, `Head`, and
   unsupported app-shell alias validation are still pending.
@@ -513,6 +513,10 @@ Do not parallelize yet:
   evidence now lives in physical `fixtures/app` with a real `app.tsx`; a narrow
   temporary fixture still proves `app.jsx`. Verification passed: red targeted
   test run, `pnpm build`, `pnpm check`,
-  `pnpm test libs/core/src/minimal-fixture.unit.ts`, `pnpm test`, and
+  `pnpm test libs/core/test/minimal-fixture.unit.ts`, `pnpm test`, and
   `git diff --check`. M5 remains active because `Head` and unsupported
   app-shell alias validation are still pending.
+- Test files now live in package-level `test/` folders adjacent to `src/`:
+  `libs/core/test/**` and `libs/cli/test/**`. Source packages keep
+  `tsconfig.json` scoped to `src`, while Vite+ still discovers tests through
+  the workspace `**/*.unit.ts` pattern.

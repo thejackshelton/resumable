@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { JSXOutput } from "@qwik.dev/core";
-import { createServerEntry, type ServerEntryOptions } from "./create-server-entry.ts";
+import {
+  createServerEntry,
+  type ServerEntryOptions
+} from "../../../src/vite/runtime/create-server-entry.ts";
 
 describe("server entry app document attributes", () => {
   it("passes app.tsx html attributes to Qwik before renderToString", async () => {
