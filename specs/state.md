@@ -1,6 +1,6 @@
 # Resumable Implementation State
 
-Last updated: 2026-05-23
+Last updated: 2026-05-24
 
 Status: M1 CLI create flow, M2 core Vite plugin skeleton, M3 route manifest,
 and M4 Qwik SSR renderer are implemented with focused red/green evidence.
@@ -11,13 +11,14 @@ Node-backed manifest scanner, environment entry wiring uses Vite
 `configEnvironment()` with `consumer` and `rolldownOptions`, and the renderer
 now matches static, dynamic, catch-all, 404 status, and 500 status `.tsx` page
 routes with `PageProps`. The first M5 slices are implemented: top-level
-`app.tsx` or `app.jsx` is discovered lazily by Vite inside the generated
+`document.tsx` or `document.jsx` is discovered lazily by Vite inside the generated
 server/client entries, receives `PageProps`, wraps normal, 404, and 500 pages,
-and the default internal document still works without an app shell. The `Html`
+and the default internal document still works without a document shell. The `Html`
 component is a children-only Qwik component at runtime, while `resumable:html`
 uses the Vite transform hook `filter.id` and the TSX/JSX AST to extract root
-`<Html>` attributes into pre-render container attributes. `Head` and
-unsupported app-shell alias validation remain separate M5 slices. The Vite
+`<Html>` attributes into pre-render container attributes. Route-local `Head` is
+out of v0; unsupported document-shell alias validation remains a separate M5
+slice. The Vite
 plugin resolves Resumable virtual IDs to real `src/vite/entries/*` source
 files and uses Vite dependency config to keep Qwik on one runtime instance.
 
@@ -65,7 +66,9 @@ routing, MDX, SPA navigation, or data/form APIs.
 - Composed MDX is the planned MDX layout story: explicit component tree above
   `--- content`, content body below, and one visible `<Content />` slot.
 - Layouts are explicit Qwik components.
-- Optional `app.tsx` or `app.jsx` owns document shell.
+- Optional `document.tsx` or `document.jsx` owns document shell.
+- Legacy app-named document shell files are not aliases; only top-level
+  `document.tsx` and `document.jsx` are discovered.
 - Root `404.tsx` is reserved by the route manifest and renders unmatched page
   requests through Qwik SSR with status 404 when present.
 - Root `500.tsx` is reserved by the route manifest and renders Qwik page render
@@ -93,33 +96,33 @@ routing, MDX, SPA navigation, or data/form APIs.
 
 ## Milestone State
 
-| ID  | Milestone                                    | Status   | Can Run In Parallel With         | Depends On                    |
-| --- | -------------------------------------------- | -------- | -------------------------------- | ----------------------------- |
-| M0  | Spec organization                            | Complete | none                             | none                          |
-| M1  | CLI create flow                              | Complete | M2 package/plugin skeleton       | M0                            |
-| M2  | Core Vite plugin skeleton                    | Complete | M1 CLI create flow               | M0                            |
-| M3  | Route manifest                               | Complete | starter file content             | M2                            |
-| M4  | Qwik SSR renderer                            | Complete | Nitro passthrough fixtures       | M2, M3                        |
-| M5  | App shell and Head                           | Active   | status page tests                | M4                            |
-| M6  | Status pages                                 | Complete | M5 app shell                     | M4                            |
-| M7  | Nitro passthrough                            | Pending  | M4 renderer work                 | M2                            |
-| M8  | Typed routing                                | Pending  | CLI doctor/routes commands       | M3                            |
-| M9  | Link and SPA navigation                      | Pending  | none                             | M4, M8                        |
-| M10 | MDX/Composed MDX fixture and Docs starter    | Pending  | none                             | M3, M4, Satteri/Qwik proof    |
-| M11 | Data fetching prototype                      | Deferred | none                             | M4, M9, data confidence gates |
-| M12 | Bun fixture                                  | Deferred | CLI/runtime format work after M1 | M1, M2, M4                    |
-| M13 | Deno fixture                                 | Deferred | none                             | M1, M2, M4, Vite+/Deno proof  |
+| ID  | Milestone                                 | Status   | Can Run In Parallel With         | Depends On                    |
+| --- | ----------------------------------------- | -------- | -------------------------------- | ----------------------------- |
+| M0  | Spec organization                         | Complete | none                             | none                          |
+| M1  | CLI create flow                           | Complete | M2 package/plugin skeleton       | M0                            |
+| M2  | Core Vite plugin skeleton                 | Complete | M1 CLI create flow               | M0                            |
+| M3  | Route manifest                            | Complete | starter file content             | M2                            |
+| M4  | Qwik SSR renderer                         | Complete | Nitro passthrough fixtures       | M2, M3                        |
+| M5  | Document shell                            | Active   | status page tests                | M4                            |
+| M6  | Status pages                              | Complete | M5 document shell                | M4                            |
+| M7  | Nitro passthrough                         | Pending  | M4 renderer work                 | M2                            |
+| M8  | Typed routing                             | Pending  | CLI doctor/routes commands       | M3                            |
+| M9  | Link and SPA navigation                   | Pending  | none                             | M4, M8                        |
+| M10 | MDX/Composed MDX fixture and Docs starter | Pending  | none                             | M3, M4, Satteri/Qwik proof    |
+| M11 | Data fetching prototype                   | Deferred | none                             | M4, M9, data confidence gates |
+| M12 | Bun fixture                               | Deferred | CLI/runtime format work after M1 | M1, M2, M4                    |
+| M13 | Deno fixture                              | Deferred | none                             | M1, M2, M4, Vite+/Deno proof  |
 
 ## Next Recommended Goal
 
 Continue M5 in TDD slices:
 
-1. Add the next focused red evidence for `Head` or unsupported app-shell alias
+1. Add the next focused red evidence for unsupported document-shell alias
    validation.
 2. Keep the existing `Html` implementation constrained to direct root
    `<Html>` attributes extracted by `resumable:html`; do not add marker
    components or parse rendered HTML.
-3. Keep typed routing, MDX, SPA navigation, and data/form APIs out of this
+3. Keep route-local `Head`, typed routing, MDX, SPA navigation, and data/form APIs out of this
    slice.
 
 Before coding more M5 or Qwik-facing runtime code, verify the local Qwik repo
@@ -273,7 +276,7 @@ Do not parallelize yet:
   `pnpm exec vp test fixtures/minimal/minimal.unit.ts` failed because the
   fixture had no Resumable-provided client/SSR entry and Vite tried to resolve
   the default `fixtures/minimal/index.html`. Follow-up fixture failures exposed
-  that virtual app modules must not import `pathe`/`ufo` as app dependencies,
+  that virtual document modules must not import `pathe`/`ufo` as app dependencies,
   and that the duplicate Nitro guard must tolerate Vite plugin entries without
   string names.
 - M4 first-slice green evidence: `resumable()` now wires virtual client and SSR
@@ -319,7 +322,7 @@ Do not parallelize yet:
 - M4 static/dynamic route matching research re-verified local Qwik on
   `build/v2`, used grep MCP route matcher examples showing sorted route
   iteration and first-match behavior, and confirmed the implementation plan's
-  next slice should not include app shell, status pages, typed routing, MDX,
+  next slice should not include document shell, status pages, typed routing, MDX,
   SPA navigation, or data APIs.
 - M4 `/about` QA evidence: `fixtures/minimal/pages/about.tsx` was manually
   added before this slice. Added fixture QA for `GET /about` through the real
@@ -377,7 +380,7 @@ Do not parallelize yet:
   `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`,
   `pnpm exec vp test libs/core/test/vite/vite.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
-  `git diff --check`. M4 is complete enough to move to M5 App Shell and Head.
+  `git diff --check`. M4 is complete enough to move to M5 Document Shell.
 - M6 404 status-page mismatch audit: `pages/404.tsx` and `pages/500.tsx` were
   reserved by `buildRouteManifestFromFileIds()`, but the SSR entry still
   returned a literal `new Response("Not found", { status: 404 })` for
@@ -447,27 +450,28 @@ Do not parallelize yet:
   `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`,
   `pnpm exec vp test libs/core/test/vite/vite.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
-  `git diff --check`. M6 is complete enough to move to M5 App Shell and Head.
-- M5 app-shell foundation research verified
+  `git diff --check`. M6 is complete enough to move to M5 Document Shell.
+- M5 document-shell foundation research verified
   `/Users/jacksm5pro/dev/open-source/qwik` is on `build/v2`, inspected Qwik
   `renderToString()`/`renderToStream()`, `containerAttributes`, `Slot`,
   `PropsOf`, `useServerData`, and SSR container behavior, and used grep MCP for
   current Qwik SSR `containerAttributes` examples plus Vite
   `configEnvironment()` patterns before touching `libs/core/src/vite/vite.ts`.
-- M5 app-shell foundation red evidence: added fixture-backed tests outside the
-  fixture. The app-less `fixtures/minimal` assertion failed because the default
-  document had no charset/viewport metadata. A temporary user-shaped app-shell
-  fixture under `/tmp` failed because top-level `app.tsx` was ignored, so app
-  `<body>` props and shell content were absent from normal, 404, and 500
+- M5 document-shell foundation red evidence: added fixture-backed tests outside
+  the fixture. The document-less `fixtures/minimal` assertion failed because the
+  default document had no charset/viewport metadata. A temporary user-shaped
+  document-shell fixture under `/tmp` failed because top-level `document.tsx`
+  was ignored, so document `<body>` props and shell content were absent from
+  normal, 404, and 500
   responses. The Vite unit also failed because the generated server/client
-  entries did not discover `/app.tsx`.
-- M5 app-shell foundation green evidence was narrowed after a surgical-scope
-  audit: `resumable()` uses Vite `import.meta.glob("/app.tsx")` directly in the
+  entries did not discover `/document.tsx`.
+- M5 document-shell foundation green evidence was narrowed after a surgical-scope
+  audit: `resumable()` uses Vite `import.meta.glob("/document.tsx")` directly in the
   generated server/client entries instead of a separate
-  `virtual:resumable/app` module, and includes `app.tsx` in the client entry.
-  The server entry renders the built-in default document when no `app.tsx`
-  exists, and wraps normal, 404, and 500 pages with user `app.tsx` when present.
-  `Html`, `Head`, root export separation, and unsupported alias validation are
+  generated server entry, and includes `document.tsx` in the client entry.
+  The server entry renders the built-in default document when no `document.tsx`
+  exists, and wraps normal, 404, and 500 pages with user `document.tsx` when present.
+  `Html`, root export separation, and unsupported alias validation are
   intentionally deferred into separate TDD slices.
 - M5 Vite entry split follow-up: grep MCP research found modern Vite tooling
   patterns using Vite 8/Rolldown hook filters, `this.addWatchFile()`,
@@ -482,7 +486,7 @@ Do not parallelize yet:
   entry plumbing is commonly kept inline, while helpers carry lookup,
   normalization, error, or handler behavior. Removed the trivial
   `create-client-entry` and `get-app-module-loader` runtime subpaths; the
-  client and app module globs now stay directly in the typed entry files.
+  client and document module globs now stay directly in the typed entry files.
 - M5 Qwik runtime dedupe red evidence: after the entry split, the fixture tests
   failed with Qwik `Q30` duplicate-runtime errors and empty SSR bodies. A
   focused Vite unit also failed because `configEnvironment()` preserved user
@@ -493,31 +497,32 @@ Do not parallelize yet:
   `optimizeDeps.exclude`, and server `resolve.noExternal`, while preserving
   user entries. This avoids relying on the unfinished upstream Qwik singleton
   PR.
-- M5 app-shell foundation verification passed after the entry split and Qwik
+- M5 document-shell foundation verification passed after the entry split and Qwik
   runtime dedupe fix:
   `pnpm --filter @resumable.dev/core build`,
   `pnpm exec vp test libs/core/test/vite/vite.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
-  `git diff --check`. M5 remains active because `Html`, `Head`, and
-  unsupported app-shell alias validation are still pending.
+  `git diff --check`. M5 remains active because `Html` and
+  unsupported document-shell alias validation are still pending.
 - M5 `Html` AST-transform red evidence: added focused transform tests for
-  helper generation from `app.tsx` and `app.jsx`, non-`Html` roots,
+  helper generation from `document.tsx` and `document.jsx`, non-`Html` roots,
   render-time local captures, and spread attributes; server-entry tests for
   pre-render `containerAttributes`; Vite plugin-order tests proving no
   plugin-level `enforce: "pre"`; and fixture evidence for request-specific
   `<html>` attributes on normal, 404, and 500 responses.
 - M5 `Html` AST-transform green evidence: `Html` is a tiny runtime component
   that returns children, `resumable:html` appends
-  `__resumableHtmlAttributes()` from the top-level app shell TSX/JSX AST using
+  `__resumableHtmlAttributes()` from the top-level document shell TSX/JSX AST using
   the Vite transform hook `filter.id`, and the server entry calls that helper
   before `renderToString()`. This slice uses no marker component, no
-  rendered-HTML parsing, and no `html.replace()` logic. The app-shell fixture
-  evidence now lives in physical `fixtures/app` with a real `app.tsx`; a narrow
-  temporary fixture still proves `app.jsx`. Verification passed: red targeted
+  rendered-HTML parsing, and no `html.replace()` logic. The document-shell fixture
+  evidence now lives in physical `fixtures/app` with a real `document.tsx`; a narrow
+  temporary fixture still proves `document.jsx`. Verification passed: red targeted
   test run, `pnpm build`, `pnpm check`,
   `pnpm test libs/core/test/minimal-fixture.unit.ts`, `pnpm test`, and
-  `git diff --check`. M5 remains active because `Head` and unsupported
-  app-shell alias validation are still pending.
+  `git diff --check`. M5 remains active because unsupported document-shell
+  alias validation is still pending. Route-local `Head` was removed from v0:
+  `document.tsx` owns `<head>` and can branch from `PageProps`.
 - Test files now live in package-level `test/` folders adjacent to `src/`:
   `libs/core/test/**` and `libs/cli/test/**`. Source packages keep
   `tsconfig.json` scoped to `src`, while Vite+ still discovers tests through

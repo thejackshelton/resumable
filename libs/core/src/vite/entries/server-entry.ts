@@ -3,9 +3,10 @@ import { renderToString } from "@qwik.dev/core/server";
 import { createServerEntry } from "@resumable.dev/core/vite/runtime/create-server-entry";
 import { pageModuleLoaders, routeFileIds } from "virtual:resumable/routes";
 
-const appModuleLoaders = import.meta.glob(["/app.tsx", "/app.jsx"]);
+const documentModuleLoaders = import.meta.glob(["/document.tsx", "/document.jsx"]);
 const entry = createServerEntry({
-  appModuleLoader: appModuleLoaders["/app.tsx"] ?? appModuleLoaders["/app.jsx"],
+  documentModuleLoader:
+    documentModuleLoaders["/document.tsx"] ?? documentModuleLoaders["/document.jsx"],
   isDev: import.meta.env.DEV,
   pageModuleLoaders,
   qwik: { Fragment, jsx, jsxs, renderToString },

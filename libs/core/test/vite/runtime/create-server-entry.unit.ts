@@ -5,12 +5,12 @@ import {
   type ServerEntryOptions
 } from "../../../src/vite/runtime/create-server-entry.ts";
 
-describe("server entry app document attributes", () => {
-  it("passes app.tsx html attributes to Qwik before renderToString", async () => {
+describe("server entry document attributes", () => {
+  it("passes document.tsx html attributes to Qwik before renderToString", async () => {
     const renderOptions: Array<Parameters<QwikRuntime["renderToString"]>[1]> = [];
     const entry = createServerEntry({
-      appModuleLoader: async () => ({
-        default: component("app"),
+      documentModuleLoader: async () => ({
+        default: component("document"),
         __resumableHtmlAttributes: (props: {
           readonly status: number;
           readonly url: { readonly pathname: string };
@@ -38,11 +38,11 @@ describe("server entry app document attributes", () => {
     });
   });
 
-  it("keeps default lang when app.tsx has no generated html attribute helper", async () => {
+  it("keeps default lang when document.tsx has no generated html attribute helper", async () => {
     const renderOptions: Array<Parameters<QwikRuntime["renderToString"]>[1]> = [];
     const entry = createServerEntry({
-      appModuleLoader: async () => ({
-        default: component("app")
+      documentModuleLoader: async () => ({
+        default: component("document")
       }),
       isDev: false,
       pageModuleLoaders: {

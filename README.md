@@ -72,7 +72,7 @@ pages/blog/[slug].tsx    -> /blog/:slug
 pages/docs/[...slug].tsx -> /docs/**
 ```
 
-Layouts are normal Qwik components. `app.tsx` is optional and customizes the
+Layouts are normal Qwik components. `document.tsx` is optional and customizes the
 global document shell. Root `pages/404.tsx` and `pages/500.tsx` provide status
 pages.
 

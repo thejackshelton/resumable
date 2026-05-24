@@ -30,7 +30,7 @@ interface BuiltNitroResponse {
 
 describe("Resumable fixtures", () => {
   it("renders static pages through Resumable's internal Qwik SSR renderer", async () => {
-    await expectPath("app.tsx", false);
+    await expectPath("document.tsx", false);
     await expectPath("pages/index.tsx", true);
     await expectPath("pages/about.tsx", true);
     await expectPath("pages/404.tsx", true);
@@ -173,8 +173,8 @@ describe("Resumable fixtures", () => {
     expect(nitroRenderFailureResponse.body).toContain("Search: ?debug=yes");
   });
 
-  it("uses top-level app.tsx as the document app shell", async () => {
-    await expectPath("app.tsx", true, appFixtureUrl);
+  it("uses top-level document.tsx as the document shell", async () => {
+    await expectPath("document.tsx", true, appFixtureUrl);
 
     await buildFixture(appFixtureUrl);
     const responses = await fetchBuiltSsrServer(appFixtureUrl, [
@@ -217,10 +217,10 @@ describe("Resumable fixtures", () => {
     expect(errorHtml).toContain("App fixture 500");
   });
 
-  it("uses top-level app.jsx as the document app shell", async () => {
-    const jsxFixtureUrl = await createTemporaryAppShellFixture({
-      "app.jsx": appShellJsxCode,
-      "pages/index.tsx": pageCode("JSX app shell page")
+  it("uses top-level document.jsx as the document shell", async () => {
+    const jsxFixtureUrl = await createTemporaryDocumentShellFixture({
+      "document.jsx": documentShellJsxCode,
+      "pages/index.tsx": pageCode("JSX document shell page")
     });
 
     try {
@@ -232,7 +232,7 @@ describe("Resumable fixtures", () => {
       expect(homeResponse.contentType).toContain("text/html");
       expect(homeResponse.body).toMatch(/<html[^>]*data-app="jsx"/);
       expect(homeResponse.body).toMatch(/<body[^>]*data-shell="jsx"/);
-      expect(homeResponse.body).toContain("JSX app shell page");
+      expect(homeResponse.body).toContain("JSX document shell page");
     } finally {
       await rm(jsxFixtureUrl, { recursive: true, force: true });
     }
@@ -378,8 +378,8 @@ async function cleanBuildOutput(rootUrl = fixtureUrl) {
   await rm(new URL("node_modules/.nitro", rootUrl), { recursive: true, force: true });
 }
 
-async function createTemporaryAppShellFixture(files: Record<string, string>) {
-  const root = await mkdtemp(join(tmpdir(), "resumable-app-shell-"));
+async function createTemporaryDocumentShellFixture(files: Record<string, string>) {
+  const root = await mkdtemp(join(tmpdir(), "resumable-document-shell-"));
   const rootUrl = pathToFileURL(`${root}/`);
 
   await writeFile(new URL("package.json", rootUrl), minimalPackageJson);
@@ -404,7 +404,7 @@ async function createTemporaryAppShellFixture(files: Record<string, string>) {
 }
 
 const minimalPackageJson = `{
-  "name": "resumable-fixture-app-shell",
+  "name": "resumable-fixture-document-shell",
   "private": true,
   "type": "module"
 }
@@ -420,7 +420,7 @@ const minimalTsconfigJson = `{
     "strict": true,
     "types": ["vite/client"]
   },
-  "include": ["app.tsx", "app.jsx", "pages", "vite.config.ts"]
+  "include": ["document.tsx", "document.jsx", "pages", "vite.config.ts"]
 }
 `;
 
@@ -433,7 +433,7 @@ export default defineConfig({
 });
 `;
 
-const appShellJsxCode = `import { component$, Slot } from "@qwik.dev/core";
+const documentShellJsxCode = `import { component$, Slot } from "@qwik.dev/core";
 import { Html } from "@resumable.dev/core";
 
 export default component$(() => {

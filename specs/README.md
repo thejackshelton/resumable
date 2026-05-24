@@ -49,7 +49,7 @@ Resumable examples. Resumable docs and generated code should use
 ## Spec Roles
 
 - [`SPEC.md`](./SPEC.md): main framework contract for positioning, project
-  structure, routing, app shell, MDX, Nitro relationship, rendering, API routes,
+  structure, routing, document shell, MDX, Nitro relationship, rendering, API routes,
   middleware, public assets, and v0 acceptance.
 - [`CLI_SPEC.md`](./CLI_SPEC.md): create flow, starters, runtime/project format,
   Vite+ command surface, and CLI architecture.

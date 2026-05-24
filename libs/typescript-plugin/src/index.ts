@@ -475,8 +475,8 @@ function routeForFileName(
   pagesDir: string,
   fileName: string
 ): PageRoute | undefined {
-  if (isTopLevelAppFile(projectRoot, fileName)) {
-    return { pattern: "app.tsx", params: [] };
+  if (isTopLevelDocumentFile(projectRoot, fileName)) {
+    return { pattern: "document.tsx", params: [] };
   }
 
   const relativeFileId = relative(pagesDir, fileName);
@@ -496,8 +496,8 @@ function normalizeRouteFileId(fileId: string) {
   return withoutLeadingSlash(normalize(fileId));
 }
 
-function isTopLevelAppFile(projectRoot: string, fileName: string) {
-  return normalizeRouteFileId(relative(projectRoot, fileName)) === "app.tsx";
+function isTopLevelDocumentFile(projectRoot: string, fileName: string) {
+  return normalizeRouteFileId(relative(projectRoot, fileName)) === "document.tsx";
 }
 
 function routeFromFileId(typeScript: TypeScript, fileId: string) {

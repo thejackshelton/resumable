@@ -8,8 +8,8 @@ import type { Plugin } from "vite";
 
 const HELPER = "__resumableHtmlAttributes";
 const SAFE_GLOBALS = new Set(["String", "Number", "Boolean", "Math", "JSON"]);
-const APP_FILE_LABEL = "app.tsx or app.jsx";
-const APP_FILE_FILTER = /(?:^|\/)app\.[tj]sx(?:$|\?)/;
+const DOCUMENT_FILE_LABEL = "document.tsx or document.jsx";
+const DOCUMENT_FILE_FILTER = /(?:^|\/)document\.[tj]sx(?:$|\?)/;
 
 type Node = {
   readonly type?: string;
@@ -25,12 +25,12 @@ export function htmlTransformPlugin(): Plugin {
     transform: {
       order: "pre",
       filter: {
-        id: APP_FILE_FILTER
+        id: DOCUMENT_FILE_FILTER
       },
       handler(code, id) {
         const ast = this.parse(code, {
           astType: "ts",
-          lang: id.includes("app.jsx") ? "jsx" : "tsx",
+          lang: id.includes("document.jsx") ? "jsx" : "tsx",
           range: true
         }) as unknown as Node;
 
@@ -43,14 +43,14 @@ export function htmlTransformPlugin(): Plugin {
 export function transformHtmlSource(code: string, astInput: unknown) {
   const ast = node(astInput);
   if (!ast) {
-    fail(`Resumable could not read ${APP_FILE_LABEL}. Check it for syntax errors.`);
+    fail(`Resumable could not read ${DOCUMENT_FILE_LABEL}. Check it for syntax errors.`);
   }
 
   const component = findDefaultComponent(ast);
   const fn = first(nodes(component.arguments));
   if (fn?.type !== "ArrowFunctionExpression" && fn?.type !== "FunctionExpression") {
     fail(
-      `Resumable needs to see your app component body in ${APP_FILE_LABEL}. Write \`export default component$((props) => <Html>...</Html>)\` instead of passing component$ a named function.`
+      `Resumable needs to see your document component body in ${DOCUMENT_FILE_LABEL}. Write \`export default component$((props) => <Html>...</Html>)\` instead of passing component$ a named function.`
     );
   }
 
@@ -83,7 +83,7 @@ function findDefaultComponent(ast: Node) {
   }
 
   fail(
-    `Resumable could not find the app component. ${APP_FILE_LABEL} must default export \`component$(() => <Html>...</Html>)\`.`
+    `Resumable could not find the document component. ${DOCUMENT_FILE_LABEL} must default export \`component$(() => <Html>...</Html>)\`.`
   );
 }
 
@@ -98,13 +98,13 @@ function findReturnedHtml(fn: Node) {
 
   if (returned?.type !== "JSXElement") {
     fail(
-      `Resumable expected ${APP_FILE_LABEL} to return <Html> at the top level. Wrap your document shell in \`<Html>...</Html>\`.`
+      `Resumable expected ${DOCUMENT_FILE_LABEL} to return <Html> at the top level. Wrap your document shell in \`<Html>...</Html>\`.`
     );
   }
 
   if (jsxName(node(node(returned.openingElement)?.name)) !== "Html") {
     fail(
-      `Resumable expected ${APP_FILE_LABEL} to return <Html> at the top level. Put <head> and <body> inside \`<Html>...</Html>\`.`
+      `Resumable expected ${DOCUMENT_FILE_LABEL} to return <Html> at the top level. Put <head> and <body> inside \`<Html>...</Html>\`.`
     );
   }
 
@@ -150,7 +150,7 @@ function htmlAttr(code: string, attr: Node, propsName: string | undefined) {
   const ref = unsupportedIdentifier(expression, propsName);
   if (ref) {
     fail(
-      `Resumable cannot use "${ref}" in <Html ${name}={...}> because html attributes are read before Qwik renders ${APP_FILE_LABEL}. Use props directly, like \`${name}={props.url.pathname}\`, or a literal value.`
+      `Resumable cannot use "${ref}" in <Html ${name}={...}> because html attributes are read before Qwik renders ${DOCUMENT_FILE_LABEL}. Use props directly, like \`${name}={props.url.pathname}\`, or a literal value.`
     );
   }
 

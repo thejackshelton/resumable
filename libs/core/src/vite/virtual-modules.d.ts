@@ -4,7 +4,7 @@ declare module "virtual:resumable/routes" {
 }
 
 declare module "virtual:resumable/client-entry" {
-  export const appModules: Record<string, () => Promise<unknown>>;
+  export const documentModules: Record<string, () => Promise<unknown>>;
   export const pageModules: Record<string, () => Promise<unknown>>;
 }
 

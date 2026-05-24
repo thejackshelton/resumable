@@ -272,7 +272,7 @@ Build in the first core implementation pass:
 - One internal Nitro page renderer/dispatcher.
 - Virtual or generated route manifest.
 - Qwik SSR for matched pages.
-- Optional top-level `app.tsx` with `Html` and `Head`.
+- Optional top-level `document.tsx` with `Html`.
 - Root `404.tsx` and `500.tsx` status pages.
 - Nitro-native `api/`, `middleware/`, and `public/` passthrough.
 - Typed route generation.
@@ -500,39 +500,37 @@ Exit criteria:
 - `GET /blog/hello` renders `[slug]`.
 - Rendered HTML contains Qwik resume/runtime assets.
 
-### 5. App Shell And Head
+### 5. Document Shell
 
 Goal: support document customization without file-based layouts.
 
 Build:
 
-- Optional top-level `app.tsx`.
+- Optional top-level `document.tsx`.
 - `Html` component.
-- `Head` component.
-- Default internal document when no `app.tsx` exists.
-- Page/layout-level visible `Head` support.
-- Direct error for unsupported shell filenames.
+- Default internal document when no `document.tsx` exists.
+- Direct error for unsupported shell filenames, including legacy app-named
+  document files.
 
 TDD slices:
 
-1. Add optional top-level `app.tsx` discovery only. The first slice should use
+1. Add optional top-level `document.tsx` discovery only. The first slice should use
    Vite-native lazy discovery in the existing server/client entries, pass
-   `PageProps`, and render the matched page as the app child. Do not add a
-   separate app virtual module, `Html`, `Head`, unsupported-alias detection, or
+   `PageProps`, and render the matched page as the document child. Do not add a
+   separate document virtual module, `Html`, unsupported-alias detection, or
    document attribute translation in this slice.
 2. Add `Html` as its own public API slice, with focused evidence for translating
    `Html` props to Qwik SSR container attributes.
-3. Add `Head` as its own slice, with fixture evidence that visible head entries
-   render in `<head>` and not in `<body>`.
-4. Add unsupported shell filename errors as a separate validation slice, with
-   direct fixture evidence for the rejected filenames.
+3. Add unsupported shell filename errors as a separate validation slice, with
+   direct fixture evidence for legacy app-named document files and the other
+   rejected filenames.
 
 Exit criteria:
 
-- Minimal starter works without `app.tsx`.
+- Minimal starter works without `document.tsx`.
 - App starter can customize `<html>`, `<head>`, and `<body>`.
-- Page content can contribute head tags.
-- No `pages/layout.tsx` or `pages/_app.tsx` behavior exists.
+- `document.tsx` can customize `<head>` from `PageProps`.
+- No `pages/layout.tsx` or `pages/_document.tsx` behavior exists.
 
 ### 6. Status Pages
 

@@ -8,8 +8,8 @@ const fixtureRoot = resolve(repoRoot, "fixtures/minimal");
 const pagesDir = resolve(fixtureRoot, "pages");
 const blogPagePath = resolve(pagesDir, "blog/[slug].tsx");
 const aboutPagePath = resolve(pagesDir, "about.tsx");
-const appPath = resolve(fixtureRoot, "app.tsx");
-const srcAppPath = resolve(fixtureRoot, "src/app.tsx");
+const documentPath = resolve(fixtureRoot, "document.tsx");
+const srcDocumentPath = resolve(fixtureRoot, "src/document.tsx");
 const srcPagesBlogPagePath = resolve(fixtureRoot, "src/pages/blog/[slug].tsx");
 
 const files = new Map();
@@ -183,7 +183,7 @@ const srcPagesCompletion = completionAtText(
 openDocument(aboutPagePath, unannotated);
 const aboutCompletion = completionAtText(aboutPagePath, unannotated, "  props.params.");
 
-const appShellSource = `import { component$, Slot } from "@qwik.dev/core";
+const documentShellSource = `import { component$, Slot } from "@qwik.dev/core";
 
 export default component$((props) => {
   props.
@@ -192,28 +192,40 @@ export default component$((props) => {
 });
 `;
 
-openDocument(appPath, appShellSource);
-const appPropsCompletion = completionAtText(appPath, appShellSource, "  props.");
-const appParamsCompletion = completionAtText(appPath, appShellSource, "  props.params.");
-const appDiagnosticSource = `import { component$, Slot } from "@qwik.dev/core";
+openDocument(documentPath, documentShellSource);
+const documentPropsCompletion = completionAtText(
+  documentPath,
+  documentShellSource,
+  "  props."
+);
+const documentParamsCompletion = completionAtText(
+  documentPath,
+  documentShellSource,
+  "  props.params."
+);
+const documentDiagnosticSource = `import { component$, Slot } from "@qwik.dev/core";
 
 export default component$((props) => {
   const status = props.status;
   return <Slot />;
 });
 `;
-changeDocument(appPath, appDiagnosticSource);
-const appDiagnostic = plugin.getSemanticDiagnostics(appPath);
-const appPropsQuickInfo = quickInfoAtText(
-  appPath,
-  appDiagnosticSource,
+changeDocument(documentPath, documentDiagnosticSource);
+const documentDiagnostic = plugin.getSemanticDiagnostics(documentPath);
+const documentPropsQuickInfo = quickInfoAtText(
+  documentPath,
+  documentDiagnosticSource,
   "props.status",
   "props"
 );
 
-openDocument(srcAppPath, appDiagnosticSource);
-const srcAppDiagnostic = plugin.getSemanticDiagnostics(srcAppPath);
-const srcAppCompletion = completionAtText(srcAppPath, appDiagnosticSource, "props.");
+openDocument(srcDocumentPath, documentDiagnosticSource);
+const srcDocumentDiagnostic = plugin.getSemanticDiagnostics(srcDocumentPath);
+const srcDocumentCompletion = completionAtText(
+  srcDocumentPath,
+  documentDiagnosticSource,
+  "props."
+);
 
 const result = {
   tsserverPluginStarted: true,
@@ -233,12 +245,12 @@ const result = {
   incrementalDefaultPageParams: summarizeCompletion(incrementalDefaultPageCompletion),
   srcPagesDefaultDiagnostic: summarizeDiagnostic(srcPagesDefaultDiagnostic),
   srcPagesCompletion: summarizeCompletion(srcPagesCompletion),
-  appPropsCompletion: summarizeCompletion(appPropsCompletion),
-  appParamsCompletion: summarizeCompletion(appParamsCompletion),
-  appDiagnostic: summarizeDiagnostic(appDiagnostic),
-  appPropsQuickInfo: summarizeQuickInfo(appPropsQuickInfo),
-  srcAppDiagnostic: summarizeDiagnostic(srcAppDiagnostic),
-  srcAppCompletion: summarizeCompletion(srcAppCompletion)
+  documentPropsCompletion: summarizeCompletion(documentPropsCompletion),
+  documentParamsCompletion: summarizeCompletion(documentParamsCompletion),
+  documentDiagnostic: summarizeDiagnostic(documentDiagnostic),
+  documentPropsQuickInfo: summarizeQuickInfo(documentPropsQuickInfo),
+  srcDocumentDiagnostic: summarizeDiagnostic(srcDocumentDiagnostic),
+  srcDocumentCompletion: summarizeCompletion(srcDocumentCompletion)
 };
 
 console.log(JSON.stringify(result, null, 2));
@@ -406,34 +418,34 @@ function assertProof(proofResult) {
   }
 
   if (
-    !proofResult.appPropsCompletion.hasParams ||
-    !proofResult.appPropsCompletion.hasUrl ||
-    !proofResult.appPropsCompletion.hasStatus
+    !proofResult.documentPropsCompletion.hasParams ||
+    !proofResult.documentPropsCompletion.hasUrl ||
+    !proofResult.documentPropsCompletion.hasStatus
   ) {
-    throw new Error("Top-level app.tsx should receive page prop completions.");
+    throw new Error("Top-level document.tsx should receive page prop completions.");
   }
 
-  if (proofResult.appParamsCompletion.hasSlug) {
-    throw new Error("app.tsx should not receive route-specific param completions.");
+  if (proofResult.documentParamsCompletion.hasSlug) {
+    throw new Error("document.tsx should not receive route-specific param completions.");
   }
 
-  if (proofResult.appDiagnostic.hasUnknownProps) {
-    throw new Error("Top-level app.tsx should suppress unknown props diagnostics.");
+  if (proofResult.documentDiagnostic.hasUnknownProps) {
+    throw new Error("Top-level document.tsx should suppress unknown props diagnostics.");
   }
 
   if (
-    !proofResult.appPropsQuickInfo.text.includes("PageProps") ||
-    !proofResult.appPropsQuickInfo.documentation.includes("app.tsx")
+    !proofResult.documentPropsQuickInfo.text.includes("PageProps") ||
+    !proofResult.documentPropsQuickInfo.documentation.includes("document.tsx")
   ) {
-    throw new Error("Top-level app.tsx should receive page prop hover.");
+    throw new Error("Top-level document.tsx should receive page prop hover.");
   }
 
-  if (!proofResult.srcAppDiagnostic.hasUnknownProps) {
-    throw new Error("src/app.tsx should keep native unknown props diagnostics.");
+  if (!proofResult.srcDocumentDiagnostic.hasUnknownProps) {
+    throw new Error("src/document.tsx should keep native unknown props diagnostics.");
   }
 
-  if (proofResult.srcAppCompletion.hasParams) {
-    throw new Error("src/app.tsx should not receive page prop completions.");
+  if (proofResult.srcDocumentCompletion.hasParams) {
+    throw new Error("src/document.tsx should not receive page prop completions.");
   }
 }
 
@@ -444,7 +456,7 @@ function readExistingFile(fileName) {
 
   if (
     fileName.includes(`${fixtureRoot}/src/pages/`) ||
-    fileName === resolve(fixtureRoot, "src/app.tsx")
+    fileName === resolve(fixtureRoot, "src/document.tsx")
   ) {
     return undefined;
   }

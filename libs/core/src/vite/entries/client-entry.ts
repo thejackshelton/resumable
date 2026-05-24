@@ -1,2 +1,2 @@
-export const appModules = import.meta.glob(["/app.tsx", "/app.jsx"]);
+export const documentModules = import.meta.glob(["/document.tsx", "/document.jsx"]);
 export const pageModules = import.meta.glob("/pages/**/*.tsx");

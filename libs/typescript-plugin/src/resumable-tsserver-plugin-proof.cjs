@@ -10,9 +10,9 @@ const repoRoot = resolve(packageRoot, "../..");
 const projectRoot = mkdtempSync(resolve(tmpdir(), "resumable-tsserver-plugin-"));
 const tsserverPath = resolve(repoRoot, "node_modules/typescript/lib/tsserver.js");
 const logPath = resolve(projectRoot, "tsserver.log");
-const appPath = resolve(projectRoot, "app.tsx");
+const documentPath = resolve(projectRoot, "document.tsx");
 const pagePath = resolve(projectRoot, "pages/blog/[slug].tsx");
-const srcAppPath = resolve(projectRoot, "src/app.tsx");
+const srcDocumentPath = resolve(projectRoot, "src/document.tsx");
 const srcPagesPath = resolve(projectRoot, "src/pages/blog/[slug].tsx");
 
 void main();
@@ -68,7 +68,7 @@ async function writeProject() {
             }
           ]
         },
-        include: ["app.tsx", "pages", "src"]
+        include: ["document.tsx", "pages", "src"]
       },
       null,
       2
@@ -89,9 +89,9 @@ async function writeProject() {
     "export declare function component$<Props = unknown>(component: (props: Props) => unknown): unknown;\n"
   );
 
-  writeFileSync(appPath, defaultPageSource());
+  writeFileSync(documentPath, defaultPageSource());
   writeFileSync(pagePath, defaultPageSource());
-  writeFileSync(srcAppPath, defaultPageSource());
+  writeFileSync(srcDocumentPath, defaultPageSource());
   writeFileSync(srcPagesPath, defaultPageSource());
 }
 
@@ -138,26 +138,26 @@ async function runProof() {
     });
 
     notify(client, "open", {
-      file: appPath,
+      file: documentPath,
       fileContent: defaultPageSource(),
       projectRootPath: projectRoot,
       scriptKindName: "TSX"
     });
 
-    const appPropsCompletion = await completionAtText(
+    const documentPropsCompletion = await completionAtText(
       client,
-      appPath,
+      documentPath,
       defaultPageSource(),
       "  props."
     );
-    const appParamsCompletion = await completionAtText(
+    const documentParamsCompletion = await completionAtText(
       client,
-      appPath,
+      documentPath,
       defaultPageSource(),
       "props.params."
     );
-    const appDiagnostics = await request(client, "semanticDiagnosticsSync", {
-      file: appPath,
+    const documentDiagnostics = await request(client, "semanticDiagnosticsSync", {
+      file: documentPath,
       includeLinePosition: true
     });
 
@@ -180,20 +180,20 @@ async function runProof() {
     });
 
     notify(client, "open", {
-      file: srcAppPath,
+      file: srcDocumentPath,
       fileContent: defaultPageSource(),
       projectRootPath: projectRoot,
       scriptKindName: "TSX"
     });
 
-    const srcAppCompletion = await completionAtText(
+    const srcDocumentCompletion = await completionAtText(
       client,
-      srcAppPath,
+      srcDocumentPath,
       defaultPageSource(),
       "  props."
     );
-    const srcAppDiagnostics = await request(client, "semanticDiagnosticsSync", {
-      file: srcAppPath,
+    const srcDocumentDiagnostics = await request(client, "semanticDiagnosticsSync", {
+      file: srcDocumentPath,
       includeLinePosition: true
     });
 
@@ -206,13 +206,13 @@ async function runProof() {
       propsCompletion: summarizeCompletion(propsCompletion.body),
       paramsCompletion: summarizeCompletion(paramsCompletion.body),
       diagnostics: summarizeDiagnostics(diagnostics.body ?? []),
-      appPropsCompletion: summarizeCompletion(appPropsCompletion.body),
-      appParamsCompletion: summarizeCompletion(appParamsCompletion.body),
-      appDiagnostics: summarizeDiagnostics(appDiagnostics.body ?? []),
+      documentPropsCompletion: summarizeCompletion(documentPropsCompletion.body),
+      documentParamsCompletion: summarizeCompletion(documentParamsCompletion.body),
+      documentDiagnostics: summarizeDiagnostics(documentDiagnostics.body ?? []),
       srcPagesCompletion: summarizeCompletion(srcPagesCompletion.body),
       srcPagesDiagnostics: summarizeDiagnostics(srcPagesDiagnostics.body ?? []),
-      srcAppCompletion: summarizeCompletion(srcAppCompletion.body),
-      srcAppDiagnostics: summarizeDiagnostics(srcAppDiagnostics.body ?? [])
+      srcDocumentCompletion: summarizeCompletion(srcDocumentCompletion.body),
+      srcDocumentDiagnostics: summarizeDiagnostics(srcDocumentDiagnostics.body ?? [])
     };
 
     console.log(JSON.stringify({ tsserverPluginProof: result }, null, 2));
@@ -421,27 +421,27 @@ function assertProof(result, proofLogPath) {
   }
 
   if (
-    !result.appPropsCompletion.hasParams ||
-    !result.appPropsCompletion.hasUrl ||
-    !result.appPropsCompletion.hasStatus
+    !result.documentPropsCompletion.hasParams ||
+    !result.documentPropsCompletion.hasUrl ||
+    !result.documentPropsCompletion.hasStatus
   ) {
-    throw new Error("tsserver plugin did not return app.tsx page prop completions.");
+    throw new Error("tsserver plugin did not return document.tsx page prop completions.");
   }
 
-  if (result.appParamsCompletion.hasSlug) {
-    throw new Error("app.tsx should not receive route-specific param completions.");
+  if (result.documentParamsCompletion.hasSlug) {
+    throw new Error("document.tsx should not receive route-specific param completions.");
   }
 
-  if (result.appDiagnostics.hasUnknownProps) {
-    throw new Error("app.tsx should suppress unknown props diagnostics.");
+  if (result.documentDiagnostics.hasUnknownProps) {
+    throw new Error("document.tsx should suppress unknown props diagnostics.");
   }
 
-  if (result.srcAppCompletion.hasParams) {
-    throw new Error("src/app.tsx should not receive page prop completions.");
+  if (result.srcDocumentCompletion.hasParams) {
+    throw new Error("src/document.tsx should not receive page prop completions.");
   }
 
-  if (!result.srcAppDiagnostics.hasUnknownProps) {
-    throw new Error("src/app.tsx should keep native unknown props diagnostics.");
+  if (!result.srcDocumentDiagnostics.hasUnknownProps) {
+    throw new Error("src/document.tsx should keep native unknown props diagnostics.");
   }
 }
 

@@ -15,5 +15,5 @@
       }
     ]
   },
-  "include": ["app.tsx", "pages", "vite.config.ts"]
+  "include": ["document.tsx", "pages", "vite.config.ts"]
 }

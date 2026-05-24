@@ -408,7 +408,7 @@ A normal application skeleton without server examples.
 
 ```txt
 my-app/
-  app.tsx
+  document.tsx
   pages/
     index.tsx
     about.tsx
@@ -426,7 +426,7 @@ my-app/
 Use this when the user wants the main Resumable UI conventions visible on day
 one:
 
-- `app.tsx` document shell.
+- `document.tsx` document shell.
 - explicit layout component.
 - root status pages.
 - multiple page routes.
@@ -438,7 +438,7 @@ MDX for explicit page composition.
 
 ```txt
 my-app/
-  app.tsx
+  document.tsx
   pages/
     index.mdx
     docs/
@@ -486,7 +486,7 @@ The App starter plus Nitro-native server files.
 
 ```txt
 my-app/
-  app.tsx
+  document.tsx
   pages/
     index.tsx
     about.tsx
@@ -531,9 +531,9 @@ default prompt option.
 
 The default generated app should be intentionally small. `Minimal` is the
 default because it teaches the core Resumable routing model before introducing
-app shell, layouts, status pages, MDX, or Nitro server files.
+document shell, layouts, status pages, MDX, or Nitro server files.
 
-`app.tsx` should not be required in the default starter. It should be added by
+`document.tsx` should not be required in the default starter. It should be added by
 larger starters or by users when they need document-shell customization.
 
 The generated `vite.config.ts` should teach the framework boundary:
@@ -650,5 +650,5 @@ The CLI:
 - Should `Bun` be available in v0, or wait for a Bun fixture?
 - Should `Deno` be visible in v0, or hidden until fully proven?
 - Should `Docs` be hidden until ready, or visible as a starter choice?
-- Should the default starter include `app.tsx`, or keep it out until users
+- Should the default starter include `document.tsx`, or keep it out until users
   need document customization?

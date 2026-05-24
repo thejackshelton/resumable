@@ -3,7 +3,7 @@ import { parseAst } from "vite";
 import { transformHtmlSource } from "../../src/vite/html-transform.ts";
 
 describe("html transform", () => {
-  it("appends html attribute helper from app.tsx root Html props", () => {
+  it("appends html attribute helper from document.tsx root Html props", () => {
     const source = `import { component$, Slot } from "@qwik.dev/core";
 import { Html } from "@resumable.dev/core";
 import type { PageProps } from "@resumable.dev/core";
@@ -35,7 +35,7 @@ export default component$((props: PageProps) => {
     expect(transformed).not.toContain("html.replace");
   });
 
-  it("appends html attribute helper from app.jsx root Html props", () => {
+  it("appends html attribute helper from document.jsx root Html props", () => {
     const source = `import { component$, Slot } from "@qwik.dev/core";
 import { Html } from "@resumable.dev/core";
 
@@ -50,13 +50,13 @@ export default component$((props) => {
 });
 `;
 
-    const transformed = transform(source, "jsx", "/project/app.jsx");
+    const transformed = transform(source, "jsx", "/project/document.jsx");
 
     expect(transformed).toContain("export function __resumableHtmlAttributes(props)");
     expect(transformed).toContain('"data-path": props.url.pathname');
   });
 
-  it("rejects app.tsx when the default component root is not Html", () => {
+  it("rejects document.tsx when the default component root is not Html", () => {
     expect(() =>
       transform(
         `import { component$ } from "@qwik.dev/core";
@@ -67,7 +67,9 @@ export default component$(() => {
 });
 `
       )
-    ).toThrow("Resumable expected app.tsx or app.jsx to return <Html> at the top level");
+    ).toThrow(
+      "Resumable expected document.tsx or document.jsx to return <Html> at the top level"
+    );
   });
 
   it("rejects Html attributes that capture render-time locals", () => {
@@ -113,7 +115,11 @@ export default component$((props) => {
   });
 });
 
-function transform(source: string, lang: "jsx" | "tsx" = "tsx", id = "/project/app.tsx") {
+function transform(
+  source: string,
+  lang: "jsx" | "tsx" = "tsx",
+  id = "/project/document.tsx"
+) {
   return transformHtmlSource(
     source,
     parseAst(source, { astType: "ts", lang, range: true }, id)

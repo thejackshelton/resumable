@@ -440,7 +440,7 @@ function starterFiles(options: CreateOptions) {
 
   if (options.starter === "app" || options.starter === "full-stack") {
     files.push(
-      { path: "app.tsx", contents: appShell() },
+      { path: "document.tsx", contents: documentShell() },
       { path: "404.tsx", contents: statusPage("Not found") },
       { path: "500.tsx", contents: statusPage("Server error") }
     );
@@ -510,7 +510,7 @@ function tsconfig() {
       ],
       types: ["vite/client"]
     },
-    include: ["pages", "app.tsx", "404.tsx", "500.tsx", "vite.config.ts"]
+    include: ["pages", "document.tsx", "404.tsx", "500.tsx", "vite.config.ts"]
   };
 }
 
@@ -539,19 +539,20 @@ export default component$(() => {
 `;
 }
 
-function appShell() {
+function documentShell() {
   return `import { component$, Slot } from "@qwik.dev/core";
+import { Html } from "@resumable.dev/core";
 
 export default component$(() => {
   return (
-    <html lang="en">
+    <Html lang="en">
       <head>
         <title>Resumable</title>
       </head>
       <body>
         <Slot />
       </body>
-    </html>
+    </Html>
   );
 });
 `;

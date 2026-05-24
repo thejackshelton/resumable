@@ -9,7 +9,7 @@ import {
 } from "../../route-manifest.ts";
 
 export interface ServerEntryOptions {
-  readonly appModuleLoader: (() => Promise<unknown>) | undefined;
+  readonly documentModuleLoader: (() => Promise<unknown>) | undefined;
   readonly isDev: boolean;
   readonly pageModuleLoaders: Record<string, () => Promise<unknown>>;
   readonly qwik: QwikRenderRuntime;
@@ -27,15 +27,15 @@ interface PageModule {
   readonly default?: FunctionComponent<PageComponentProps>;
 }
 
-interface AppModule {
-  readonly default?: FunctionComponent<AppComponentProps>;
+interface DocumentModule {
+  readonly default?: FunctionComponent<DocumentComponentProps>;
   readonly __resumableHtmlAttributes?: (
     props: PageComponentProps
   ) => Record<string, unknown>;
 }
 
 type PageComponentProps = PageProps & Record<string, unknown>;
-type AppComponentProps = PageComponentProps & { children: unknown };
+type DocumentComponentProps = PageComponentProps & { children: unknown };
 
 export function createServerEntry(options: ServerEntryOptions) {
   const manifest = buildRouteManifestFromFileIds(options.routeFileIds);
@@ -96,12 +96,14 @@ export function createServerEntry(options: ServerEntryOptions) {
       });
     }
 
-    const appModule = options.appModuleLoader
-      ? ((await options.appModuleLoader()) as AppModule)
+    const documentModule = options.documentModuleLoader
+      ? ((await options.documentModuleLoader()) as DocumentModule)
       : undefined;
-    const App = appModule?.default;
-    if (appModule && !App) {
-      throw new Error("app.tsx or app.jsx must default export a Qwik component.");
+    const Document = documentModule?.default;
+    if (documentModule && !Document) {
+      throw new Error(
+        "document.tsx or document.jsx must default export a Qwik component."
+      );
     }
 
     const pageProps: PageComponentProps = {
@@ -114,10 +116,12 @@ export function createServerEntry(options: ServerEntryOptions) {
       status
     };
     const page = jsx(Page, pageProps);
-    const root = App ? renderAppShell(App, pageProps, page) : renderDefaultDocument(page);
+    const root = Document
+      ? renderDocumentShell(Document, pageProps, page)
+      : renderDefaultDocument(page);
     const result = await renderToString(root, {
       base: options.isDev ? "/" : undefined,
-      containerAttributes: htmlAttributes(appModule, pageProps)
+      containerAttributes: htmlAttributes(documentModule, pageProps)
     });
 
     return new Response(result.html, {
@@ -126,12 +130,12 @@ export function createServerEntry(options: ServerEntryOptions) {
     });
   }
 
-  function renderAppShell(
-    App: FunctionComponent<AppComponentProps>,
+  function renderDocumentShell(
+    Document: FunctionComponent<DocumentComponentProps>,
     pageProps: PageComponentProps,
     page: JSXOutput
   ) {
-    return jsx(App, { ...pageProps, children: page }) as JSXOutput;
+    return jsx(Document, { ...pageProps, children: page }) as JSXOutput;
   }
 
   function renderDefaultDocument(page: JSXOutput) {
@@ -155,8 +159,11 @@ export function createServerEntry(options: ServerEntryOptions) {
   return { fetch };
 }
 
-function htmlAttributes(appModule: AppModule | undefined, pageProps: PageComponentProps) {
-  const attributes = appModule?.__resumableHtmlAttributes?.(pageProps) ?? {
+function htmlAttributes(
+  documentModule: DocumentModule | undefined,
+  pageProps: PageComponentProps
+) {
+  const attributes = documentModule?.__resumableHtmlAttributes?.(pageProps) ?? {
     lang: "en"
   };
   const normalized: Record<string, string> = {};

@@ -111,7 +111,7 @@ Resumable v0 should provide the smallest useful Qwik + Nitro app model:
 - One Resumable Vite plugin: `resumable()`.
 - A top-level `pages/` directory for UI routes.
 - A top-level `api/` directory for Nitro-native API routes.
-- Optional top-level `app.tsx` for the global document and app shell.
+- Optional top-level `document.tsx` for the global document shell.
 - Qwik components as page modules.
 - Explicit layout components imported by pages.
 - Typed native anchors for platform navigation.
@@ -140,8 +140,8 @@ Resumable v0 should not include:
   `pages/error.tsx`, `pages/not-found.tsx`, or `pages/global-error.tsx`.
 - API routes inside the UI page tree, such as `pages/api/hello.ts`.
 - Top-level `routes/` as a documented or canonical app directory.
-- Alternative app shell files such as `root.tsx`, `shell.tsx`,
-  `document.tsx`, `pages/app.tsx`, or `pages/_app.tsx`.
+- Alternative document shell files such as legacy app-named document files,
+  `root.tsx`, `shell.tsx`, `pages/document.tsx`, or `pages/_document.tsx`.
 - Page-local middleware files such as `pages/blog/middleware.ts`.
 - A new server runtime abstraction over Nitro.
 - A wrapper over Qwik's Vite plugin or Qwik compiler options.
@@ -153,7 +153,7 @@ Resumable v0 should not include:
 
 ```txt
 my-app/
-  app.tsx
+  document.tsx
 
   pages/
     index.mdx
@@ -194,7 +194,7 @@ my-app/
 The following files and folders are not required:
 
 ```txt
-app.tsx
+document.tsx
 src/pages/
 pages/api/
 routes/
@@ -214,7 +214,7 @@ The public core entrypoint exposes the framework-aware document component and
 shared runtime types:
 
 ```ts
-import { Head, Html, Link } from "@resumable.dev/core";
+import { Html, Link } from "@resumable.dev/core";
 import type { PageProps } from "@resumable.dev/core";
 ```
 
@@ -602,26 +602,26 @@ Framework-owned named exports are reserved for future features. v0 should not
 require page metadata, route loaders, actions, or static params. Normal named
 component and helper exports are allowed.
 
-## App Shell
+## Document Shell
 
-Resumable supports an optional top-level `app.tsx` for the global document and
-app shell.
+Resumable supports an optional top-level `document.tsx` for the global document
+shell.
 
 ```txt
 my-app/
-  app.tsx
+  document.tsx
   pages/
     index.tsx
 ```
 
-`app.tsx` is not a route. It wraps every rendered page. If it is missing,
-Resumable uses a built-in default app shell.
+`document.tsx` is not a route. It wraps every rendered page. If it is missing,
+Resumable uses a built-in default document shell.
 
-`app.tsx` must default export a Qwik component. The component should render
+`document.tsx` must default export a Qwik component. The component should render
 `Html` from `@resumable.dev/core` as the document boundary. `Html` accepts
 normal Qwik `<html>` props.
 
-The default app shell is conceptually:
+The default document shell is conceptually:
 
 ```tsx
 import { component$, Slot } from "@qwik.dev/core";
@@ -642,7 +642,7 @@ export default component$(() => {
 });
 ```
 
-A custom app shell can import global CSS, add providers, customize `<head>`,
+A custom document shell can import global CSS, add providers, customize `<head>`,
 customize `<html>`, customize `<body>`, and render the selected page through
 `<Slot />`:
 
@@ -669,7 +669,7 @@ export default component$((props: PageProps) => {
 });
 ```
 
-`app.tsx` receives the same `PageProps` shape as route modules, so
+`document.tsx` receives the same `PageProps` shape as route modules, so
 route-specific document behavior is expressed from route context:
 
 ```tsx
@@ -714,51 +714,54 @@ always win over user attributes if names conflict.
 Core rule:
 
 ```txt
-app.tsx defines the global document/app shell through Html.
+document.tsx defines the global document shell through Html.
 pages/ defines route UI.
 components/ defines reusable layouts and UI.
 ```
 
-Only support the top-level `app.tsx` name in v0.
+Only support the top-level `document.tsx` and `document.jsx` names in v0.
 
-Do not add aliases:
+Do not add aliases, including legacy app-named document files:
 
 ```txt
 root.tsx
 shell.tsx
-document.tsx
-pages/app.tsx
-pages/_app.tsx
+pages/document.tsx
+pages/_document.tsx
 ```
 
-Reason: `app.tsx` is a familiar app entry name, it is not route-tree-specific,
-and it is broad enough for global CSS, providers, analytics, `<html>`, `<head>`,
-and `<body>` customization. `root.tsx` conflicts with common `RootLayout`
-component naming, `document.tsx` is too narrow for app providers, and
-`shell.tsx` is more commonly used for ordinary UI components.
+Reason: `document.tsx` names the thing users are editing: the HTML document. It
+is not route-tree-specific, and it is still broad enough for global CSS,
+providers, analytics, `<html>`, `<head>`, and `<body>` customization. `root.tsx`
+conflicts with common `RootLayout` component naming, and `shell.tsx` is more
+commonly used for ordinary UI components.
 
-## Page Head
+## Document Head
 
-Resumable supports a visible `Head` component for route-specific document head
-entries.
+Resumable v0 does not include a route-local `Head` component. The document
+shell owns `<head>` directly through normal JSX in `document.tsx`.
 
-Use `Head` in a page, explicit layout component, or nested component:
+Use `props.url`, `props.params`, `props.status`, and ordinary functions to
+customize the document per request:
 
 ```tsx
-import { component$ } from "@qwik.dev/core";
-import { Head } from "@resumable.dev/core";
+import { component$, Slot } from "@qwik.dev/core";
+import { Html } from "@resumable.dev/core";
+import type { PageProps } from "@resumable.dev/core";
 
-export default component$(() => {
+export default component$((props: PageProps) => {
+  const title = props.url.pathname === "/about" ? "About" : "Resumable";
+
   return (
-    <>
-      <Head>
-        <title>About</title>
-        <meta name="description" content="About this site" />
-        <link rel="canonical" href="https://example.com/about" />
-      </Head>
-
-      <h1>About</h1>
-    </>
+    <Html lang="en">
+      <head>
+        <title>{title}</title>
+        <meta name="description" content="Apps humans and agents can read." />
+      </head>
+      <body>
+        <Slot />
+      </body>
+    </Html>
   );
 });
 ```
@@ -766,48 +769,31 @@ export default component$(() => {
 Core rule:
 
 ```txt
-app.tsx owns the base document with Html, <head>, and <body>.
-Head contributes route-specific entries to the document <head>.
+document.tsx owns the base document with Html, <head>, and <body>.
+pages/ owns route UI.
 ```
-
-`Head` renders no visible body UI. Its children are collected by Resumable and
-rendered into the document `<head>` during SSR.
 
 Reasoning:
 
-- `Head` keeps page metadata next to page UI.
-- `Head` looks like HTML and is easier for junior developers and AI agents to
-  discover than a hidden named export.
-- `Head` avoids requiring users to learn an object schema for common tags such
-  as `<title>`, `<meta>`, and `<link>`.
-- `Head` works naturally with explicit layout components because layouts can
-  render shared metadata without becoming special route files.
-- `Head` matches familiar visible-head patterns from frameworks such as Next,
-  Svelte, and SolidStart while avoiding Qwik City-specific head hooks and
-  route metadata exports.
+- `document.tsx` makes the document owner obvious to junior developers and AI
+  agents.
+- Users edit normal `<head>` tags instead of learning a new metadata schema.
+- There is no render-time head collection, no request-scoping state, and no
+  transform needed for arbitrary components inside a route-local head block.
+- Route-local metadata can be added later if real apps prove the need.
 
-Do not use framework-owned named exports for page metadata in v0:
+Do not add framework-owned page metadata APIs in v0:
 
 ```tsx
+<Head />;
 export const head = {};
 export const metadata = {};
 ```
 
-Those can be added later if implementation pressure proves they are needed.
-
-Deduplication rules:
-
-- `<title>`: last one wins.
-- `<meta>`: dedupe by `key`, then `name`, then `property`, then `httpEquiv`,
-  then `charSet`.
-- `<link rel="canonical">`: last one wins.
-- Other head elements: preserve render order unless `key` is provided.
-- If `key` is provided, the last element with that `key` wins.
-
-The base `<head>` in `app.tsx` should contain document-wide defaults such as
+The base `<head>` in `document.tsx` should contain document-wide defaults such as
 `charset`, viewport, favicon, global styles, analytics tags, and static site
-metadata. Route-specific `Head` entries should be able to override base entries
-when they describe the same document concern.
+metadata. Route-specific document concerns in v0 should be expressed by
+branching from `PageProps` in `document.tsx`.
 
 ## Navigation
 
@@ -1378,12 +1364,9 @@ Inside that renderer, Resumable owns the page framework work:
   routes.
 - Extract route params into `PageProps`.
 - Load the matched route module's default export.
-- Load top-level `app.tsx` when present, or use the built-in default app shell.
-- Render the matched page inside the app shell's `Html` document boundary.
+- Load top-level `document.tsx` when present, or use the built-in default document shell.
+- Render the matched page inside the document shell's `Html` document boundary.
 - Translate `Html` props into Qwik SSR container attributes.
-- Collect `Head` contributions from the app shell, matched page, layouts, and
-  nested components.
-- Merge and dedupe collected head entries into the document `<head>`.
 - Inject client and SSR assets.
 - Return a standard `Response`.
 
@@ -1400,7 +1383,7 @@ renders `pages/500.tsx` or `pages/500.mdx` when present, or a built-in minimal
 500 page when absent, with HTTP status 500. If the user-defined 500 page itself
 fails, Nitro's native error response is used.
 
-The app shell receives `PageProps` for normal pages, status pages, and built-in
+The document shell receives `PageProps` for normal pages, status pages, and built-in
 fallback pages. This is the primary v0 mechanism for route-specific `<html>`
 and `<body>` attributes through the `Html` component.
 
@@ -1419,10 +1402,9 @@ The public contract is that:
   dynamic, and user-defined catch-all routes have failed to match.
 - Unhandled page rendering errors render the Resumable 500 surface when
   possible.
-- `app.tsx` wraps normal pages, status pages, and built-in fallback pages.
-- `app.tsx` can set request-specific `<html>` attributes through `Html` props.
-- `Head` entries are rendered into the document `<head>` with direct,
-  predictable dedupe rules.
+- `document.tsx` wraps normal pages, status pages, and built-in fallback pages.
+- `document.tsx` can set request-specific `<html>` attributes through `Html` props.
+- `document.tsx` owns `<head>` and can customize it from `PageProps`.
 - Users do not manage Resumable-generated server files.
 
 ## Public Assets
@@ -1481,7 +1463,7 @@ The docs site will live at `resumable.dev`.
 Primary docs pages should start with the working mental model:
 
 ```txt
-app.tsx customizes the document shell.
+document.tsx customizes the document shell.
 pages/ maps to routes.
 api/ maps to Nitro API routes.
 layouts are components.
@@ -1493,7 +1475,7 @@ Suggested initial docs:
 
 - Getting Started
 - Project Structure
-- App Shell
+- Document Shell
 - Pages and Routing
 - Composed MDX
 - Navigation and Typed Routing
@@ -1513,7 +1495,7 @@ A minimal app should work with this structure:
 
 ```txt
   my-app/
-  app.tsx
+  document.tsx
   pages/
     index.tsx
   vite.config.ts
@@ -1560,27 +1542,25 @@ Build-time checks:
   error.
 - Page files that default export a Nitro handler instead of a Qwik component
   should produce a direct error.
-- `app.tsx`, when present, must default export a Qwik component.
-- `app.tsx`, when present, should render `Html` from `@resumable.dev/core` as
+- `document.tsx`, when present, must default export a Qwik component.
+- `document.tsx`, when present, should render `Html` from `@resumable.dev/core` as
   the document boundary.
-- Framework-owned page metadata exports such as `head` and `metadata` should
-  produce a direct unsupported feature error.
+- Framework-owned page metadata APIs such as `<Head />`, `head`, and `metadata`
+  should produce a direct unsupported feature error.
 - Generated typed-routing declarations should update from `pages/`.
 - Route-pattern anchors and `Link` usages with missing or invalid params should
   produce direct type or build errors.
-- Unsupported app shell aliases such as `root.tsx`, `shell.tsx`,
-  `document.tsx`, `pages/app.tsx`, and `pages/_app.tsx` should produce a direct
-  unsupported feature error.
+- Unsupported document shell aliases such as legacy app-named document files,
+  `root.tsx`, `shell.tsx`, `pages/document.tsx`, and `pages/_document.tsx`
+  should produce a direct unsupported feature error.
 
 Runtime checks:
 
-- `app.tsx` wraps rendered pages when present.
-- `app.tsx` receives `PageProps` with `status`, `params`, and `url`.
-- `app.tsx` can set route-specific `<html>` attributes through `Html` props.
-- `app.tsx` can set route-specific `<body>` attributes from `PageProps`.
-- `Head` in a page renders entries into the document `<head>`.
-- Route-specific `Head` entries can override matching base `<head>` entries from
-  `app.tsx`.
+- `document.tsx` wraps rendered pages when present.
+- `document.tsx` receives `PageProps` with `status`, `params`, and `url`.
+- `document.tsx` can set route-specific `<html>` attributes through `Html` props.
+- `document.tsx` can set route-specific `<body>` attributes from `PageProps`.
+- `document.tsx` can set route-specific `<head>` content from `PageProps`.
 - Native `<a>` uses typed platform navigation.
 - `Link` uses the same route typing and opts into SPA navigation.
 - `GET /` renders `pages/index.tsx`.
