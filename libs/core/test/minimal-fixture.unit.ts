@@ -1,14 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
-import {
-  cp,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  stat,
-  symlink,
-  writeFile
-} from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -25,6 +16,7 @@ interface BuiltNitroResponse {
   readonly path: string;
   readonly status: number;
   readonly contentType: string | null;
+  readonly headers: Record<string, string>;
   readonly body: string;
 }
 
@@ -236,6 +228,60 @@ describe("Resumable fixtures", () => {
       await rm(jsxFixtureUrl, { recursive: true, force: true });
     }
   });
+
+  it("keeps Nitro middleware, public assets, and routeRules native around page rendering", async () => {
+    const nitroFixtureUrl = await createTemporaryNitroPassthroughFixture();
+
+    try {
+      await buildFixture(nitroFixtureUrl);
+
+      const publicAssetOutput = await readFile(
+        new URL(".output/public/resumable-m7.txt", nitroFixtureUrl),
+        "utf-8"
+      );
+      expect(publicAssetOutput).toBe("served by Nitro public assets\n");
+
+      const responses = await fetchBuiltNitroServer(
+        [
+          "/about",
+          "/api/middleware-context",
+          "/blocked-by-middleware",
+          "/resumable-m7.txt"
+        ],
+        nitroFixtureUrl
+      );
+
+      const pageResponse = responses.get("/about")!;
+      expect(pageResponse.status).toBe(200);
+      expect(pageResponse.contentType).toContain("text/html");
+      expect(pageResponse.headers["x-resumable-middleware"]).toBe("ran");
+      expect(pageResponse.headers["x-resumable-route-rule"]).toBe("about");
+      expect(pageResponse.body).toContain("M7 page");
+
+      const apiResponse = responses.get("/api/middleware-context")!;
+      expect(apiResponse.status).toBe(200);
+      expect(apiResponse.contentType).toContain("application/json");
+      expect(apiResponse.headers["x-resumable-middleware"]).toBe("ran");
+      expect(apiResponse.headers["x-resumable-api-rule"]).toBe("context");
+      expect(JSON.parse(apiResponse.body)).toEqual({
+        requestId: "m7-middleware"
+      });
+
+      const shortCircuitResponse = responses.get("/blocked-by-middleware")!;
+      expect(shortCircuitResponse.status).toBe(418);
+      expect(shortCircuitResponse.headers["x-resumable-short-circuit"]).toBe("yes");
+      expect(shortCircuitResponse.body).toBe("blocked by middleware");
+      expect(shortCircuitResponse.body).not.toContain(">404</h1>");
+
+      const publicAssetResponse = responses.get("/resumable-m7.txt")!;
+      expect(publicAssetResponse.status).toBe(200);
+      expect(publicAssetResponse.contentType).toContain("text/plain");
+      expect(publicAssetResponse.body).toBe("served by Nitro public assets\n");
+      expect(publicAssetResponse.body).not.toContain("M7 page");
+    } finally {
+      await rm(nitroFixtureUrl, { recursive: true, force: true });
+    }
+  });
 });
 
 async function renderPage(
@@ -266,10 +312,10 @@ async function fetchPage(
   return serverEntry.default.fetch(new Request(`http://resumable.test${pathname}`));
 }
 
-async function fetchBuiltNitroServer(paths: readonly string[]) {
+async function fetchBuiltNitroServer(paths: readonly string[], rootUrl = fixtureUrl) {
   const script = `
 process.env.NITRO_PORT = "0";
-await import(${JSON.stringify(fixturePath(".output/server/index.mjs").href)});
+await import(${JSON.stringify(new URL(".output/server/index.mjs", rootUrl).href)});
 const app = globalThis.__nitro__?.default;
 if (!app || typeof app.fetch !== "function") {
   throw new Error("Built Nitro server entry did not expose globalThis.__nitro__.default.fetch");
@@ -283,6 +329,7 @@ for (const path of paths) {
     path,
     status: response.status,
     contentType: response.headers.get("content-type"),
+    headers: Object.fromEntries(response.headers),
     body: await response.text()
   });
 }
@@ -294,7 +341,7 @@ process.exit(0);
     process.execPath,
     ["--input-type=module", "-e", script],
     {
-      cwd: fixtureRoot
+      cwd: fileURLToPath(rootUrl)
     }
   );
   const results = JSON.parse(stdout.trim().split("\n").at(-1)!) as BuiltNitroResponse[];
@@ -378,12 +425,33 @@ async function cleanBuildOutput(rootUrl = fixtureUrl) {
 }
 
 async function createTemporaryDocumentShellFixture(files: Record<string, string>) {
-  const root = await mkdtemp(join(tmpdir(), "resumable-document-shell-"));
+  return createTemporaryFixture("resumable-document-shell-", files, minimalViteConfig);
+}
+
+async function createTemporaryNitroPassthroughFixture() {
+  return createTemporaryFixture(
+    "resumable-nitro-passthrough-",
+    {
+      "pages/about.tsx": pageCode("M7 page"),
+      "api/middleware-context.ts": nitroPassthroughApiCode,
+      "middleware/00.request.ts": nitroPassthroughMiddlewareCode,
+      "public/resumable-m7.txt": "served by Nitro public assets\n"
+    },
+    nitroPassthroughViteConfig
+  );
+}
+
+async function createTemporaryFixture(
+  prefix: string,
+  files: Record<string, string>,
+  viteConfig: string
+) {
+  const root = await mkdtemp(join(tmpdir(), prefix));
   const rootUrl = pathToFileURL(`${root}/`);
 
   await writeFile(new URL("package.json", rootUrl), minimalPackageJson);
   await writeFile(new URL("tsconfig.json", rootUrl), minimalTsconfigJson);
-  await writeFile(new URL("vite.config.ts", rootUrl), minimalViteConfig);
+  await writeFile(new URL("vite.config.ts", rootUrl), viteConfig);
   await symlink(fixturePath("node_modules"), new URL("node_modules", rootUrl), "dir");
 
   await Promise.all(
@@ -393,11 +461,6 @@ async function createTemporaryDocumentShellFixture(files: Record<string, string>
       await writeFile(fileUrl, contents);
     })
   );
-
-  await cp(fixturePath("public"), new URL("public", rootUrl), {
-    recursive: true,
-    errorOnExist: false
-  });
 
   return rootUrl;
 }
@@ -429,6 +492,55 @@ import { resumable } from "@resumable.dev/core/vite";
 
 export default defineConfig({
   plugins: [qwik(), resumable()]
+});
+`;
+
+const nitroPassthroughViteConfig = `import { defineConfig } from "vite-plus";
+import { qwik } from "qwik-bundler/vite";
+import { resumable } from "@resumable.dev/core/vite";
+
+export default defineConfig({
+  plugins: [qwik(), resumable()],
+  nitro: {
+    routeRules: {
+      "/about": {
+        headers: {
+          "x-resumable-route-rule": "about"
+        }
+      },
+      "/api/middleware-context": {
+        headers: {
+          "x-resumable-api-rule": "context"
+        }
+      }
+    }
+  }
+});
+`;
+
+const nitroPassthroughMiddlewareCode = `import { defineMiddleware } from "nitro";
+
+export default defineMiddleware((event) => {
+  event.context.requestId = "m7-middleware";
+  event.res.headers.set("x-resumable-middleware", "ran");
+
+  if (event.url.pathname === "/blocked-by-middleware") {
+    return new Response("blocked by middleware", {
+      status: 418,
+      headers: {
+        "x-resumable-short-circuit": "yes"
+      }
+    });
+  }
+});
+`;
+
+const nitroPassthroughApiCode = `import { defineHandler } from "nitro";
+
+export default defineHandler((event) => {
+  return {
+    requestId: event.context.requestId
+  };
 });
 `;
 

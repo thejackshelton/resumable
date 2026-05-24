@@ -3,29 +3,31 @@
 Last updated: 2026-05-24
 
 Status: M1 CLI create flow, M2 core Vite plugin skeleton, M3 route manifest,
-and M4 Qwik SSR renderer are implemented with focused red/green evidence.
-M6 `pages/404.tsx` and `pages/500.tsx` status pages are implemented with
-focused red/green evidence, including Nitro-owned API route semantics through
-the built Nitro server entry. Route discovery belongs to the Vite plugin instead
-of a Node-backed manifest scanner, environment entry wiring uses Vite
-`configEnvironment()` with `consumer` and `rolldownOptions`, and the renderer
-now matches static, dynamic, catch-all, 404 status, and 500 status `.tsx` page
-routes with `PageProps`. The first M5 slices are implemented: top-level
-`document.tsx` or `document.jsx` is discovered lazily by Vite inside the generated
-server/client entries, receives `PageProps`, wraps normal, 404, and 500 pages,
-and the default internal document still works without a document shell. The `Html`
-component is a children-only Qwik component at runtime, while `resumable:html`
-uses the Vite transform hook `filter.id` and the TSX/JSX AST to extract root
-`<Html>` attributes into pre-render container attributes. Route-local `Head` is
-out of v0, and document-shell aliases are intentionally not implemented. The Vite
-plugin resolves Resumable virtual IDs to real `src/vite/entries/*` source
-files and uses Vite dependency config to keep Qwik on one runtime instance.
+M4 Qwik SSR renderer, M5 document shell, M6 status pages, and M7 Nitro
+passthrough are implemented with focused red/green evidence. M7 proves that
+top-level `middleware/` runs before page rendering and API routes, middleware
+can short-circuit a request, `public/` assets are copied to `.output/public`
+and served by the built Nitro server, native `nitro.routeRules` headers apply,
+and existing API route semantics remain Nitro-owned. Route discovery belongs to
+the Vite plugin instead of a Node-backed manifest scanner, environment entry
+wiring uses Vite `configEnvironment()` with `consumer` and `rolldownOptions`,
+and the renderer now matches static, dynamic, catch-all, 404 status, and 500
+status `.tsx` page routes with `PageProps`. Top-level `document.tsx` or
+`document.jsx` is discovered lazily by Vite inside the generated server/client
+entries, receives `PageProps`, wraps normal, 404, and 500 pages, and the default
+internal document still works without a document shell. The `Html` component is
+a children-only Qwik component at runtime, while `resumable:html` uses the Vite
+transform hook `filter.id` and the TSX/JSX AST to extract root `<Html>`
+attributes into pre-render container attributes. Route-local `Head` is out of
+v0, and document-shell aliases are intentionally not implemented. The Vite
+plugin resolves Resumable virtual IDs to real `src/vite/entries/*` source files
+and uses Vite dependency config to keep Qwik on one runtime instance.
 
 ## Current Objective
 
-Start M7 Nitro passthrough in TDD slices. API route semantics already have built
-Nitro server evidence from M6, so the next missing passthrough evidence should
-focus on top-level `middleware/`, `public/`, and native Nitro `routeRules`.
+Start M8 typed routing in TDD slices. M7 Nitro passthrough is complete, so the
+next missing framework evidence should focus on generated route types and typed
+navigation helpers without touching SPA navigation, MDX, or data fetching.
 
 ## Spec Files
 
@@ -107,7 +109,7 @@ focus on top-level `middleware/`, `public/`, and native Nitro `routeRules`.
 | M4  | Qwik SSR renderer                         | Complete | Nitro passthrough fixtures       | M2, M3                        |
 | M5  | Document shell                            | Complete | status page tests                | M4                            |
 | M6  | Status pages                              | Complete | M5 document shell                | M4                            |
-| M7  | Nitro passthrough                         | Pending  | M4 renderer work                 | M2                            |
+| M7  | Nitro passthrough                         | Complete | M4 renderer work                 | M2                            |
 | M8  | Typed routing                             | Pending  | CLI doctor/routes commands       | M3                            |
 | M9  | Link and SPA navigation                   | Pending  | none                             | M4, M8                        |
 | M10 | MDX/Composed MDX fixture and Docs starter | Pending  | none                             | M3, M4, Satteri/Qwik proof    |
@@ -117,17 +119,16 @@ focus on top-level `middleware/`, `public/`, and native Nitro `routeRules`.
 
 ## Next Recommended Goal
 
-Start M7 Nitro passthrough with focused fixture evidence:
+Start M8 typed routing with focused fixture evidence:
 
-1. Add red built-server fixture evidence for top-level `middleware/` running
-   before page rendering and API routes.
-2. Add or extend fixture evidence that `public/` assets are served directly by
-   Nitro and native `routeRules` still apply.
-3. Keep this slice Nitro-native; do not add Resumable API abstractions, typed
-   routing, MDX, SPA navigation, or data/form APIs.
+1. Add red fixture evidence for generated route types matching static, dynamic,
+   and catch-all page routes.
+2. Prove typed navigation catches invalid params and missing params.
+3. Keep this slice scoped to type generation and route contracts; do not add
+   SPA navigation behavior, MDX, or data/form APIs.
 
-Before changing Nitro/Vite wiring, re-check Nitro v3 docs and use grep MCP for
-current Nitro/Vite passthrough patterns.
+Before changing typed-routing implementation, use grep MCP for current
+file-based route type generation patterns and re-read [`TYPED_ROUTING.md`](./TYPED_ROUTING.md).
 
 ## Parallel Work Notes
 
@@ -549,3 +550,43 @@ Do not parallelize yet:
   `pnpm exec vp test libs/cli/test/index.unit.ts`.
 - CLI starter status-page path broad verification passed: `pnpm check`,
   `pnpm test`, `pnpm build`, and `git diff --check`.
+- Spec audit aligned `IMPLEMENTATION_PLAN.md` with the milestone table by
+  adding M7 Nitro Passthrough before Typed Routing and renumbering the later
+  build-order sections.
+- Nitro API/middleware abstraction research: grep MCP examples from Nitro,
+  Nuxt-adjacent apps, Supabase Nuxt blocks, Vben's Nitro backend mock, and
+  TanStack/Nitro Vite configs show native `defineEventHandler`,
+  `defineHandler`, `defineMiddleware`, `nitro()`, and `routeRules` usage rather
+  than framework-specific server aliases. Official Nitro docs confirm `api/`,
+  `routes/`, and `middleware/` handlers are auto-registered, `routeRules` own
+  route behavior, and `public/` is the asset convention. Decision: keep v0
+  Nitro-native for API, middleware, public assets, route rules, runtime config,
+  storage, caching, plugins, and deployment; do not add Resumable wrappers such
+  as `defineApi`, `api$`, or `middleware$`.
+- Data API naming research: grep MCP examples from Qwik City, Solid Router,
+  pRPC, TanStack Start, Remix/React Router, SvelteKit, Astro, Next, Fresh,
+  Nuxt, and Nitro show no better Resumable data primitive than `query$` and
+  `action$`. Decision: keep `query$`/`action$` for UI data with
+  cache/reuse/refresh semantics, reject `defineQuery$`/`defineAction$`,
+  `createServerFn`, `server$`, `loader`/`load`, and `defineAction` as primary
+  Resumable data API names, and continue using native Nitro names for public
+  HTTP and middleware.
+- M7 research re-checked Nitro v3 docs and local package docs for middleware,
+  lifecycle, public assets, route rules, and Vite/Nitro server behavior. Grep
+  MCP examples from Nitro's repo and public Vite/Nitro apps confirmed
+  `middleware: true`, `routeRules`, `publicAssets`, `defineMiddleware`, and
+  `nitro()` usage in Nitro-native terms.
+- M7 red evidence: added built-server fixture evidence for top-level
+  middleware, public assets, and native route rules, then
+  `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts` failed because
+  `.output/public/resumable-m7.txt` did not exist yet.
+- M7 green evidence: the focused built-server test creates a temporary Nitro
+  passthrough fixture with native `middleware/00.request.ts`,
+  `api/middleware-context.ts`, `public/resumable-m7.txt`, and
+  `nitro.routeRules` in `vite.config.ts`. This keeps the persistent Minimal
+  fixture editor-clean while still proving middleware headers on page responses,
+  middleware context in an API route, middleware short-circuiting, public asset
+  copy/serving, and route-rule headers. No Resumable API/middleware wrapper or
+  additional runtime abstraction was needed.
+- M7 broad verification passed: `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`,
+  `pnpm check`, `pnpm test`, `pnpm build`, and `git diff --check`.

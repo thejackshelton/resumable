@@ -83,6 +83,41 @@ Do not call this primitive `schema$` in v0. The `$` suffix should stay reserved
 for executable Qwik boundaries that the optimizer can QRL-extract, such as
 `query$` and `action$`. A schema contract is data, not a callback boundary.
 
+### API Naming Decision
+
+Keep `query$` and `action$`.
+
+Grep MCP research did not find a better fit for Resumable's data API:
+
+- Qwik City uses `routeLoader$` and `routeAction$`, which validates the `$`
+  suffix for Qwik-tracked lazy boundaries but keeps those primitives
+  route-bound.
+- Qwik City also uses `server$`, and Next/Solid examples use `"use server"`,
+  but those names are too broad for a Resumable data cache. They do not say
+  whether a function is a cached read, a side effect, or a refresh boundary.
+- Solid Router uses `query(...)` and `action(...)`, and pRPC has `query$(...)`
+  examples. These are closest to the Resumable mental model.
+- TanStack Start uses `createServerFn(...).inputValidator(...).handler(...)`.
+  That shape is powerful, but it reads like generic server execution and adds
+  more ceremony than Resumable should require for junior developers and AI
+  agents.
+- Remix, React Router, and SvelteKit use route-local `loader`/`load` plus
+  `action`/`actions`. Those names are familiar, but they imply route modules,
+  not reusable query contracts that can be called from pages, components, SSR,
+  SPA navigation, and prefetch.
+- Astro uses `defineAction(...)`, but that pattern is action-only and
+  registry/config shaped. It is not a good read-side cache API.
+
+Do not rename the primitives to `defineQuery$` or `defineAction$` in v0.
+`define*` reads like route or server infrastructure and makes the data API feel
+closer to Nitro/H3 handler registration. The useful boundary is:
+
+```txt
+Need UI data with cache/reuse semantics? Use query$.
+Need a mutation or side effect? Use action$.
+Need public HTTP or middleware? Use Nitro defineHandler/defineMiddleware.
+```
+
 ## Research Baseline
 
 Grep MCP research found these relevant patterns:

@@ -103,6 +103,13 @@ Nitro's Vite plugin also accepts a small plugin-specific config surface for
 Vite integration internals, but ordinary app-level Nitro config belongs in the
 top-level `nitro` key.
 
+Grep MCP sampling also shows Nitro/H3 users writing server handlers and
+middleware directly with native functions such as `defineEventHandler(...)`,
+`defineHandler(...)`, and `defineMiddleware(...)`. Public examples from Nuxt,
+Nitro, Supabase's Nuxt blocks, and Vben's Nitro backend mock keep API routes,
+middleware, and route rules in Nitro/H3 terms instead of framework-specific API
+aliases.
+
 ## Goals
 
 Resumable v0 should provide the smallest useful Qwik + Nitro app model:
@@ -144,6 +151,8 @@ Resumable v0 should not include:
   `document.jsx` are document shells.
 - Page-local middleware files such as `pages/blog/middleware.ts`.
 - A new server runtime abstraction over Nitro.
+- Resumable-specific API or middleware wrapper functions such as `defineApi`,
+  `api$`, `defineResumableMiddleware`, or `middleware$`.
 - A wrapper over Qwik's Vite plugin or Qwik compiler options.
 - AI-specific framework primitives.
 - A data-loading API unless it is added intentionally after the route contract
@@ -1107,6 +1116,9 @@ export default defineHandler(() => {
 });
 ```
 
+Do not add a Resumable API handler wrapper in v0. The file path establishes the
+server route, and Nitro's handler/event API is the server contract.
+
 Dynamic params use Nitro's event APIs:
 
 ```ts
@@ -1238,6 +1250,9 @@ export default defineMiddleware((event) => {
   event.context.requestId = crypto.randomUUID();
 });
 ```
+
+Do not add a Resumable middleware wrapper in v0. Resumable owns where
+middleware is discovered; Nitro owns what middleware is and how it runs.
 
 Execution order follows Nitro's filename sort order. Use numeric prefixes for
 predictable ordering:
@@ -1468,6 +1483,12 @@ Use Nitro terms for:
 - Plugins.
 
 When in doubt, expose the Nitro behavior rather than creating a Resumable alias.
+
+Decision for v0: Resumable should let users use Nitro directly for API routes,
+middleware, route rules, runtime config, storage, caching, and deployment
+behavior. Resumable should only add abstractions when the behavior is genuinely
+Qwik/page-specific, such as page routing, document shell handling, or future
+query/action APIs that integrate with Qwik resumability.
 
 ## Docs Site Direction
 

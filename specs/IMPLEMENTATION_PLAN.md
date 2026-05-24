@@ -554,7 +554,35 @@ Exit criteria:
 - Missing API route does not accidentally render page 404 if Nitro owns the
   request.
 
-### 7. Typed Routing
+### 7. Nitro Passthrough
+
+Goal: top-level Nitro-owned app surfaces keep Nitro behavior while Resumable
+owns page rendering.
+
+Research before coding:
+
+- Re-check Nitro v3 docs for middleware, public assets, and route rules.
+- Use grep MCP for current Nitro/Vite passthrough fixture patterns.
+- Run evidence through the built Nitro server entry, not only the direct
+  Resumable SSR entry.
+
+Build:
+
+- Top-level `middleware/` runs through Nitro before page rendering.
+- Top-level `middleware/` runs through Nitro before API routes.
+- Top-level `public/` assets are served directly by Nitro.
+- Native `nitro.routeRules` still apply.
+- Existing top-level `api/` evidence remains Nitro-native.
+
+Exit criteria:
+
+- Middleware can add request context or headers visible from a rendered page.
+- Middleware can add request context or headers visible from an API response.
+- Middleware can short-circuit a request with a Nitro response.
+- `public/` assets are served without rendering a Qwik page.
+- `nitro.routeRules` can add headers or caching behavior to matching requests.
+
+### 8. Typed Routing
 
 Goal: generated route types match the manifest.
 
@@ -585,7 +613,7 @@ Exit criteria:
 - Unknown routes fail type-checking.
 - `Link` gets the same route types as native anchors.
 
-### 8. SPA Navigation
+### 9. SPA Navigation
 
 Goal: `Link` can enhance navigation without changing platform semantics.
 
@@ -612,7 +640,7 @@ Exit criteria:
 - `Link` enhances internal page navigation when JavaScript is available.
 - Static route priority and dynamic params match SSR behavior.
 
-### 9. MDX Fixture And Docs Starter
+### 10. MDX Fixture And Docs Starter
 
 Goal: prove first-class MDX before showing the Docs starter.
 
@@ -638,7 +666,7 @@ Exit criteria:
 - MDX `layout` frontmatter does not create a layout wrapper.
 - `.tsx` and `.mdx` route conflicts are detected.
 
-### 10. Data Fetching Prototype
+### 11. Data Fetching Prototype
 
 Goal: prove the data direction before public release.
 
