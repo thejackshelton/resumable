@@ -140,8 +140,8 @@ Resumable v0 should not include:
   `pages/error.tsx`, `pages/not-found.tsx`, or `pages/global-error.tsx`.
 - API routes inside the UI page tree, such as `pages/api/hello.ts`.
 - Top-level `routes/` as a documented or canonical app directory.
-- Alternative document shell files such as legacy app-named document files,
-  `root.tsx`, `shell.tsx`, `pages/document.tsx`, or `pages/_document.tsx`.
+- Alternative document shell files. Only top-level `document.tsx` and
+  `document.jsx` are document shells.
 - Page-local middleware files such as `pages/blog/middleware.ts`.
 - A new server runtime abstraction over Nitro.
 - A wrapper over Qwik's Vite plugin or Qwik compiler options.
@@ -726,22 +726,27 @@ pages/ defines route UI.
 components/ defines reusable layouts and UI.
 ```
 
-Only support the top-level `document.tsx` and `document.jsx` names in v0.
+Only support the top-level `document.tsx` and `document.jsx` names as document
+shells in v0.
 
 Do not add aliases, including legacy app-named document files:
 
 ```txt
+app.tsx
 root.tsx
 shell.tsx
-pages/document.tsx
-pages/_document.tsx
 ```
 
 Reason: `document.tsx` names the thing users are editing: the HTML document. It
 is not route-tree-specific, and it is still broad enough for global CSS,
-providers, analytics, `<html>`, `<head>`, and `<body>` customization. `root.tsx`
-conflicts with common `RootLayout` component naming, and `shell.tsx` is more
-commonly used for ordinary UI components.
+providers, analytics, `<html>`, `<head>`, and `<body>` customization.
+
+Top-level `app.tsx`, `root.tsx`, and `shell.tsx` should not be document shell
+aliases and should not produce a hard error in v0. They are outside `pages/`,
+so Resumable can ignore them unless a future feature gives them meaning.
+
+Files inside `pages/` are routes. `pages/document.tsx` and
+`pages/_document.tsx` are normal page routes, not document shell aliases.
 
 ## Document Head
 
@@ -1060,7 +1065,8 @@ Required in v0:
 - Single dynamic segments with `[param].mdx`.
 - Final catch-all segments with `[...param].tsx`.
 - Final catch-all segments with `[...param].mdx`.
-- Root status pages with `404.tsx`, `404.mdx`, `500.tsx`, and `500.mdx`.
+- Root status pages with `pages/404.tsx`, `pages/404.mdx`,
+  `pages/500.tsx`, and `pages/500.mdx`.
 - Hard route conflict detection.
 
 Deferred unless explicitly added:
@@ -1557,9 +1563,11 @@ Build-time checks:
 - Generated typed-routing declarations should update from `pages/`.
 - Route-pattern anchors and `Link` usages with missing or invalid params should
   produce direct type or build errors.
-- Unsupported document shell aliases such as legacy app-named document files,
-  `root.tsx`, `shell.tsx`, `pages/document.tsx`, and `pages/_document.tsx`
-  should produce a direct unsupported feature error.
+- Document shell aliases such as top-level `app.tsx`, `root.tsx`, and
+  `shell.tsx` should not be treated as document shells. They do not need hard
+  validation in v0.
+- `pages/document.tsx` and `pages/_document.tsx` should remain normal route
+  files because files inside `pages/` are routes.
 
 Runtime checks:
 

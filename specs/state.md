@@ -4,10 +4,10 @@ Last updated: 2026-05-24
 
 Status: M1 CLI create flow, M2 core Vite plugin skeleton, M3 route manifest,
 and M4 Qwik SSR renderer are implemented with focused red/green evidence.
-M6 root `404.tsx` and `500.tsx` status pages are implemented with focused
-red/green evidence, including Nitro-owned API route semantics through the built
-Nitro server entry. Route discovery belongs to the Vite plugin instead of a
-Node-backed manifest scanner, environment entry wiring uses Vite
+M6 `pages/404.tsx` and `pages/500.tsx` status pages are implemented with
+focused red/green evidence, including Nitro-owned API route semantics through
+the built Nitro server entry. Route discovery belongs to the Vite plugin instead
+of a Node-backed manifest scanner, environment entry wiring uses Vite
 `configEnvironment()` with `consumer` and `rolldownOptions`, and the renderer
 now matches static, dynamic, catch-all, 404 status, and 500 status `.tsx` page
 routes with `PageProps`. The first M5 slices are implemented: top-level
@@ -17,15 +17,15 @@ and the default internal document still works without a document shell. The `Htm
 component is a children-only Qwik component at runtime, while `resumable:html`
 uses the Vite transform hook `filter.id` and the TSX/JSX AST to extract root
 `<Html>` attributes into pre-render container attributes. Route-local `Head` is
-out of v0; unsupported document-shell alias validation remains a separate M5
-slice. The Vite
+out of v0, and document-shell aliases are intentionally not implemented. The Vite
 plugin resolves Resumable virtual IDs to real `src/vite/entries/*` source
 files and uses Vite dependency config to keep Qwik on one runtime instance.
 
 ## Current Objective
 
-Continue M5 after the focused `Html` component slice. Do not expand into typed
-routing, MDX, SPA navigation, or data/form APIs.
+Start M7 Nitro passthrough in TDD slices. API route semantics already have built
+Nitro server evidence from M6, so the next missing passthrough evidence should
+focus on top-level `middleware/`, `public/`, and native Nitro `routeRules`.
 
 ## Spec Files
 
@@ -67,11 +67,13 @@ routing, MDX, SPA navigation, or data/form APIs.
   `--- content`, content body below, and one visible `<Content />` slot.
 - Layouts are explicit Qwik components.
 - Optional `document.tsx` or `document.jsx` owns document shell.
-- Legacy app-named document shell files are not aliases; only top-level
-  `document.tsx` and `document.jsx` are discovered.
-- Root `404.tsx` is reserved by the route manifest and renders unmatched page
+- Top-level `document.tsx` and `document.jsx` are the only document shell
+  filenames. Top-level `app.tsx`, `root.tsx`, and `shell.tsx` are ignored in
+  v0, and `pages/document.tsx` plus `pages/_document.tsx` remain normal page
+  routes.
+- `pages/404.tsx` is reserved by the route manifest and renders unmatched page
   requests through Qwik SSR with status 404 when present.
-- Root `500.tsx` is reserved by the route manifest and renders Qwik page render
+- `pages/500.tsx` is reserved by the route manifest and renders Qwik page render
   failures through Qwik SSR with status 500 when present.
 - CLI uses `Starter`, not `Template`.
 - CLI runtime/project format is separate from starter.
@@ -103,7 +105,7 @@ routing, MDX, SPA navigation, or data/form APIs.
 | M2  | Core Vite plugin skeleton                 | Complete | M1 CLI create flow               | M0                            |
 | M3  | Route manifest                            | Complete | starter file content             | M2                            |
 | M4  | Qwik SSR renderer                         | Complete | Nitro passthrough fixtures       | M2, M3                        |
-| M5  | Document shell                            | Active   | status page tests                | M4                            |
+| M5  | Document shell                            | Complete | status page tests                | M4                            |
 | M6  | Status pages                              | Complete | M5 document shell                | M4                            |
 | M7  | Nitro passthrough                         | Pending  | M4 renderer work                 | M2                            |
 | M8  | Typed routing                             | Pending  | CLI doctor/routes commands       | M3                            |
@@ -115,19 +117,17 @@ routing, MDX, SPA navigation, or data/form APIs.
 
 ## Next Recommended Goal
 
-Continue M5 in TDD slices:
+Start M7 Nitro passthrough with focused fixture evidence:
 
-1. Add the next focused red evidence for unsupported document-shell alias
-   validation.
-2. Keep the existing `Html` implementation constrained to direct root
-   `<Html>` attributes extracted by `resumable:html`; do not add marker
-   components or parse rendered HTML.
-3. Keep route-local `Head`, typed routing, MDX, SPA navigation, and data/form APIs out of this
-   slice.
+1. Add red built-server fixture evidence for top-level `middleware/` running
+   before page rendering and API routes.
+2. Add or extend fixture evidence that `public/` assets are served directly by
+   Nitro and native `routeRules` still apply.
+3. Keep this slice Nitro-native; do not add Resumable API abstractions, typed
+   routing, MDX, SPA navigation, or data/form APIs.
 
-Before coding more M5 or Qwik-facing runtime code, verify the local Qwik repo
-is still on branch `build/v2` and inspect the relevant core/server/Vite plugin
-APIs. Use grep MCP for comparable public implementation patterns.
+Before changing Nitro/Vite wiring, re-check Nitro v3 docs and use grep MCP for
+current Nitro/Vite passthrough patterns.
 
 ## Parallel Work Notes
 
@@ -471,8 +471,9 @@ Do not parallelize yet:
   generated server entry, and includes `document.tsx` in the client entry.
   The server entry renders the built-in default document when no `document.tsx`
   exists, and wraps normal, 404, and 500 pages with user `document.tsx` when present.
-  `Html`, root export separation, and unsupported alias validation are
-  intentionally deferred into separate TDD slices.
+  `Html` and root export separation were intentionally deferred into separate
+  TDD slices; unsupported alias validation was later removed from v0 after
+  product review.
 - M5 Vite entry split follow-up: grep MCP research found modern Vite tooling
   patterns using Vite 8/Rolldown hook filters, `this.addWatchFile()`,
   `this.fs.readFile()`, and Vite-provided `transformWithOxc()` for generated TS
@@ -502,8 +503,9 @@ Do not parallelize yet:
   `pnpm --filter @resumable.dev/core build`,
   `pnpm exec vp test libs/core/test/vite/vite.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts`,
   `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
-  `git diff --check`. M5 remains active because `Html` and
-  unsupported document-shell alias validation are still pending.
+  `git diff --check`. At that point, M5 remained active because `Html` was
+  still pending. Unsupported alias validation was later removed from v0 after
+  product review.
 - M5 `Html` AST-transform red evidence: added focused transform tests for
   helper generation from `document.tsx` and `document.jsx`, non-`Html` roots,
   render-time local captures, and spread attributes; server-entry tests for
@@ -520,10 +522,30 @@ Do not parallelize yet:
   temporary fixture still proves `document.jsx`. Verification passed: red targeted
   test run, `pnpm build`, `pnpm check`,
   `pnpm test libs/core/test/minimal-fixture.unit.ts`, `pnpm test`, and
-  `git diff --check`. M5 remains active because unsupported document-shell
-  alias validation is still pending. Route-local `Head` was removed from v0:
-  `document.tsx` owns `<head>` and can branch from `PageProps`.
+  `git diff --check`. Route-local `Head` was removed from v0: `document.tsx`
+  owns `<head>` and can branch from `PageProps`.
 - Test files now live in package-level `test/` folders adjacent to `src/`:
   `libs/core/test/**` and `libs/cli/test/**`. Source packages keep
   `tsconfig.json` scoped to `src`, while Vite+ still discovers tests through
   the workspace `**/*.unit.ts` pattern.
+- M5 spec cleanup: product review removed unsupported document-shell alias
+  validation from v0. Top-level `document.tsx` and `document.jsx` are the only
+  document shell filenames; top-level `app.tsx`, `root.tsx`, and `shell.tsx`
+  are ignored unless a future feature gives them meaning; and files inside
+  `pages/`, including `pages/document.tsx` and `pages/_document.tsx`, remain
+  normal routes. With document discovery, the default document, the `Html`
+  transform, and route-local `Head` removal already implemented and verified,
+  M5 is complete. The next spec-aligned implementation step is the CLI starter
+  status-page path mismatch before M7 Nitro passthrough.
+- CLI starter status-page path red evidence: added a real create-flow test for
+  App and Full-stack starters expecting `pages/404.tsx` and `pages/500.tsx`
+  with no top-level `404.tsx` or `500.tsx`.
+  `pnpm exec vp test libs/cli/test/index.unit.ts` failed because
+  `pages/404.tsx` was missing.
+- CLI starter status-page path green evidence: App and Full-stack now generate
+  `pages/404.tsx` and `pages/500.tsx`, and generated `tsconfig.json` includes
+  `pages`, `document.tsx`, and `vite.config.ts` without top-level status-page
+  entries. Focused CLI verification passed with
+  `pnpm exec vp test libs/cli/test/index.unit.ts`.
+- CLI starter status-page path broad verification passed: `pnpm check`,
+  `pnpm test`, `pnpm build`, and `git diff --check`.

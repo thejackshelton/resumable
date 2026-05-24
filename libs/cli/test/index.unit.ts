@@ -130,6 +130,31 @@ describe("CreateProgram", () => {
     await expect(exists(join(appDir, "pages", "api"))).resolves.toBe(false);
   });
 
+  it("generates App and Full-stack status pages under pages", async () => {
+    await Promise.all(
+      (["app", "full-stack"] as const).map(async (starter) => {
+        const cwd = await makeWorkspace();
+        const program = new CreateProgram();
+
+        await program.run(
+          [`${starter}-app`, "--starter", starter, "--no-install", "--no-git"],
+          fakeRuntime(cwd)
+        );
+
+        const appDir = join(cwd, `${starter}-app`);
+        const tsconfigJson = await readFile(join(appDir, "tsconfig.json"), "utf-8");
+
+        await expect(exists(join(appDir, "pages", "404.tsx"))).resolves.toBe(true);
+        await expect(exists(join(appDir, "pages", "500.tsx"))).resolves.toBe(true);
+        await expect(exists(join(appDir, "404.tsx"))).resolves.toBe(false);
+        await expect(exists(join(appDir, "500.tsx"))).resolves.toBe(false);
+        expect(tsconfigJson).toContain('"pages"');
+        expect(tsconfigJson).not.toContain('"404.tsx"');
+        expect(tsconfigJson).not.toContain('"500.tsx"');
+      })
+    );
+  });
+
   it("rejects --yes without a positional target", async () => {
     const cwd = await makeWorkspace();
     const program = new CreateProgram();

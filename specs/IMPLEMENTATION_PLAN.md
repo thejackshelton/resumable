@@ -273,7 +273,7 @@ Build in the first core implementation pass:
 - Virtual or generated route manifest.
 - Qwik SSR for matched pages.
 - Optional top-level `document.tsx` with `Html`.
-- Root `404.tsx` and `500.tsx` status pages.
+- Root `pages/404.tsx` and `pages/500.tsx` status pages.
 - Nitro-native `api/`, `middleware/`, and `public/` passthrough.
 - Typed route generation.
 - Native anchor JSX type augmentation.
@@ -439,7 +439,7 @@ Build:
 - Support `index.tsx`.
 - Support `[param].tsx`.
 - Support `[...slug].tsx`.
-- Reserve `404.tsx` and `500.tsx` as root status pages.
+- Reserve `pages/404.tsx` and `pages/500.tsx` as root status pages.
 - Fail on conflicts with exact files.
 - Fail on unsupported patterns with direct messages.
 
@@ -509,8 +509,9 @@ Build:
 - Optional top-level `document.tsx`.
 - `Html` component.
 - Default internal document when no `document.tsx` exists.
-- Direct error for unsupported shell filenames, including legacy app-named
-  document files.
+- No document shell aliases. Top-level `app.tsx`, `root.tsx`, and `shell.tsx`
+  are ignored in v0, while `pages/document.tsx` and `pages/_document.tsx`
+  remain normal routes because files inside `pages/` are routes.
 
 TDD slices:
 
@@ -521,16 +522,18 @@ TDD slices:
    document attribute translation in this slice.
 2. Add `Html` as its own public API slice, with focused evidence for translating
    `Html` props to Qwik SSR container attributes.
-3. Add unsupported shell filename errors as a separate validation slice, with
-   direct fixture evidence for legacy app-named document files and the other
-   rejected filenames.
+3. Do not add unsupported shell filename validation unless real user confusion
+   appears. A hard error for unrelated top-level files adds ceremony, and a
+   hard error for `pages/document.tsx` or `pages/_document.tsx` would violate
+   the rule that `pages/` contains routes.
 
 Exit criteria:
 
 - Minimal starter works without `document.tsx`.
 - App starter can customize `<html>`, `<head>`, and `<body>`.
 - `document.tsx` can customize `<head>` from `PageProps`.
-- No `pages/layout.tsx` or `pages/_document.tsx` behavior exists.
+- No document shell alias behavior exists.
+- `pages/document.tsx` and `pages/_document.tsx` remain normal routes.
 
 ### 6. Status Pages
 

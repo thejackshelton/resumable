@@ -441,8 +441,8 @@ function starterFiles(options: CreateOptions) {
   if (options.starter === "app" || options.starter === "full-stack") {
     files.push(
       { path: "document.tsx", contents: documentShell() },
-      { path: "404.tsx", contents: statusPage("Not found") },
-      { path: "500.tsx", contents: statusPage("Server error") }
+      { path: "pages/404.tsx", contents: statusPage("Not found") },
+      { path: "pages/500.tsx", contents: statusPage("Server error") }
     );
   }
 
@@ -510,7 +510,7 @@ function tsconfig() {
       ],
       types: ["vite/client"]
     },
-    include: ["pages", "document.tsx", "404.tsx", "500.tsx", "vite.config.ts"]
+    include: ["pages", "document.tsx", "vite.config.ts"]
   };
 }
 
