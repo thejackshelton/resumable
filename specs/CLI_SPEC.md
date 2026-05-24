@@ -433,7 +433,8 @@ one:
 
 ### Docs
 
-A documentation-site skeleton using first-class MDX page routes.
+A documentation-site skeleton using first-class MDX page routes and Composed
+MDX for explicit page composition.
 
 ```txt
 my-app/
@@ -444,6 +445,8 @@ my-app/
       index.mdx
       [...slug].mdx
   components/
+    docs/
+      Sidebar.tsx
     layouts/
       DocsLayout.tsx
   public/
@@ -454,6 +457,25 @@ my-app/
 
 Use this when the user wants content-oriented routes. The starter should not add
 `content/`, `collections/`, `menu.md`, or a separate MDX Vite plugin.
+
+Docs starter MDX pages should demonstrate that layouts are components, not
+frontmatter metadata:
+
+```mdx
+import { Sidebar } from "../../components/docs/Sidebar";
+import { DocsLayout } from "../../components/layouts/DocsLayout";
+
+<DocsLayout section="guides">
+  <Sidebar active="getting-started" />
+  <main>
+    <Content />
+  </main>
+</DocsLayout>
+
+--- content
+
+# Getting Started
+```
 
 `Docs` should ship only after the MDX fixture proves Satteri, Qwik v2, and the
 Qwik optimizer work together.

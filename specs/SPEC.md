@@ -134,6 +134,7 @@ Resumable v0 should not include:
 - `resumable.config.ts`.
 - `nitro.config.ts` as the documented app config path.
 - Special layout files such as `pages/layout.tsx`.
+- Frontmatter-assigned layouts such as `layout: ../layouts/DocsLayout`.
 - Nested status pages such as `pages/blog/404.tsx` or `pages/blog/404.mdx`.
 - Generic error route files such as `pages/_error.tsx`, `pages/+error.tsx`,
   `pages/error.tsx`, `pages/not-found.tsx`, or `pages/global-error.tsx`.
@@ -177,6 +178,9 @@ my-app/
     10.auth.ts
 
   components/
+    docs/
+      Sidebar.tsx
+      DocsAside.tsx
     layouts/
       RootLayout.tsx
       MarketingLayout.tsx
@@ -391,18 +395,30 @@ pages/docs/[...slug].mdx       -> /docs/**
 An MDX route must compile to a default-exported Qwik component. Users should not
 need to install or configure an MDX adapter in `vite.config.ts`.
 
+MDX pages that need layout should use Composed MDX. Composed MDX keeps layout
+as normal component composition: the top of the file defines the component tree,
+and the content body renders where `<Content />` appears.
+
 Example:
 
 ```mdx
-import { DocsLayout } from "../components/layouts/DocsLayout";
+import { Sidebar } from "../../components/docs/Sidebar";
+import { DocsAside } from "../../components/docs/DocsAside";
+import { DocsLayout } from "../../components/layouts/DocsLayout";
 
-<DocsLayout>
+<DocsLayout section="guides">
+  <Sidebar active="getting-started" />
+  <main>
+    <Content />
+  </main>
+  <DocsAside />
+</DocsLayout>
+
+--- content
 
 # Getting Started
 
 Resumable pages can be written in TSX or MDX.
-
-</DocsLayout>
 ```
 
 Core rule:
@@ -410,8 +426,41 @@ Core rule:
 ```txt
 TSX and MDX are both page modules.
 The route is still defined by the file path.
-The UI tree is still explicit.
+The UI tree is still defined by the component tree.
+Layouts are components.
+The MDX content body is inserted explicitly at <Content />.
 ```
+
+Composed MDX terms:
+
+```txt
+Composed MDX      -> the feature
+component tree    -> the JSX above `--- content`
+content body      -> the MDX below `--- content`
+<Content />       -> the explicit content slot
+```
+
+The `--- content` delimiter is Resumable syntax, not native MDX syntax.
+Resumable must split and normalize Composed MDX before calling the internal MDX
+compiler.
+
+Composed MDX rules:
+
+- An MDX file becomes Composed MDX when it contains the `--- content`
+  delimiter.
+- The delimiter must be exactly `--- content`.
+- The delimiter must start at column 1.
+- A Composed MDX file must contain exactly one delimiter. Multiple delimiters
+  are a direct error.
+- The section above the delimiter may contain ESM imports/exports, comments,
+  and one JSX component tree.
+- The component tree above the delimiter must contain exactly one `<Content />`.
+- `<Content />` is a reserved slot in the component tree, not a user component.
+- The content body below the delimiter may contain normal Markdown, MDX JSX,
+  and expressions supported by the internal MDX compiler.
+- ESM imports and exports should appear above the delimiter.
+- A plain MDX route without `--- content` compiles as a normal MDX page module.
+- Astro-style `layout` frontmatter must not create a layout wrapper.
 
 Do not add MDX-specific route hooks or content hooks in v0:
 
@@ -434,11 +483,12 @@ If frontmatter is supported, it should be parsed internally or exposed as normal
 module metadata later. It must not create implicit layouts or implicit routes in
 v0.
 
-The `resumable()` Vite plugin owns MDX routing and compilation. Satteri is the
-preferred internal compiler candidate because it provides `mdxToJs()`,
-frontmatter extraction, plugin hooks, and static optimization, but it is not a
-public Resumable API. A fixture must prove Satteri output can be normalized into
-Qwik v2-compatible modules before this implementation choice is locked.
+The `resumable()` Vite plugin owns MDX routing, Composed MDX normalization, and
+MDX compilation. Satteri is the preferred internal compiler candidate because it
+provides `mdxToJs()`, MDAST/HAST plugin hooks, and static optimization, but it
+is not a public Resumable API. A fixture must prove Satteri output can be
+normalized into Qwik v2-compatible modules before this implementation choice is
+locked.
 
 The internal MDX plugin should run before Qwik's Vite plugin consumes the
 module, so Qwik sees ordinary Qwik-compatible component code.
@@ -1445,6 +1495,7 @@ Suggested initial docs:
 - Project Structure
 - App Shell
 - Pages and Routing
+- Composed MDX
 - Navigation and Typed Routing
 - API Routes
 - Layouts
@@ -1486,6 +1537,18 @@ Build-time checks:
 - Missing `pages/` should produce a direct error or a direct empty-app message.
 - Page files without a default export should produce a direct error.
 - `.mdx` page modules should compile to default-exported Qwik components.
+- Composed MDX files should split on `--- content`, replace exactly one
+  `<Content />` with the content body, and compile to default-exported Qwik
+  components.
+- Composed MDX files with multiple `--- content` delimiters should produce a
+  direct error.
+- Composed MDX files with zero or multiple `<Content />` slots should produce a
+  direct error.
+- Composed MDX files that import or define a binding named `Content` should
+  produce a direct error.
+- ESM imports or exports below `--- content` should produce a direct error.
+- Frontmatter `layout` in an MDX route should produce a direct unsupported
+  feature error.
 - Conflicting routes should produce a direct error.
 - `.tsx` and `.mdx` files that map to the same URL should conflict.
 - Unsupported route patterns should produce a direct error.
@@ -1522,6 +1585,8 @@ Runtime checks:
 - `Link` uses the same route typing and opts into SPA navigation.
 - `GET /` renders `pages/index.tsx`.
 - `GET /docs` renders `pages/docs.mdx` when present.
+- A Composed MDX page renders its content body at the visible `<Content />`
+  position in the component tree.
 - `GET /about` renders `pages/about.tsx`.
 - `GET /blog` renders `pages/blog/index.tsx`.
 - `GET /blog/test` renders `pages/blog/test.tsx`.
@@ -1573,6 +1638,10 @@ necessary:
   https://github.com/bruits/satteri
 - Satteri package README:
   https://raw.githubusercontent.com/bruits/satteri/main/packages/satteri/README.md
+- MDX syntax:
+  https://mdxjs.com/docs/what-is-mdx/
+- CommonMark thematic breaks:
+  https://spec.commonmark.org/
 - Grep MCP sample, TanStack Nitro Vite config:
   https://github.com/TanStack/router/blob/main/examples/solid/start-basic-nitro/vite.config.ts
 - Grep MCP sample, SST TanStack Start Nitro config:

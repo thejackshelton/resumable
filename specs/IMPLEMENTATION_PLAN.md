@@ -619,6 +619,7 @@ Build only after previous route/SSR path is stable:
 
 - Satteri POC.
 - `.mdx` page module compilation.
+- Composed MDX source normalization for `--- content` and `<Content />`.
 - Qwik v2-compatible output.
 - Qwik optimizer compatibility.
 - MDX source map/error quality.
@@ -629,6 +630,11 @@ Exit criteria:
 - `pages/index.mdx` renders.
 - `pages/docs/[...slug].mdx` renders.
 - Qwik components can be imported inside MDX.
+- Composed MDX renders the content body at exactly one visible `<Content />`
+  slot in the component tree.
+- Invalid Composed MDX delimiter and slot counts produce direct errors.
+- ESM below `--- content` produces a direct error.
+- MDX `layout` frontmatter does not create a layout wrapper.
 - `.tsx` and `.mdx` route conflicts are detected.
 
 ### 10. Data Fetching Prototype

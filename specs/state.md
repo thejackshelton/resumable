@@ -62,6 +62,8 @@ routing, MDX, SPA navigation, or data/form APIs.
 - CLI path handling uses `pathe`/`ufo`; Node APIs remain only for actual
   filesystem/process CLI responsibilities.
 - Route files are `.tsx` and, after proof, `.mdx`.
+- Composed MDX is the planned MDX layout story: explicit component tree above
+  `--- content`, content body below, and one visible `<Content />` slot.
 - Layouts are explicit Qwik components.
 - Optional `app.tsx` or `app.jsx` owns document shell.
 - Root `404.tsx` is reserved by the route manifest and renders unmatched page
@@ -71,7 +73,7 @@ routing, MDX, SPA navigation, or data/form APIs.
 - CLI uses `Starter`, not `Template`.
 - CLI runtime/project format is separate from starter.
 - Initial starters: `Minimal`, `App`, `Full-stack`.
-- `Docs` starter waits for MDX proof.
+- `Docs` starter waits for MDX and Composed MDX proof.
 - `Data` does not appear as a default starter until the data layer is proven.
 - Implementation must inspect local Qwik at
   `/Users/jacksm5pro/dev/open-source/qwik` on branch `build/v2`.
@@ -91,22 +93,22 @@ routing, MDX, SPA navigation, or data/form APIs.
 
 ## Milestone State
 
-| ID  | Milestone                    | Status   | Can Run In Parallel With         | Depends On                    |
-| --- | ---------------------------- | -------- | -------------------------------- | ----------------------------- |
-| M0  | Spec organization            | Complete | none                             | none                          |
-| M1  | CLI create flow              | Complete | M2 package/plugin skeleton       | M0                            |
-| M2  | Core Vite plugin skeleton    | Complete | M1 CLI create flow               | M0                            |
-| M3  | Route manifest               | Complete | starter file content             | M2                            |
-| M4  | Qwik SSR renderer            | Complete | Nitro passthrough fixtures       | M2, M3                        |
-| M5  | App shell and Head           | Active   | status page tests                | M4                            |
-| M6  | Status pages                 | Complete | M5 app shell                     | M4                            |
-| M7  | Nitro passthrough            | Pending  | M4 renderer work                 | M2                            |
-| M8  | Typed routing                | Pending  | CLI doctor/routes commands       | M3                            |
-| M9  | Link and SPA navigation      | Pending  | none                             | M4, M8                        |
-| M10 | MDX fixture and Docs starter | Pending  | none                             | M3, M4, Satteri/Qwik proof    |
-| M11 | Data fetching prototype      | Deferred | none                             | M4, M9, data confidence gates |
-| M12 | Bun fixture                  | Deferred | CLI/runtime format work after M1 | M1, M2, M4                    |
-| M13 | Deno fixture                 | Deferred | none                             | M1, M2, M4, Vite+/Deno proof  |
+| ID  | Milestone                                    | Status   | Can Run In Parallel With         | Depends On                    |
+| --- | -------------------------------------------- | -------- | -------------------------------- | ----------------------------- |
+| M0  | Spec organization                            | Complete | none                             | none                          |
+| M1  | CLI create flow                              | Complete | M2 package/plugin skeleton       | M0                            |
+| M2  | Core Vite plugin skeleton                    | Complete | M1 CLI create flow               | M0                            |
+| M3  | Route manifest                               | Complete | starter file content             | M2                            |
+| M4  | Qwik SSR renderer                            | Complete | Nitro passthrough fixtures       | M2, M3                        |
+| M5  | App shell and Head                           | Active   | status page tests                | M4                            |
+| M6  | Status pages                                 | Complete | M5 app shell                     | M4                            |
+| M7  | Nitro passthrough                            | Pending  | M4 renderer work                 | M2                            |
+| M8  | Typed routing                                | Pending  | CLI doctor/routes commands       | M3                            |
+| M9  | Link and SPA navigation                      | Pending  | none                             | M4, M8                        |
+| M10 | MDX/Composed MDX fixture and Docs starter    | Pending  | none                             | M3, M4, Satteri/Qwik proof    |
+| M11 | Data fetching prototype                      | Deferred | none                             | M4, M9, data confidence gates |
+| M12 | Bun fixture                                  | Deferred | CLI/runtime format work after M1 | M1, M2, M4                    |
+| M13 | Deno fixture                                 | Deferred | none                             | M1, M2, M4, Vite+/Deno proof  |
 
 ## Next Recommended Goal
 
@@ -143,7 +145,7 @@ Do not parallelize yet:
 ## Deferred Decisions
 
 - Whether optional `src/` source root is ever allowed.
-- Whether Docs starter is visible before MDX is fully proven.
+- Whether Docs starter is visible before MDX and Composed MDX are fully proven.
 - Whether Bun is v0 or waits for a fixture.
 - Whether Deno is visible before a full `deno.json` fixture.
 - Exact generated route type file location.
