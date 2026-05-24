@@ -28,10 +28,14 @@ TypeScript server, or for local unpublished workspace-link testing.
 The current proof verifies:
 
 - default-exported components in the configured top-level `pages` folder receive
-  page prop completions;
+  real `PageProps` typing through the TypeScript language service;
+- `props.url.href`, `props.url.pathname`, `props.url.search`, and `props.status`
+  use native TypeScript hovers/completions instead of plugin-painted `any`;
+- top-level `document.tsx` receives document-wide props, including optional
+  params collected from every page route;
 - non-default page components keep native TypeScript `unknown` diagnostics;
 - files outside the configured top-level `pages` folder, including `src/pages`,
-  do not receive page prop completions or diagnostic filtering;
+  do not receive page prop typing;
 - native TypeScript completions still come through the normal language service;
 - edits back to `export default` recover without a language-server restart.
 

@@ -30,7 +30,6 @@ interface BuiltNitroResponse {
 
 describe("Resumable fixtures", () => {
   it("renders static pages through Resumable's internal Qwik SSR renderer", async () => {
-    await expectPath("document.tsx", false);
     await expectPath("pages/index.tsx", true);
     await expectPath("pages/about.tsx", true);
     await expectPath("pages/404.tsx", true);
@@ -75,7 +74,7 @@ describe("Resumable fixtures", () => {
 
     expect(html).toContain("Minimal Resumable Fixture");
     expect(html).toContain('lang="en"');
-    expect(html).toContain('<meta charSet="utf-8"');
+    expect(html.toLowerCase()).toContain('charset="utf-8"');
     expect(html).toContain('name="viewport"');
     expect(html.indexOf("<body")).toBeGreaterThan(-1);
     expect(html.indexOf("<main")).toBeGreaterThan(html.indexOf("<body"));

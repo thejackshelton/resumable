@@ -7,7 +7,9 @@ const repoRoot = resolve(__dirname, "../../..");
 const fixtureRoot = resolve(repoRoot, "fixtures/minimal");
 const pagesDir = resolve(fixtureRoot, "pages");
 const blogPagePath = resolve(pagesDir, "blog/[slug].tsx");
+const newBlogPagePath = resolve(pagesDir, "blog/[new].tsx");
 const aboutPagePath = resolve(pagesDir, "about.tsx");
+const sectionPagePath = resolve(pagesDir, "[section].tsx");
 const documentPath = resolve(fixtureRoot, "document.tsx");
 const srcDocumentPath = resolve(fixtureRoot, "src/document.tsx");
 const srcPagesBlogPagePath = resolve(fixtureRoot, "src/pages/blog/[slug].tsx");
@@ -79,31 +81,32 @@ const plugin = init({ typescript: ts }).create({
   }
 });
 
-const unannotated = `import { component$ } from "@qwik.dev/core";
-
-export default component$((props) => {
-  props.
-  props.params.
-  props.url.
-});
-`;
-
-openDocument(blogPagePath, unannotated);
-const blogPropsCompletion = completionAtText(blogPagePath, unannotated, "  props.");
-const blogParamsCompletion = completionAtText(
-  blogPagePath,
-  unannotated,
-  "  props.params."
-);
-const blogUrlCompletion = completionAtText(blogPagePath, unannotated, "  props.url.");
-
 const defaultPageDiagnosticSource = `import { component$ } from "@qwik.dev/core";
 
 export default component$((props) => {
   const slug = props.params.slug;
-  return <article>{slug}</article>;
+  const href = props.url.href;
+  const status = props.status;
+  return <article>{slug}{href}{status}</article>;
 });
 `;
+
+openDocument(blogPagePath, defaultPageDiagnosticSource);
+const blogPropsCompletion = completionAtText(
+  blogPagePath,
+  defaultPageDiagnosticSource,
+  "props."
+);
+const blogParamsCompletion = completionAtText(
+  blogPagePath,
+  defaultPageDiagnosticSource,
+  "props.params."
+);
+const blogUrlCompletion = completionAtText(
+  blogPagePath,
+  defaultPageDiagnosticSource,
+  "props.url."
+);
 
 changeDocument(blogPagePath, defaultPageDiagnosticSource);
 const defaultPageDiagnostic = plugin.getSemanticDiagnostics(blogPagePath);
@@ -119,6 +122,35 @@ const defaultPageSlugQuickInfo = quickInfoAtText(
   "props.params.slug",
   "slug"
 );
+const defaultPageUrlQuickInfo = quickInfoAtText(
+  blogPagePath,
+  defaultPageDiagnosticSource,
+  "props.url.href",
+  "url"
+);
+const defaultPageHrefQuickInfo = quickInfoAtText(
+  blogPagePath,
+  defaultPageDiagnosticSource,
+  "props.url.href",
+  "href"
+);
+const defaultPageStatusQuickInfo = quickInfoAtText(
+  blogPagePath,
+  defaultPageDiagnosticSource,
+  "props.status",
+  "status"
+);
+
+const defaultPageSyntaxErrorSource = `import { component$ } from "@qwik.dev/core";
+
+export default component$((props) => {
+  const href = props.url.href;
+  const broken = ;
+  return <article>{href}</article>;
+});
+`;
+changeDocument(blogPagePath, defaultPageSyntaxErrorSource);
+const defaultPageSyntaxDiagnostic = plugin.getSyntacticDiagnostics(blogPagePath);
 
 const nativeHints = `const rounded = Math.
 `;
@@ -180,36 +212,39 @@ const srcPagesCompletion = completionAtText(
   "props.params."
 );
 
-openDocument(aboutPagePath, unannotated);
-const aboutCompletion = completionAtText(aboutPagePath, unannotated, "  props.params.");
-
-const documentShellSource = `import { component$, Slot } from "@qwik.dev/core";
-
-export default component$((props) => {
-  props.
-  props.params.
-  return <Slot />;
-});
-`;
-
-openDocument(documentPath, documentShellSource);
-const documentPropsCompletion = completionAtText(
-  documentPath,
-  documentShellSource,
-  "  props."
+openDocument(aboutPagePath, defaultPageDiagnosticSource);
+const aboutCompletion = completionAtText(
+  aboutPagePath,
+  defaultPageDiagnosticSource,
+  "props.params."
 );
-const documentParamsCompletion = completionAtText(
-  documentPath,
-  documentShellSource,
-  "  props.params."
-);
+
+openDocument(sectionPagePath, defaultPageDiagnosticSource);
+openDocument(newBlogPagePath, defaultPageDiagnosticSource);
+
 const documentDiagnosticSource = `import { component$, Slot } from "@qwik.dev/core";
 
 export default component$((props) => {
   const status = props.status;
+  const href = props.url.href;
+  const keywordParam = props.params.new;
+  const section = props.params.section;
+  const slug = props.params.slug;
   return <Slot />;
 });
 `;
+
+openDocument(documentPath, documentDiagnosticSource);
+const documentPropsCompletion = completionAtText(
+  documentPath,
+  documentDiagnosticSource,
+  "props."
+);
+const documentParamsCompletion = completionAtText(
+  documentPath,
+  documentDiagnosticSource,
+  "props.params."
+);
 changeDocument(documentPath, documentDiagnosticSource);
 const documentDiagnostic = plugin.getSemanticDiagnostics(documentPath);
 const documentPropsQuickInfo = quickInfoAtText(
@@ -217,6 +252,24 @@ const documentPropsQuickInfo = quickInfoAtText(
   documentDiagnosticSource,
   "props.status",
   "props"
+);
+const documentSectionQuickInfo = quickInfoAtText(
+  documentPath,
+  documentDiagnosticSource,
+  "props.params.section",
+  "section"
+);
+const documentNewQuickInfo = quickInfoAtText(
+  documentPath,
+  documentDiagnosticSource,
+  "props.params.new",
+  "new"
+);
+const documentHrefQuickInfo = quickInfoAtText(
+  documentPath,
+  documentDiagnosticSource,
+  "props.url.href",
+  "href"
 );
 
 openDocument(srcDocumentPath, documentDiagnosticSource);
@@ -236,6 +289,10 @@ const result = {
   defaultPageDiagnostic: summarizeDiagnostic(defaultPageDiagnostic),
   defaultPagePropsQuickInfo: summarizeQuickInfo(defaultPagePropsQuickInfo),
   defaultPageSlugQuickInfo: summarizeQuickInfo(defaultPageSlugQuickInfo),
+  defaultPageUrlQuickInfo: summarizeQuickInfo(defaultPageUrlQuickInfo),
+  defaultPageHrefQuickInfo: summarizeQuickInfo(defaultPageHrefQuickInfo),
+  defaultPageStatusQuickInfo: summarizeQuickInfo(defaultPageStatusQuickInfo),
+  defaultPageSyntaxDiagnostic: summarizeDiagnostic(defaultPageSyntaxDiagnostic),
   nativeTypeScriptCompletion: summarizeCompletion(nativeMathCompletion),
   namedDefaultPageProps: summarizeCompletion(namedDefaultCompletion),
   staticAboutPageParamsControl: summarizeCompletion(aboutCompletion),
@@ -249,6 +306,9 @@ const result = {
   documentParamsCompletion: summarizeCompletion(documentParamsCompletion),
   documentDiagnostic: summarizeDiagnostic(documentDiagnostic),
   documentPropsQuickInfo: summarizeQuickInfo(documentPropsQuickInfo),
+  documentSectionQuickInfo: summarizeQuickInfo(documentSectionQuickInfo),
+  documentNewQuickInfo: summarizeQuickInfo(documentNewQuickInfo),
+  documentHrefQuickInfo: summarizeQuickInfo(documentHrefQuickInfo),
   srcDocumentDiagnostic: summarizeDiagnostic(srcDocumentDiagnostic),
   srcDocumentCompletion: summarizeCompletion(srcDocumentCompletion)
 };
@@ -300,6 +360,8 @@ function summarizeCompletion(response) {
     itemCount: labels.length,
     hasAbs: labels.includes("abs"),
     hasSlug: labels.includes("slug"),
+    hasNew: labels.includes("new"),
+    hasSection: labels.includes("section"),
     hasParams: labels.includes("params"),
     hasUrl: labels.includes("url"),
     hasStatus: labels.includes("status"),
@@ -359,14 +421,33 @@ function assertProof(proofResult) {
 
   if (
     !proofResult.defaultPagePropsQuickInfo.text.includes("PageProps") ||
-    !proofResult.defaultPagePropsQuickInfo.text.includes("readonly slug: string") ||
-    !proofResult.defaultPagePropsQuickInfo.documentation.includes("/blog/[slug]")
+    !proofResult.defaultPagePropsQuickInfo.text.includes("readonly slug: string")
   ) {
     throw new Error("TS plugin did not provide route-aware props hover.");
   }
 
   if (!proofResult.defaultPageSlugQuickInfo.text.includes("slug: string")) {
     throw new Error("TS plugin did not provide route param hover.");
+  }
+
+  if (
+    !proofResult.defaultPageUrlQuickInfo.text.includes("href") ||
+    !proofResult.defaultPageUrlQuickInfo.text.includes("pathname") ||
+    !proofResult.defaultPageUrlQuickInfo.text.includes("search")
+  ) {
+    throw new Error("TS plugin did not provide a real typed props.url hover.");
+  }
+
+  if (!proofResult.defaultPageHrefQuickInfo.text.includes("href: string")) {
+    throw new Error("TS plugin did not provide a real typed props.url.href hover.");
+  }
+
+  if (!proofResult.defaultPageStatusQuickInfo.text.includes("status: number")) {
+    throw new Error("TS plugin did not provide a real typed props.status hover.");
+  }
+
+  if (proofResult.defaultPageSyntaxDiagnostic.itemCount === 0) {
+    throw new Error("TS plugin should preserve syntax diagnostics.");
   }
 
   if (
@@ -425,8 +506,12 @@ function assertProof(proofResult) {
     throw new Error("Top-level document.tsx should receive page prop completions.");
   }
 
-  if (proofResult.documentParamsCompletion.hasSlug) {
-    throw new Error("document.tsx should not receive route-specific param completions.");
+  if (
+    !proofResult.documentParamsCompletion.hasSlug ||
+    !proofResult.documentParamsCompletion.hasNew ||
+    !proofResult.documentParamsCompletion.hasSection
+  ) {
+    throw new Error("document.tsx should collect route param completions from pages.");
   }
 
   if (proofResult.documentDiagnostic.hasUnknownProps) {
@@ -435,9 +520,23 @@ function assertProof(proofResult) {
 
   if (
     !proofResult.documentPropsQuickInfo.text.includes("PageProps") ||
-    !proofResult.documentPropsQuickInfo.documentation.includes("document.tsx")
+    !proofResult.documentPropsQuickInfo.text.includes("readonly new?: string") ||
+    !proofResult.documentPropsQuickInfo.text.includes("readonly section?: string") ||
+    !proofResult.documentPropsQuickInfo.text.includes("readonly slug?: string")
   ) {
     throw new Error("Top-level document.tsx should receive page prop hover.");
+  }
+
+  if (!proofResult.documentSectionQuickInfo.text.includes("section?: string")) {
+    throw new Error("document.tsx should expose collected params as optional.");
+  }
+
+  if (!proofResult.documentNewQuickInfo.text.includes("new?: string")) {
+    throw new Error("document.tsx should expose keyword-like params as optional.");
+  }
+
+  if (!proofResult.documentHrefQuickInfo.text.includes("href: string")) {
+    throw new Error("document.tsx should expose typed url fields.");
   }
 
   if (!proofResult.srcDocumentDiagnostic.hasUnknownProps) {

@@ -20,7 +20,7 @@
   },
   "scripts": {
     "build": "tsc --build tsconfig.json --force",
-    "proof": "pnpm run build && node src/resumable-ts-plugin-proof.cjs && node src/resumable-tsserver-plugin-proof.cjs"
+    "proof": "pnpm --filter @resumable.dev/core build && pnpm run build && node src/resumable-ts-plugin-proof.cjs && node src/resumable-tsserver-plugin-proof.cjs"
   },
   "dependencies": {
     "pathe": "2.0.3",

@@ -11,21 +11,21 @@ type ResumablePluginConfig = {
 type PageRoute = {
   pattern: string;
   params: string[];
+  optionalParams?: boolean;
 };
 
-type PageContext = {
-  route: PageRoute;
-  propsName: string;
-  sourceFile: ts.SourceFile;
+type TypedSourceTransform = {
+  generatedText: string;
+  insertAt: number;
+  insertedLength: number;
 };
 
-type PageContextCacheEntry = {
+type TypedSourceCacheEntry = {
   version: string;
-  context: PageContext | undefined;
+  transform: TypedSourceTransform | undefined;
 };
 
 const PAGE_EXTENSIONS = new Set([".tsx", ".jsx", ".mdx"]);
-const ROUTE_SOURCE_PREFIX = "Resumable route ";
 
 function init(modules: { typescript: TypeScript }): ts.server.PluginModule {
   const typeScript = modules.typescript;
@@ -47,7 +47,46 @@ function init(modules: { typescript: TypeScript }): ts.server.PluginModule {
       const pluginConfig = (info.config ?? {}) as ResumablePluginConfig;
       const projectRoot = getProjectRoot(typeScript, info);
       const pagesDir = resolvePagesDir(projectRoot, pluginConfig);
-      const pageContextCache = new Map<string, PageContextCacheEntry>();
+      const typedSourceCache = new Map<string, TypedSourceCacheEntry>();
+      const originalGetScriptSnapshot = info.languageServiceHost.getScriptSnapshot?.bind(
+        info.languageServiceHost
+      );
+
+      if (originalGetScriptSnapshot) {
+        info.languageServiceHost.getScriptSnapshot = (fileName) => {
+          const snapshot = originalGetScriptSnapshot(fileName);
+          if (!snapshot) {
+            return snapshot;
+          }
+
+          const transform = typedSourceTransform(
+            typeScript,
+            info,
+            typedSourceCache,
+            originalGetScriptSnapshot,
+            projectRoot,
+            pagesDir,
+            fileName
+          );
+
+          return transform
+            ? typeScript.ScriptSnapshot.fromString(transform.generatedText)
+            : snapshot;
+        };
+      }
+
+      const transformFor = (fileName: string) =>
+        originalGetScriptSnapshot
+          ? typedSourceTransform(
+              typeScript,
+              info,
+              typedSourceCache,
+              originalGetScriptSnapshot,
+              projectRoot,
+              pagesDir,
+              fileName
+            )
+          : undefined;
 
       proxy.getCompletionsAtPosition = (
         fileName,
@@ -55,39 +94,14 @@ function init(modules: { typescript: TypeScript }): ts.server.PluginModule {
         options,
         formattingSettings
       ) => {
-        const resumableEntries = completePageProps(
-          typeScript,
-          info,
-          pageContextCache,
-          projectRoot,
-          pagesDir,
+        const transform = transformFor(fileName);
+        const generatedPosition = toGeneratedPosition(transform, position);
+        return languageService.getCompletionsAtPosition(
           fileName,
-          position
-        );
-        const typeScriptCompletion = languageService.getCompletionsAtPosition(
-          fileName,
-          position,
+          generatedPosition,
           options,
           formattingSettings
         );
-
-        if (resumableEntries.length === 0) {
-          return typeScriptCompletion;
-        }
-
-        const entries = mergeCompletionEntries(
-          resumableEntries,
-          typeScriptCompletion?.entries ?? []
-        );
-
-        return {
-          ...(typeScriptCompletion ?? {
-            isGlobalCompletion: false,
-            isMemberCompletion: true,
-            isNewIdentifierLocation: false
-          }),
-          entries
-        };
       };
 
       proxy.getCompletionEntryDetails = (
@@ -99,23 +113,11 @@ function init(modules: { typescript: TypeScript }): ts.server.PluginModule {
         preferences,
         data
       ) => {
-        const resumableEntry = completePageProps(
-          typeScript,
-          info,
-          pageContextCache,
-          projectRoot,
-          pagesDir,
-          fileName,
-          position
-        ).find((entry) => entry.name === entryName);
-
-        if (resumableEntry) {
-          return completionEntryDetails(typeScript, resumableEntry);
-        }
-
+        const transform = transformFor(fileName);
+        const generatedPosition = toGeneratedPosition(transform, position);
         return languageService.getCompletionEntryDetails(
           fileName,
-          position,
+          generatedPosition,
           entryName,
           formatOptions,
           source,
@@ -125,38 +127,210 @@ function init(modules: { typescript: TypeScript }): ts.server.PluginModule {
       };
 
       proxy.getQuickInfoAtPosition = (fileName, position, maximumLength) => {
-        const pagePropsQuickInfo = quickInfoForPageProps(
-          typeScript,
-          info,
-          pageContextCache,
-          projectRoot,
-          pagesDir,
+        const transform = transformFor(fileName);
+        const generatedPosition = toGeneratedPosition(transform, position);
+        const quickInfo = languageService.getQuickInfoAtPosition(
           fileName,
-          position
+          generatedPosition,
+          maximumLength
         );
-        if (pagePropsQuickInfo) {
-          return pagePropsQuickInfo;
-        }
-
-        return languageService.getQuickInfoAtPosition(fileName, position, maximumLength);
+        return quickInfo ? mapQuickInfoToOriginal(quickInfo, transform) : quickInfo;
       };
 
       proxy.getSemanticDiagnostics = (fileName) => {
-        const diagnostics = languageService.getSemanticDiagnostics(fileName);
-        return filterUnknownPropsDiagnostics(
-          typeScript,
-          info,
-          pageContextCache,
-          projectRoot,
-          pagesDir,
-          fileName,
-          diagnostics
+        return mapDiagnosticsToOriginal(
+          languageService.getSemanticDiagnostics(fileName),
+          transformFor(fileName)
+        );
+      };
+
+      proxy.getSyntacticDiagnostics = (fileName) => {
+        return mapDiagnosticsToOriginal(
+          languageService.getSyntacticDiagnostics(fileName),
+          transformFor(fileName)
+        );
+      };
+
+      proxy.getSuggestionDiagnostics = (fileName) => {
+        return mapDiagnosticsToOriginal(
+          languageService.getSuggestionDiagnostics(fileName),
+          transformFor(fileName)
         );
       };
 
       return proxy;
     }
   };
+}
+
+function typedSourceTransform(
+  typeScript: TypeScript,
+  info: ts.server.PluginCreateInfo,
+  cache: Map<string, TypedSourceCacheEntry>,
+  getScriptSnapshot: (fileName: string) => ts.IScriptSnapshot | undefined,
+  projectRoot: string,
+  pagesDir: string,
+  fileName: string
+) {
+  const snapshot = getScriptSnapshot(fileName);
+  if (!snapshot) {
+    cache.delete(fileName);
+    return undefined;
+  }
+
+  const sourceText = snapshot.getText(0, snapshot.getLength());
+  const scriptVersion = info.languageServiceHost.getScriptVersion?.(fileName);
+  const documentFilesVersion = isTopLevelDocumentFile(projectRoot, fileName)
+    ? projectFileNames(info).join("\0")
+    : "";
+  const version = `${scriptVersion ?? sourceText}\0${documentFilesVersion}`;
+  const cached = cache.get(fileName);
+  if (cached?.version === version) {
+    return cached.transform;
+  }
+
+  const transform = createTypedSourceTransform(
+    typeScript,
+    info,
+    projectRoot,
+    pagesDir,
+    fileName,
+    sourceText
+  );
+  cache.set(fileName, { version, transform });
+  return transform;
+}
+
+function createTypedSourceTransform(
+  typeScript: TypeScript,
+  info: ts.server.PluginCreateInfo,
+  projectRoot: string,
+  pagesDir: string,
+  fileName: string,
+  sourceText: string
+): TypedSourceTransform | undefined {
+  if (extname(fileName) !== ".tsx") {
+    return undefined;
+  }
+
+  const route = routeForFileName(typeScript, info, projectRoot, pagesDir, fileName);
+  if (!route) {
+    return undefined;
+  }
+
+  const sourceFile = typeScript.createSourceFile(
+    fileName,
+    sourceText,
+    typeScript.ScriptTarget.Latest,
+    true,
+    typeScript.ScriptKind.TSX
+  );
+  const props = defaultExportPageProps(typeScript, sourceFile);
+  if (!props || props.hasType) {
+    return undefined;
+  }
+
+  const annotation = `: import("@resumable.dev/core").PageProps<${pageParamsType(
+    route.params,
+    route.optionalParams
+  )}>`;
+
+  return {
+    generatedText:
+      sourceText.slice(0, props.insertTypeAt) +
+      annotation +
+      sourceText.slice(props.insertTypeAt),
+    insertAt: props.insertTypeAt,
+    insertedLength: annotation.length
+  };
+}
+
+function toGeneratedPosition(
+  transform: TypedSourceTransform | undefined,
+  position: number
+) {
+  if (!transform || position <= transform.insertAt) {
+    return position;
+  }
+
+  return position + transform.insertedLength;
+}
+
+function toOriginalPosition(
+  transform: TypedSourceTransform | undefined,
+  position: number
+) {
+  if (!transform || position <= transform.insertAt) {
+    return position;
+  }
+
+  const insertedEnd = transform.insertAt + transform.insertedLength;
+  if (position <= insertedEnd) {
+    return transform.insertAt;
+  }
+
+  return position - transform.insertedLength;
+}
+
+function mapQuickInfoToOriginal(
+  quickInfo: ts.QuickInfo,
+  transform: TypedSourceTransform | undefined
+): ts.QuickInfo {
+  return {
+    ...quickInfo,
+    textSpan: mapTextSpanToOriginal(quickInfo.textSpan, transform)
+  };
+}
+
+function mapDiagnosticsToOriginal<T extends ts.Diagnostic>(
+  diagnostics: T[],
+  transform: TypedSourceTransform | undefined
+): T[] {
+  if (!transform) {
+    return diagnostics;
+  }
+
+  return diagnostics
+    .filter((diagnostic) => !isGeneratedOnlyDiagnostic(diagnostic, transform))
+    .map((diagnostic) => ({
+      ...diagnostic,
+      start:
+        typeof diagnostic.start === "number"
+          ? toOriginalPosition(transform, diagnostic.start)
+          : diagnostic.start,
+      length:
+        typeof diagnostic.start === "number" && typeof diagnostic.length === "number"
+          ? mapTextSpanToOriginal(
+              { start: diagnostic.start, length: diagnostic.length },
+              transform
+            ).length
+          : diagnostic.length
+    }));
+}
+
+function isGeneratedOnlyDiagnostic(
+  diagnostic: ts.Diagnostic,
+  transform: TypedSourceTransform
+) {
+  if (typeof diagnostic.start !== "number") {
+    return false;
+  }
+
+  const insertedEnd = transform.insertAt + transform.insertedLength;
+  return diagnostic.start >= transform.insertAt && diagnostic.start <= insertedEnd;
+}
+
+function mapTextSpanToOriginal(
+  textSpan: ts.TextSpan,
+  transform: TypedSourceTransform | undefined
+): ts.TextSpan {
+  if (!transform) {
+    return textSpan;
+  }
+
+  const start = toOriginalPosition(transform, textSpan.start);
+  const end = toOriginalPosition(transform, textSpan.start + textSpan.length);
+  return { start, length: Math.max(0, end - start) };
 }
 
 function getProjectRoot(typeScript: TypeScript, info: ts.server.PluginCreateInfo) {
@@ -172,311 +346,15 @@ function resolvePagesDir(projectRoot: string, config: ResumablePluginConfig) {
   return isAbsolute(configured) ? configured : resolve(projectRoot, configured);
 }
 
-function completePageProps(
-  typeScript: TypeScript,
-  info: ts.server.PluginCreateInfo,
-  cache: Map<string, PageContextCacheEntry>,
-  projectRoot: string,
-  pagesDir: string,
-  fileName: string,
-  position: number
-) {
-  const context = pageContext(typeScript, info, cache, projectRoot, pagesDir, fileName);
-  if (!context) {
-    return [];
-  }
-
-  const target = completionTargetAt(context.sourceFile.text, position);
-  if (!target || target.rootName !== context.propsName) {
-    return [];
-  }
-
-  if (target.path.length === 1 && target.path[0] === "params") {
-    return context.route.params.map((param) =>
-      completionEntry(typeScript, param, `${param}: string`, context.route)
-    );
-  }
-
-  if (target.path.length === 1 && target.path[0] === "url") {
-    return [
-      ["href", "href: string"],
-      ["pathname", "pathname: string"],
-      ["search", "search: string"]
-    ].map(([name, detail]) => completionEntry(typeScript, name, detail, context.route));
-  }
-
-  if (target.path.length !== 0) {
-    return [];
-  }
-
-  return [
-    ["params", `params: ${pageParamsType(context.route.params)}`],
-    [
-      "url",
-      "url: { readonly href: string; readonly pathname: string; readonly search: string; }"
-    ],
-    ["status", "status: number"]
-  ].map(([name, detail]) => completionEntry(typeScript, name, detail, context.route));
-}
-
-function completionTargetAt(source: string, position: number) {
-  let cursor = position - 1;
-  if (source[cursor] !== ".") {
-    return undefined;
-  }
-
-  const parts: string[] = [];
-
-  while (cursor >= 0 && source[cursor] === ".") {
-    cursor -= 1;
-
-    const end = cursor + 1;
-    while (cursor >= 0 && isIdentifierChar(source[cursor])) {
-      cursor -= 1;
-    }
-
-    const start = cursor + 1;
-    if (start === end) {
-      return undefined;
-    }
-
-    parts.unshift(source.slice(start, end));
-  }
-
-  const [rootName, ...path] = parts;
-  return rootName ? { rootName, path } : undefined;
-}
-
-function completionEntry(
-  typeScript: TypeScript,
-  name: string,
-  detail: string,
-  route: PageRoute
-): ts.CompletionEntry {
-  return {
-    name,
-    kind: typeScript.ScriptElementKind.memberVariableElement,
-    kindModifiers: "",
-    sortText: `0_${name}`,
-    labelDetails: {
-      detail: detail.replace(name, "")
-    },
-    sourceDisplay: [{ text: `${ROUTE_SOURCE_PREFIX}${route.pattern}`, kind: "text" }]
-  };
-}
-
-function completionEntryDetails(
-  typeScript: TypeScript,
-  completion: ts.CompletionEntry
-): ts.CompletionEntryDetails {
-  const route =
-    completion.sourceDisplay?.[0]?.text.replace(ROUTE_SOURCE_PREFIX, "") ?? "";
-
-  return {
-    name: completion.name,
-    kind: completion.kind,
-    kindModifiers: completion.kindModifiers ?? "",
-    displayParts: displayParts(
-      `${completion.name}${completion.labelDetails?.detail ?? ""}`
-    ),
-    documentation: displayParts(route ? `Route: ${route}` : "Resumable page prop"),
-    tags: []
-  };
-}
-
-function mergeCompletionEntries(
-  resumableEntries: ts.CompletionEntry[],
-  typeScriptEntries: ts.CompletionEntry[]
-) {
-  const seen = new Set<string>();
-  const entries: ts.CompletionEntry[] = [];
-
-  for (const entry of resumableEntries) {
-    entries.push(entry);
-    seen.add(`${entry.name}\0${entry.kind}`);
-  }
-
-  for (const entry of typeScriptEntries) {
-    const key = `${entry.name}\0${entry.kind}`;
-    if (seen.has(key)) {
-      continue;
-    }
-
-    seen.add(key);
-    entries.push(entry);
-  }
-
-  return entries;
-}
-
-function quickInfoForPageProps(
-  typeScript: TypeScript,
-  info: ts.server.PluginCreateInfo,
-  cache: Map<string, PageContextCacheEntry>,
-  projectRoot: string,
-  pagesDir: string,
-  fileName: string,
-  position: number
-) {
-  const context = pageContext(typeScript, info, cache, projectRoot, pagesDir, fileName);
-  if (!context) {
-    return undefined;
-  }
-
-  const identifier = identifierAtPosition(typeScript, context.sourceFile, position);
-  if (!identifier) {
-    return undefined;
-  }
-
-  const paramsType = pageParamsType(context.route.params);
-
-  if (identifier.text === context.propsName) {
-    return quickInfo(
-      typeScript,
-      identifier,
-      `props: PageProps<${paramsType}>`,
-      context.route
-    );
-  }
-
-  if (
-    identifier.text === "params" &&
-    isNamedPropertyAccess(typeScript, identifier, context.propsName)
-  ) {
-    return quickInfo(typeScript, identifier, `params: ${paramsType}`, context.route);
-  }
-
-  if (
-    context.route.params.includes(identifier.text) &&
-    isRouteParamAccess(typeScript, identifier, context.propsName)
-  ) {
-    return quickInfo(
-      typeScript,
-      identifier,
-      `(property) ${identifier.text}: string`,
-      context.route
-    );
-  }
-
-  return undefined;
-}
-
-function quickInfo(
-  typeScript: TypeScript,
-  identifier: ts.Identifier,
-  text: string,
-  route: PageRoute
-): ts.QuickInfo {
-  return {
-    kind: typeScript.ScriptElementKind.memberVariableElement,
-    kindModifiers: "",
-    textSpan: { start: identifier.getStart(), length: identifier.getWidth() },
-    displayParts: displayParts(text),
-    documentation: displayParts(`Route: ${route.pattern}`),
-    tags: []
-  };
-}
-
-function filterUnknownPropsDiagnostics(
-  typeScript: TypeScript,
-  info: ts.server.PluginCreateInfo,
-  cache: Map<string, PageContextCacheEntry>,
-  projectRoot: string,
-  pagesDir: string,
-  fileName: string,
-  diagnostics: ts.Diagnostic[]
-) {
-  if (!diagnostics.some((diagnostic) => diagnostic.code === 18046)) {
-    return diagnostics;
-  }
-
-  const context = pageContext(typeScript, info, cache, projectRoot, pagesDir, fileName);
-  if (!context) {
-    return diagnostics;
-  }
-
-  return diagnostics.filter(
-    (diagnostic) => !shouldSuppressUnknownPropsDiagnostic(typeScript, context, diagnostic)
-  );
-}
-
-function shouldSuppressUnknownPropsDiagnostic(
-  typeScript: TypeScript,
-  context: PageContext,
-  diagnostic: ts.Diagnostic
-) {
-  if (diagnostic.code !== 18046 || typeof diagnostic.start !== "number") {
-    return false;
-  }
-
-  const message = typeScript.flattenDiagnosticMessageText(diagnostic.messageText, "\n");
-  if (!message.includes(`'${context.propsName}' is of type 'unknown'`)) {
-    return false;
-  }
-
-  const identifier = identifierAtPosition(
-    typeScript,
-    context.sourceFile,
-    diagnostic.start
-  );
-  return identifier?.text === context.propsName;
-}
-
-function pageContext(
-  typeScript: TypeScript,
-  info: ts.server.PluginCreateInfo,
-  cache: Map<string, PageContextCacheEntry>,
-  projectRoot: string,
-  pagesDir: string,
-  fileName: string
-): PageContext | undefined {
-  const version = info.languageServiceHost.getScriptVersion?.(fileName);
-  const cached = version ? cache.get(fileName) : undefined;
-  if (cached?.version === version) {
-    return cached.context;
-  }
-
-  const context = createPageContext(typeScript, info, projectRoot, pagesDir, fileName);
-  if (version) {
-    cache.set(fileName, { version, context });
-  }
-
-  return context;
-}
-
-function createPageContext(
-  typeScript: TypeScript,
-  info: ts.server.PluginCreateInfo,
-  projectRoot: string,
-  pagesDir: string,
-  fileName: string
-): PageContext | undefined {
-  const route = routeForFileName(typeScript, projectRoot, pagesDir, fileName);
-  if (!route) {
-    return undefined;
-  }
-
-  const sourceFile = info.languageService.getProgram()?.getSourceFile(fileName);
-  if (!sourceFile) {
-    return undefined;
-  }
-
-  const propsName = defaultExportPagePropsName(typeScript, sourceFile);
-  if (!propsName) {
-    return undefined;
-  }
-
-  return { route, propsName, sourceFile };
-}
-
 function routeForFileName(
   typeScript: TypeScript,
+  info: ts.server.PluginCreateInfo,
   projectRoot: string,
   pagesDir: string,
   fileName: string
 ): PageRoute | undefined {
   if (isTopLevelDocumentFile(projectRoot, fileName)) {
-    return { pattern: "document.tsx", params: [] };
+    return routeForDocument(typeScript, info, pagesDir, fileName);
   }
 
   const relativeFileId = relative(pagesDir, fileName);
@@ -497,7 +375,49 @@ function normalizeRouteFileId(fileId: string) {
 }
 
 function isTopLevelDocumentFile(projectRoot: string, fileName: string) {
-  return normalizeRouteFileId(relative(projectRoot, fileName)) === "document.tsx";
+  const fileId = normalizeRouteFileId(relative(projectRoot, fileName));
+  return fileId === "document.tsx" || fileId === "document.jsx";
+}
+
+function routeForDocument(
+  typeScript: TypeScript,
+  info: ts.server.PluginCreateInfo,
+  pagesDir: string,
+  fileName: string
+): PageRoute {
+  const params = new Set<string>();
+
+  for (const pageFileName of projectFileNames(info)) {
+    if (pageFileName === fileName) {
+      continue;
+    }
+
+    const relativeFileId = relative(pagesDir, pageFileName);
+    if (!isRelativeInsidePath(relativeFileId)) {
+      continue;
+    }
+
+    const fileId = normalizeRouteFileId(relativeFileId);
+    if (!PAGE_EXTENSIONS.has(extname(fileId))) {
+      continue;
+    }
+
+    for (const param of routeFromFileId(typeScript, fileId).params) {
+      params.add(param);
+    }
+  }
+
+  return {
+    pattern: normalizeRouteFileId(fileName).endsWith("document.jsx")
+      ? "document.jsx"
+      : "document.tsx",
+    params: Array.from(params).toSorted(),
+    optionalParams: true
+  };
+}
+
+function projectFileNames(info: ts.server.PluginCreateInfo) {
+  return info.languageServiceHost.getScriptFileNames?.() ?? [];
 }
 
 function routeFromFileId(typeScript: TypeScript, fileId: string) {
@@ -547,7 +467,7 @@ function bracketParamName(
   }
 
   const name = segment.slice(opening.length, -1);
-  return isIdentifierText(typeScript, name) ? name : undefined;
+  return isIdentifierNameText(typeScript, name) ? name : undefined;
 }
 
 function routePathname(segments: readonly string[]) {
@@ -563,7 +483,7 @@ function isRelativeInsidePath(path: string) {
   return path !== "" && path !== ".." && !path.startsWith("../") && !isAbsolute(path);
 }
 
-function defaultExportPagePropsName(typeScript: TypeScript, sourceFile: ts.SourceFile) {
+function defaultExportPageProps(typeScript: TypeScript, sourceFile: ts.SourceFile) {
   const componentInitializers = new Map<string, ts.CallExpression>();
   let defaultExpression: ts.Expression | undefined;
 
@@ -594,12 +514,14 @@ function defaultExportPagePropsName(typeScript: TypeScript, sourceFile: ts.Sourc
   const expression = skipOuterExpressions(typeScript, defaultExpression);
   const inlineComponentCall = componentCallExpression(typeScript, expression);
   if (inlineComponentCall) {
-    return componentCallPropsName(typeScript, inlineComponentCall);
+    return componentCallProps(typeScript, sourceFile, inlineComponentCall);
   }
 
   if (typeScript.isIdentifier(expression)) {
     const initializer = componentInitializers.get(expression.text);
-    return initializer ? componentCallPropsName(typeScript, initializer) : undefined;
+    return initializer
+      ? componentCallProps(typeScript, sourceFile, initializer)
+      : undefined;
   }
 
   return undefined;
@@ -620,7 +542,11 @@ function componentCallExpression(
     : undefined;
 }
 
-function componentCallPropsName(typeScript: TypeScript, call: ts.CallExpression) {
+function componentCallProps(
+  typeScript: TypeScript,
+  sourceFile: ts.SourceFile,
+  call: ts.CallExpression
+) {
   const component = call.arguments[0];
   if (
     !component ||
@@ -631,7 +557,13 @@ function componentCallPropsName(typeScript: TypeScript, call: ts.CallExpression)
   }
 
   const [props] = component.parameters;
-  return props && typeScript.isIdentifier(props.name) ? props.name.text : undefined;
+  return props && typeScript.isIdentifier(props.name)
+    ? {
+        name: props.name.text,
+        insertTypeAt: props.name.getEnd(),
+        hasType: props.type !== undefined
+      }
+    : undefined;
 }
 
 function skipOuterExpressions(typeScript: TypeScript, expression: ts.Expression) {
@@ -665,105 +597,36 @@ function skipOuterExpressions(typeScript: TypeScript, expression: ts.Expression)
   }
 }
 
-function pageParamsType(params: readonly string[]) {
+function pageParamsType(params: readonly string[], optional = false) {
   if (params.length === 0) {
     return "{}";
   }
 
-  const fields = params.map((param) => `readonly ${param}: string;`).join(" ");
+  const fields = params
+    .map((param) => `readonly ${param}${optional ? "?" : ""}: string;`)
+    .join(" ");
   return `{ ${fields} }`;
 }
 
-function identifierAtPosition(
-  typeScript: TypeScript,
-  sourceFile: ts.SourceFile,
-  position: number
-): ts.Identifier | undefined {
-  let match: ts.Identifier | undefined;
-
-  function visit(node: ts.Node) {
-    if (position < node.getFullStart() || position > node.getEnd()) {
-      return;
-    }
-
-    if (
-      typeScript.isIdentifier(node) &&
-      position >= node.getStart(sourceFile) &&
-      position <= node.getEnd()
-    ) {
-      match = node;
-      return;
-    }
-
-    typeScript.forEachChild(node, visit);
-  }
-
-  visit(sourceFile);
-  return match;
-}
-
-function isNamedPropertyAccess(
-  typeScript: TypeScript,
-  identifier: ts.Identifier,
-  expressionName: string
-) {
-  const access = propertyAccessNamedBy(typeScript, identifier);
-  return (
-    access !== undefined &&
-    typeScript.isIdentifier(access.expression) &&
-    access.expression.text === expressionName
-  );
-}
-
-function isRouteParamAccess(
-  typeScript: TypeScript,
-  identifier: ts.Identifier,
-  propsName: string
-) {
-  const routeParamAccess = propertyAccessNamedBy(typeScript, identifier);
-  if (
-    !routeParamAccess ||
-    !typeScript.isPropertyAccessExpression(routeParamAccess.expression)
-  ) {
-    return false;
-  }
-
-  const paramsAccess = routeParamAccess.expression;
-  return (
-    paramsAccess.name.text === "params" &&
-    typeScript.isIdentifier(paramsAccess.expression) &&
-    paramsAccess.expression.text === propsName
-  );
-}
-
-function propertyAccessNamedBy(typeScript: TypeScript, identifier: ts.Identifier) {
-  const parent = identifier.parent;
-  return typeScript.isPropertyAccessExpression(parent) && parent.name === identifier
-    ? parent
-    : undefined;
-}
-
-function displayParts(text: string): ts.SymbolDisplayPart[] {
-  return [{ text, kind: "text" }];
-}
-
-function isIdentifierText(typeScript: TypeScript, text: string) {
+function isIdentifierNameText(typeScript: TypeScript, text: string) {
   const scanner = typeScript.createScanner(
     typeScript.ScriptTarget.Latest,
     false,
     typeScript.LanguageVariant.Standard,
     text
   );
+  const token = scanner.scan();
 
-  return (
-    scanner.scan() === typeScript.SyntaxKind.Identifier &&
-    scanner.getTokenText() === text &&
-    scanner.scan() === typeScript.SyntaxKind.EndOfFileToken
-  );
-}
+  if (scanner.getTokenText() !== text) {
+    return false;
+  }
 
-function isIdentifierChar(char: string | undefined) {
-  return Boolean(char && /[A-Za-z0-9_$]/.test(char));
+  const isIdentifierName =
+    token === typeScript.SyntaxKind.Identifier ||
+    (token >= typeScript.SyntaxKind.FirstKeyword &&
+      token <= typeScript.SyntaxKind.LastKeyword);
+
+  return isIdentifierName && scanner.scan() === typeScript.SyntaxKind.EndOfFileToken;
 }
 
 export = init;

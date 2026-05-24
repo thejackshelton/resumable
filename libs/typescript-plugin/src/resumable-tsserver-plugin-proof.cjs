@@ -12,6 +12,8 @@ const tsserverPath = resolve(repoRoot, "node_modules/typescript/lib/tsserver.js"
 const logPath = resolve(projectRoot, "tsserver.log");
 const documentPath = resolve(projectRoot, "document.tsx");
 const pagePath = resolve(projectRoot, "pages/blog/[slug].tsx");
+const newPagePath = resolve(projectRoot, "pages/blog/[new].tsx");
+const sectionPagePath = resolve(projectRoot, "pages/[section].tsx");
 const srcDocumentPath = resolve(projectRoot, "src/document.tsx");
 const srcPagesPath = resolve(projectRoot, "src/pages/blog/[slug].tsx");
 
@@ -24,9 +26,13 @@ async function main() {
 
 async function writeProject() {
   await mkdir(resolve(projectRoot, "pages/blog"), { recursive: true });
+  await mkdir(resolve(projectRoot, "pages/docs"), { recursive: true });
   await mkdir(resolve(projectRoot, "src"), { recursive: true });
   await mkdir(resolve(projectRoot, "src/pages/blog"), { recursive: true });
   await mkdir(resolve(projectRoot, "node_modules/@resumable.dev"), { recursive: true });
+  await mkdir(resolve(projectRoot, "node_modules/@resumable.dev/core"), {
+    recursive: true
+  });
   await mkdir(resolve(projectRoot, "node_modules/@qwik.dev/core"), { recursive: true });
 
   symlinkSync(
@@ -76,6 +82,27 @@ async function writeProject() {
   );
 
   writeFileSync(
+    resolve(projectRoot, "node_modules/@resumable.dev/core/package.json"),
+    JSON.stringify({
+      name: "@resumable.dev/core",
+      version: "0.0.0",
+      types: "index.d.ts"
+    })
+  );
+
+  writeFileSync(
+    resolve(projectRoot, "node_modules/@resumable.dev/core/index.d.ts"),
+    [
+      "export interface PageProps<Params extends object = Readonly<Record<string, string>>> {",
+      "  readonly params: Readonly<Params>;",
+      "  readonly url: { readonly href: string; readonly pathname: string; readonly search: string; };",
+      "  readonly status: number;",
+      "}",
+      ""
+    ].join("\n")
+  );
+
+  writeFileSync(
     resolve(projectRoot, "node_modules/@qwik.dev/core/package.json"),
     JSON.stringify({
       name: "@qwik.dev/core",
@@ -89,8 +116,11 @@ async function writeProject() {
     "export declare function component$<Props = unknown>(component: (props: Props) => unknown): unknown;\n"
   );
 
-  writeFileSync(documentPath, defaultPageSource());
+  writeFileSync(documentPath, documentSource());
   writeFileSync(pagePath, defaultPageSource());
+  writeFileSync(newPagePath, defaultPageSource());
+  writeFileSync(sectionPagePath, defaultPageSource());
+  writeFileSync(resolve(projectRoot, "pages/docs/[...slug].tsx"), defaultPageSource());
   writeFileSync(srcDocumentPath, defaultPageSource());
   writeFileSync(srcPagesPath, defaultPageSource());
 }
@@ -136,10 +166,31 @@ async function runProof() {
       file: pagePath,
       includeLinePosition: true
     });
+    const urlQuickInfo = await quickInfoAtText(
+      client,
+      pagePath,
+      defaultPageSource(),
+      "props.url.href",
+      "url"
+    );
+    const hrefQuickInfo = await quickInfoAtText(
+      client,
+      pagePath,
+      defaultPageSource(),
+      "props.url.href",
+      "href"
+    );
+    const statusQuickInfo = await quickInfoAtText(
+      client,
+      pagePath,
+      defaultPageSource(),
+      "props.status",
+      "status"
+    );
 
     notify(client, "open", {
       file: documentPath,
-      fileContent: defaultPageSource(),
+      fileContent: documentSource(),
       projectRootPath: projectRoot,
       scriptKindName: "TSX"
     });
@@ -147,19 +198,33 @@ async function runProof() {
     const documentPropsCompletion = await completionAtText(
       client,
       documentPath,
-      defaultPageSource(),
+      documentSource(),
       "  props."
     );
     const documentParamsCompletion = await completionAtText(
       client,
       documentPath,
-      defaultPageSource(),
+      documentSource(),
       "props.params."
     );
     const documentDiagnostics = await request(client, "semanticDiagnosticsSync", {
       file: documentPath,
       includeLinePosition: true
     });
+    const documentSectionQuickInfo = await quickInfoAtText(
+      client,
+      documentPath,
+      documentSource(),
+      "props.params.slug",
+      "slug"
+    );
+    const documentNewQuickInfo = await quickInfoAtText(
+      client,
+      documentPath,
+      documentSource(),
+      "props.params.new",
+      "new"
+    );
 
     notify(client, "open", {
       file: srcPagesPath,
@@ -206,9 +271,14 @@ async function runProof() {
       propsCompletion: summarizeCompletion(propsCompletion.body),
       paramsCompletion: summarizeCompletion(paramsCompletion.body),
       diagnostics: summarizeDiagnostics(diagnostics.body ?? []),
+      urlQuickInfo: summarizeQuickInfo(urlQuickInfo.body),
+      hrefQuickInfo: summarizeQuickInfo(hrefQuickInfo.body),
+      statusQuickInfo: summarizeQuickInfo(statusQuickInfo.body),
       documentPropsCompletion: summarizeCompletion(documentPropsCompletion.body),
       documentParamsCompletion: summarizeCompletion(documentParamsCompletion.body),
       documentDiagnostics: summarizeDiagnostics(documentDiagnostics.body ?? []),
+      documentSectionQuickInfo: summarizeQuickInfo(documentSectionQuickInfo.body),
+      documentNewQuickInfo: summarizeQuickInfo(documentNewQuickInfo.body),
       srcPagesCompletion: summarizeCompletion(srcPagesCompletion.body),
       srcPagesDiagnostics: summarizeDiagnostics(srcPagesDiagnostics.body ?? []),
       srcDocumentCompletion: summarizeCompletion(srcDocumentCompletion.body),
@@ -358,6 +428,30 @@ async function completionAtText(client, fileName, source, marker) {
   });
 }
 
+async function quickInfoAtText(client, fileName, source, marker, token) {
+  const markerOffset = source.indexOf(marker);
+  if (markerOffset === -1) {
+    throw new Error(`marker not found: ${marker}`);
+  }
+
+  const tokenOffset = source.indexOf(token, markerOffset);
+  if (tokenOffset === -1) {
+    throw new Error(`token not found after marker: ${token}`);
+  }
+
+  return request(client, "quickinfo", {
+    file: fileName,
+    ...lineOffsetAt(source, tokenOffset)
+  });
+}
+
+function summarizeQuickInfo(body) {
+  return {
+    text: body?.displayString ?? "",
+    documentation: body?.documentation ?? ""
+  };
+}
+
 function summarizeCompletion(body) {
   const entries = body?.entries ?? [];
   const names = entries.map((entry) => entry.name);
@@ -368,6 +462,8 @@ function summarizeCompletion(body) {
     hasUrl: names.includes("url"),
     hasStatus: names.includes("status"),
     hasSlug: names.includes("slug"),
+    hasNew: names.includes("new"),
+    hasSection: names.includes("section"),
     firstNames: names.slice(0, 12)
   };
 }
@@ -412,6 +508,22 @@ function assertProof(result, proofLogPath) {
     );
   }
 
+  if (
+    !result.urlQuickInfo.text.includes("href") ||
+    !result.urlQuickInfo.text.includes("pathname") ||
+    !result.urlQuickInfo.text.includes("search")
+  ) {
+    throw new Error("tsserver plugin did not expose a typed props.url hover.");
+  }
+
+  if (!result.hrefQuickInfo.text.includes("href: string")) {
+    throw new Error("tsserver plugin did not expose a typed props.url.href hover.");
+  }
+
+  if (!result.statusQuickInfo.text.includes("status: number")) {
+    throw new Error("tsserver plugin did not expose a typed props.status hover.");
+  }
+
   if (result.srcPagesCompletion.hasSlug) {
     throw new Error("tsserver plugin should not complete src/pages route params.");
   }
@@ -428,8 +540,20 @@ function assertProof(result, proofLogPath) {
     throw new Error("tsserver plugin did not return document.tsx page prop completions.");
   }
 
-  if (result.documentParamsCompletion.hasSlug) {
-    throw new Error("document.tsx should not receive route-specific param completions.");
+  if (
+    !result.documentParamsCompletion.hasSlug ||
+    !result.documentParamsCompletion.hasNew ||
+    !result.documentParamsCompletion.hasSection
+  ) {
+    throw new Error("document.tsx should collect route param completions from pages.");
+  }
+
+  if (!result.documentSectionQuickInfo.text.includes("slug?: string")) {
+    throw new Error("document.tsx should expose collected params as optional.");
+  }
+
+  if (!result.documentNewQuickInfo.text.includes("new?: string")) {
+    throw new Error("document.tsx should expose keyword-like params as optional.");
   }
 
   if (result.documentDiagnostics.hasUnknownProps) {
@@ -450,9 +574,26 @@ function defaultPageSource() {
 
 export default component$((props) => {
   const slug = props.params.slug;
+  const href = props.url.href;
+  const status = props.status;
   props.
   props.params.
-  return <article>{slug}</article>;
+  return <article>{slug}{href}{status}</article>;
+});
+`;
+}
+
+function documentSource() {
+  return `import { component$ } from "@qwik.dev/core";
+
+export default component$((props) => {
+  const keywordParam = props.params.new;
+  const slug = props.params.slug;
+  const href = props.url.href;
+  const status = props.status;
+  props.
+  props.params.
+  return <article>{keywordParam}{slug}{href}{status}</article>;
 });
 `;
 }

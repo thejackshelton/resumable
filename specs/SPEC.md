@@ -532,8 +532,8 @@ Reason: `component$()` stays visually and conceptually Qwik-owned, while
 Required v0 type shape:
 
 ```ts
-export interface PageProps {
-  readonly params: Readonly<Record<string, string>>;
+export interface PageProps<Params extends object = Readonly<Record<string, string>>> {
+  readonly params: Readonly<Params>;
   readonly url: {
     readonly href: string;
     readonly pathname: string;
@@ -542,6 +542,13 @@ export interface PageProps {
   readonly status: number;
 }
 ```
+
+The Resumable TypeScript language service plugin should provide route-specific
+`PageProps` for unannotated default page components. For example,
+`pages/blog/[slug].tsx` receives `PageProps<{ readonly slug: string }>` in the
+editor. Top-level `document.tsx` receives a document-wide `PageProps` shape with
+params collected from every page route, marked optional because the document can
+render any route.
 
 `url` must be serializable page data, not a live `URL` instance. For normal
 matched pages, `props.status` is `200`. For `pages/404.tsx` or `pages/404.mdx`,

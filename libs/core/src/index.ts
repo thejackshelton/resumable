@@ -14,8 +14,8 @@ export type {
   RouteManifestStatusPages
 } from "./route-manifest.ts";
 
-export interface PageProps {
-  readonly params: Readonly<Record<string, string>>;
+export interface PageProps<Params extends object = Readonly<Record<string, string>>> {
+  readonly params: Readonly<Params>;
   readonly url: {
     readonly href: string;
     readonly pathname: string;
