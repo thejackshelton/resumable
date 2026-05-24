@@ -9,6 +9,7 @@ import {
   type UserConfig
 } from "vite";
 import { decodePath, parseURL } from "ufo";
+import { htmlTransformPlugin } from "./html-transform.ts";
 
 const QWIK_CORE_PACKAGE_ID = "@qwik.dev/core";
 const QWIK_CORE_IMPORT_RE = /^@qwik\.dev\/core(?:\/.*)?$/;
@@ -33,7 +34,12 @@ export interface ResumableOptions {}
 export function resumable(_options: ResumableOptions = {}): PluginOption[] {
   const nitroPlugins = nitro();
 
-  return [configPlugin(nitroPlugins), virtualModulesPlugin(), nitroPlugins];
+  return [
+    configPlugin(nitroPlugins),
+    htmlTransformPlugin(),
+    virtualModulesPlugin(),
+    nitroPlugins
+  ];
 }
 
 function configPlugin(nitroPluginsFromResumable: readonly Plugin[]): Plugin {

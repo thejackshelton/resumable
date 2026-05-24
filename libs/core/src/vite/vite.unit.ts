@@ -37,9 +37,25 @@ describe("resumable Vite plugin", () => {
     const names = plugins.map((plugin) => plugin.name);
 
     expect(names).toContain("resumable:vite");
+    expect(names).toContain("resumable:html");
     expect(names).toContain("nitro:init");
     expect(names).not.toContain("vite-plugin-qwik");
     expect(names).not.toContain("vite-plugin-qwik-post");
+  });
+
+  it("runs the html transform in normal plugin order", () => {
+    const plugins = flattenPlugins([resumable()]);
+    const htmlPlugin = plugins.find((plugin) => plugin.name === "resumable:html");
+
+    expect(htmlPlugin).toBeDefined();
+    expect(htmlPlugin).not.toHaveProperty("enforce");
+    expect((htmlPlugin?.transform as { order?: string } | undefined)?.order).toBe("pre");
+    expect(plugins.findIndex((plugin) => plugin.name === "resumable:vite")).toBeLessThan(
+      plugins.findIndex((plugin) => plugin.name === "resumable:html")
+    );
+    expect(plugins.findIndex((plugin) => plugin.name === "resumable:html")).toBeLessThan(
+      plugins.findIndex((plugin) => plugin.name === "nitro:init")
+    );
   });
 
   it("exposes environment-agnostic lazy page discovery through a virtual module", async () => {
@@ -82,7 +98,7 @@ describe("resumable Vite plugin", () => {
     expect(entrySource).not.toContain("replace(/^\\\\/+");
   });
 
-  it("discovers app.tsx from the generated entries without a separate app module", async () => {
+  it("discovers app.tsx and app.jsx from the generated entries without a separate app module", async () => {
     const plugins = flattenPlugins([resumable()]);
     const routesPlugin = plugins.find((plugin) => plugin.name === "resumable:routes");
     const resolveId = hookHandler(routesPlugin?.resolveId) as
@@ -115,7 +131,7 @@ describe("resumable Vite plugin", () => {
       "@resumable.dev/core/vite/runtime/create-server-entry"
     );
     expect(clientEntrySource).toContain(
-      'export const appModules = import.meta.glob("/app.tsx")'
+      'export const appModules = import.meta.glob(["/app.tsx", "/app.jsx"])'
     );
     expect(clientEntrySource).toContain(
       'export const pageModules = import.meta.glob("/pages/**/*.tsx")'
@@ -123,11 +139,13 @@ describe("resumable Vite plugin", () => {
     expect(serverEntrySource).toContain('from "@qwik.dev/core/jsx-runtime"');
     expect(serverEntrySource).toContain('from "@qwik.dev/core/server"');
     expect(serverEntrySource).toContain("createServerEntry");
-    expect(clientEntrySource).toContain('import.meta.glob("/app.tsx")');
-    expect(serverEntrySource).toContain('import.meta.glob("/app.tsx")');
+    expect(clientEntrySource).toContain('import.meta.glob(["/app.tsx", "/app.jsx"])');
+    expect(serverEntrySource).toContain('import.meta.glob(["/app.tsx", "/app.jsx"])');
     expect(clientEntrySource).not.toContain("createClientEntry");
     expect(serverEntrySource).not.toContain("getAppModuleLoader");
-    expect(serverEntrySource).toContain('appModuleLoaders["/app.tsx"]');
+    expect(serverEntrySource).toContain(
+      'appModuleLoaders["/app.tsx"] ?? appModuleLoaders["/app.jsx"]'
+    );
     expect(serverEntrySource).not.toContain("virtual:resumable/app");
     expect(serverEntrySource).toContain(
       'import { Fragment, jsx, jsxs } from "@qwik.dev/core/jsx-runtime"'
@@ -186,7 +204,7 @@ describe("resumable Vite plugin", () => {
     expect(serverRuntimeOutput).not.toContain("@qwik.dev/core/server");
     expect(serverRuntimeOutput).toContain("options.qwik");
     expect(rawServerEntryOutput).toContain("@qwik.dev/core/jsx-runtime");
-    expect(rawServerEntryOutput).toContain('import.meta.glob("/app.tsx")');
+    expect(rawServerEntryOutput).toContain('import.meta.glob(["/app.tsx", "/app.jsx"])');
   });
 
   it("preserves user top-level nitro config while adding minimal scan defaults", () => {

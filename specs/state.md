@@ -10,18 +10,21 @@ Nitro server entry. Route discovery belongs to the Vite plugin instead of a
 Node-backed manifest scanner, environment entry wiring uses Vite
 `configEnvironment()` with `consumer` and `rolldownOptions`, and the renderer
 now matches static, dynamic, catch-all, 404 status, and 500 status `.tsx` page
-routes with `PageProps`. The first M5 slice is implemented: top-level
-`app.tsx` is discovered lazily by Vite inside the generated server/client
-entries, receives `PageProps`, wraps normal, 404, and 500 pages, and the
-default internal document still works without `app.tsx`. `Html`, `Head`, and
+routes with `PageProps`. The first M5 slices are implemented: top-level
+`app.tsx` or `app.jsx` is discovered lazily by Vite inside the generated
+server/client entries, receives `PageProps`, wraps normal, 404, and 500 pages,
+and the default internal document still works without an app shell. The `Html`
+component is a children-only Qwik component at runtime, while `resumable:html`
+uses the Vite transform hook `filter.id` and the TSX/JSX AST to extract root
+`<Html>` attributes into pre-render container attributes. `Head` and
 unsupported app-shell alias validation remain separate M5 slices. The Vite
 plugin resolves Resumable virtual IDs to real `src/vite/entries/*` source
 files and uses Vite dependency config to keep Qwik on one runtime instance.
 
 ## Current Objective
 
-Continue M5 with a focused `Html` component slice. Do not expand into `Head`,
-typed routing, MDX, SPA navigation, or data/form APIs.
+Continue M5 after the focused `Html` component slice. Do not expand into typed
+routing, MDX, SPA navigation, or data/form APIs.
 
 ## Spec Files
 
@@ -60,7 +63,7 @@ typed routing, MDX, SPA navigation, or data/form APIs.
   filesystem/process CLI responsibilities.
 - Route files are `.tsx` and, after proof, `.mdx`.
 - Layouts are explicit Qwik components.
-- Optional `app.tsx` owns document shell.
+- Optional `app.tsx` or `app.jsx` owns document shell.
 - Root `404.tsx` is reserved by the route manifest and renders unmatched page
   requests through Qwik SSR with status 404 when present.
 - Root `500.tsx` is reserved by the route manifest and renders Qwik page render
@@ -109,12 +112,13 @@ typed routing, MDX, SPA navigation, or data/form APIs.
 
 Continue M5 in TDD slices:
 
-1. Add fixture-backed red evidence for `Html` in `app.tsx`, proving attributes
-   are translated to Qwik SSR container attributes without adding `Head`.
-2. Implement only the smallest `Html` marker/translation support needed for
-   that evidence.
-3. Keep `Head`, typed routing, MDX, SPA navigation, and data/form APIs out of
-   this slice.
+1. Add the next focused red evidence for `Head` or unsupported app-shell alias
+   validation.
+2. Keep the existing `Html` implementation constrained to direct root
+   `<Html>` attributes extracted by `resumable:html`; do not add marker
+   components or parse rendered HTML.
+3. Keep typed routing, MDX, SPA navigation, and data/form APIs out of this
+   slice.
 
 Before coding more M5 or Qwik-facing runtime code, verify the local Qwik repo
 is still on branch `build/v2` and inspect the relevant core/server/Vite plugin
@@ -494,3 +498,21 @@ Do not parallelize yet:
   `pnpm format`, `pnpm check`, `pnpm test`, `pnpm build`, and
   `git diff --check`. M5 remains active because `Html`, `Head`, and
   unsupported app-shell alias validation are still pending.
+- M5 `Html` AST-transform red evidence: added focused transform tests for
+  helper generation from `app.tsx` and `app.jsx`, non-`Html` roots,
+  render-time local captures, and spread attributes; server-entry tests for
+  pre-render `containerAttributes`; Vite plugin-order tests proving no
+  plugin-level `enforce: "pre"`; and fixture evidence for request-specific
+  `<html>` attributes on normal, 404, and 500 responses.
+- M5 `Html` AST-transform green evidence: `Html` is a tiny runtime component
+  that returns children, `resumable:html` appends
+  `__resumableHtmlAttributes()` from the top-level app shell TSX/JSX AST using
+  the Vite transform hook `filter.id`, and the server entry calls that helper
+  before `renderToString()`. This slice uses no marker component, no
+  rendered-HTML parsing, and no `html.replace()` logic. The app-shell fixture
+  evidence now lives in physical `fixtures/app` with a real `app.tsx`; a narrow
+  temporary fixture still proves `app.jsx`. Verification passed: red targeted
+  test run, `pnpm build`, `pnpm check`,
+  `pnpm test libs/core/src/minimal-fixture.unit.ts`, `pnpm test`, and
+  `git diff --check`. M5 remains active because `Head` and unsupported
+  app-shell alias validation are still pending.

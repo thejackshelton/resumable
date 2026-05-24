@@ -1,3 +1,5 @@
+import type { JSXOutput, PropsOf } from "@qwik.dev/core";
+
 export {
   buildRouteManifestFromFileIds,
   matchRouteManifest,
@@ -11,8 +13,6 @@ export type {
   RouteManifestRoute,
   RouteManifestStatusPages
 } from "./route-manifest.ts";
-export type { ResumableOptions } from "./vite/vite.ts";
-export { resumable } from "./vite/vite.ts";
 
 export interface PageProps {
   readonly params: Readonly<Record<string, string>>;
@@ -22,4 +22,8 @@ export interface PageProps {
     readonly search: string;
   };
   readonly status: number;
+}
+
+export function Html(props: PropsOf<"html">): JSXOutput {
+  return props.children as JSXOutput;
 }

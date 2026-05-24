@@ -36,6 +36,31 @@ importers:
         specifier: 0.1.16
         version: 0.1.16(@types/node@24.10.1)(typescript@6.0.2)(vite@8.0.14(@types/node@24.10.1))
 
+  fixtures/app:
+    dependencies:
+      '@qwik.dev/core':
+        specifier: https://pkg.pr.new/QwikDev/qwik/@qwik.dev/core@1f3647c
+        version: https://pkg.pr.new/QwikDev/qwik/@qwik.dev/core@1f3647c(vite@8.0.14(@types/node@24.12.4))
+    devDependencies:
+      '@resumable.dev/core':
+        specifier: workspace:*
+        version: link:../../libs/core
+      nitro:
+        specifier: 3.0.260429-beta
+        version: 3.0.260429-beta(rollup@4.60.4)(vite@8.0.14(@types/node@24.12.4))
+      qwik-bundler:
+        specifier: '0.1'
+        version: 0.1.0(rolldown@1.0.2)(vite@8.0.14(@types/node@24.12.4))
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.2
+      vite:
+        specifier: ^8.0.0
+        version: 8.0.14(@types/node@24.12.4)
+      vite-plus:
+        specifier: ^0.1.16
+        version: 0.1.16(@types/node@24.12.4)(typescript@6.0.2)(vite@8.0.14(@types/node@24.12.4))
+
   fixtures/minimal:
     dependencies:
       '@qwik.dev/core':

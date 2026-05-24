@@ -18,6 +18,7 @@ import { createBuilder } from "vite";
 
 const fixtureUrl = new URL("../../../fixtures/minimal/", import.meta.url);
 const fixtureRoot = fileURLToPath(fixtureUrl);
+const appFixtureUrl = new URL("../../../fixtures/app/", import.meta.url);
 const execFile = promisify(execFileCallback);
 
 interface BuiltNitroResponse {
@@ -27,7 +28,7 @@ interface BuiltNitroResponse {
   readonly body: string;
 }
 
-describe("minimal Resumable fixture", () => {
+describe("Resumable fixtures", () => {
   it("renders static pages through Resumable's internal Qwik SSR renderer", async () => {
     await expectPath("app.tsx", false);
     await expectPath("pages/index.tsx", true);
@@ -173,50 +174,67 @@ describe("minimal Resumable fixture", () => {
   });
 
   it("uses top-level app.tsx as the document app shell", async () => {
-    const appFixtureUrl = await createTemporaryAppShellFixture({
-      "app.tsx": appShellCode,
-      "pages/index.tsx": pageCode("App shell page"),
-      "pages/404.tsx": statusPageCode("Shell 404"),
-      "pages/500.tsx": statusPageCode("Shell 500"),
-      "pages/throws.tsx": throwingPageCode
+    await expectPath("app.tsx", true, appFixtureUrl);
+
+    await buildFixture(appFixtureUrl);
+    const responses = await fetchBuiltSsrServer(appFixtureUrl, [
+      "/",
+      "/missing?from=test",
+      "/throws"
+    ]);
+
+    const homeResponse = responses.get("/")!;
+    expect(homeResponse.status).toBe(200);
+    expect(homeResponse.contentType).toContain("text/html");
+    const homeHtml = homeResponse.body;
+    expect(homeHtml).toMatch(/<html[^>]*data-path="\/"/);
+    expect(homeHtml).toMatch(/<html[^>]*data-status="200"/);
+    expect(homeHtml).toMatch(/<body[^>]*data-status="200"/);
+    expect(homeHtml).toMatch(/<body[^>]*data-path="\/"/);
+    expect(homeHtml.indexOf("Shell home")).toBeLessThan(
+      homeHtml.indexOf("App fixture page")
+    );
+
+    const notFoundResponse = responses.get("/missing?from=test")!;
+    expect(notFoundResponse.status).toBe(404);
+    expect(notFoundResponse.contentType).toContain("text/html");
+    const notFoundHtml = notFoundResponse.body;
+    expect(notFoundHtml).toMatch(/<html[^>]*data-path="\/missing"/);
+    expect(notFoundHtml).toMatch(/<html[^>]*data-status="404"/);
+    expect(notFoundHtml).toMatch(/<body[^>]*data-status="404"/);
+    expect(notFoundHtml).toMatch(/<body[^>]*data-path="\/missing"/);
+    expect(notFoundHtml.indexOf("Shell missing")).toBeLessThan(
+      notFoundHtml.indexOf("App fixture 404")
+    );
+
+    const errorResponse = responses.get("/throws")!;
+    expect(errorResponse.status).toBe(500);
+    expect(errorResponse.contentType).toContain("text/html");
+    const errorHtml = errorResponse.body;
+    expect(errorHtml).toMatch(/<html[^>]*data-path="\/throws"/);
+    expect(errorHtml).toMatch(/<html[^>]*data-status="500"/);
+    expect(errorHtml).toMatch(/<body[^>]*data-status="500"/);
+    expect(errorHtml).toContain("App fixture 500");
+  });
+
+  it("uses top-level app.jsx as the document app shell", async () => {
+    const jsxFixtureUrl = await createTemporaryAppShellFixture({
+      "app.jsx": appShellJsxCode,
+      "pages/index.tsx": pageCode("JSX app shell page")
     });
 
     try {
-      await buildFixture(appFixtureUrl);
-      const responses = await fetchBuiltSsrServer(appFixtureUrl, [
-        "/",
-        "/missing?from=test",
-        "/throws"
-      ]);
-
+      await buildFixture(jsxFixtureUrl);
+      const responses = await fetchBuiltSsrServer(jsxFixtureUrl, ["/"]);
       const homeResponse = responses.get("/")!;
+
       expect(homeResponse.status).toBe(200);
       expect(homeResponse.contentType).toContain("text/html");
-      const homeHtml = homeResponse.body;
-      expect(homeHtml).toMatch(/<body[^>]*data-status="200"/);
-      expect(homeHtml).toMatch(/<body[^>]*data-path="\/"/);
-      expect(homeHtml.indexOf("Shell home")).toBeLessThan(
-        homeHtml.indexOf("App shell page")
-      );
-
-      const notFoundResponse = responses.get("/missing?from=test")!;
-      expect(notFoundResponse.status).toBe(404);
-      expect(notFoundResponse.contentType).toContain("text/html");
-      const notFoundHtml = notFoundResponse.body;
-      expect(notFoundHtml).toMatch(/<body[^>]*data-status="404"/);
-      expect(notFoundHtml).toMatch(/<body[^>]*data-path="\/missing"/);
-      expect(notFoundHtml.indexOf("Shell missing")).toBeLessThan(
-        notFoundHtml.indexOf("Shell 404")
-      );
-
-      const errorResponse = responses.get("/throws")!;
-      expect(errorResponse.status).toBe(500);
-      expect(errorResponse.contentType).toContain("text/html");
-      const errorHtml = errorResponse.body;
-      expect(errorHtml).toMatch(/<body[^>]*data-status="500"/);
-      expect(errorHtml).toContain("Shell 500");
+      expect(homeResponse.body).toMatch(/<html[^>]*data-app="jsx"/);
+      expect(homeResponse.body).toMatch(/<body[^>]*data-shell="jsx"/);
+      expect(homeResponse.body).toContain("JSX app shell page");
     } finally {
-      await rm(appFixtureUrl, { recursive: true, force: true });
+      await rm(jsxFixtureUrl, { recursive: true, force: true });
     }
   });
 });
@@ -287,6 +305,7 @@ process.exit(0);
 
 async function buildFixture(rootUrl: URL) {
   await cleanBuildOutput(rootUrl);
+  await ensureFixtureNodeModules(rootUrl);
 
   const builder = await createBuilder({
     root: fileURLToPath(rootUrl),
@@ -329,17 +348,25 @@ process.exit(0);
   return new Map(results.map((result) => [result.path, result]));
 }
 
-async function expectPath(path: string, exists: boolean) {
-  await expect(pathExists(path)).resolves.toBe(exists);
+async function expectPath(path: string, exists: boolean, rootUrl = fixtureUrl) {
+  await expect(pathExists(path, rootUrl)).resolves.toBe(exists);
 }
 
-async function pathExists(path: string) {
+async function pathExists(path: string, rootUrl: URL) {
   try {
-    await stat(fixturePath(path));
+    await stat(new URL(path, rootUrl));
     return true;
   } catch {
     return false;
   }
+}
+
+async function ensureFixtureNodeModules(rootUrl: URL) {
+  if (await pathExists("node_modules", rootUrl)) {
+    return;
+  }
+
+  await symlink(fixturePath("node_modules"), new URL("node_modules", rootUrl), "dir");
 }
 
 function fixturePath(path: string) {
@@ -393,7 +420,7 @@ const minimalTsconfigJson = `{
     "strict": true,
     "types": ["vite/client"]
   },
-  "include": ["app.tsx", "pages", "vite.config.ts"]
+  "include": ["app.tsx", "app.jsx", "pages", "vite.config.ts"]
 }
 `;
 
@@ -406,23 +433,19 @@ export default defineConfig({
 });
 `;
 
-const appShellCode = `import { component$, Slot } from "@qwik.dev/core";
-import type { PageProps } from "@resumable.dev/core";
+const appShellJsxCode = `import { component$, Slot } from "@qwik.dev/core";
+import { Html } from "@resumable.dev/core";
 
-export default component$((props: PageProps) => {
-  const section = props.url.pathname.split("/")[1] || "home";
-
+export default component$(() => {
   return (
-    <>
+    <Html lang="en" data-app="jsx">
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
-      <body data-status={String(props.status)} data-path={props.url.pathname}>
-        <header>Shell {section}</header>
+      <body data-shell="jsx">
         <Slot />
       </body>
-    </>
+    </Html>
   );
 });
 `;
@@ -431,19 +454,5 @@ const pageCode = (title: string) => `import { component$ } from "@qwik.dev/core"
 
 export default component$(() => {
   return <main>${title}</main>;
-});
-`;
-
-const statusPageCode = (title: string) => `import { component$ } from "@qwik.dev/core";
-
-export default component$(() => {
-  return <main>${title}</main>;
-});
-`;
-
-const throwingPageCode = `import { component$ } from "@qwik.dev/core";
-
-export default component$(() => {
-  throw new Error("Fixture render failure");
 });
 `;

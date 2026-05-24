@@ -29,6 +29,9 @@ interface PageModule {
 
 interface AppModule {
   readonly default?: FunctionComponent<AppComponentProps>;
+  readonly __resumableHtmlAttributes?: (
+    props: PageComponentProps
+  ) => Record<string, unknown>;
 }
 
 type PageComponentProps = PageProps & Record<string, unknown>;
@@ -98,7 +101,7 @@ export function createServerEntry(options: ServerEntryOptions) {
       : undefined;
     const App = appModule?.default;
     if (appModule && !App) {
-      throw new Error("app.tsx must default export a Qwik component.");
+      throw new Error("app.tsx or app.jsx must default export a Qwik component.");
     }
 
     const pageProps: PageComponentProps = {
@@ -114,7 +117,7 @@ export function createServerEntry(options: ServerEntryOptions) {
     const root = App ? renderAppShell(App, pageProps, page) : renderDefaultDocument(page);
     const result = await renderToString(root, {
       base: options.isDev ? "/" : undefined,
-      containerAttributes: { lang: "en" }
+      containerAttributes: htmlAttributes(appModule, pageProps)
     });
 
     return new Response(result.html, {
@@ -150,6 +153,23 @@ export function createServerEntry(options: ServerEntryOptions) {
   }
 
   return { fetch };
+}
+
+function htmlAttributes(appModule: AppModule | undefined, pageProps: PageComponentProps) {
+  const attributes = appModule?.__resumableHtmlAttributes?.(pageProps) ?? {
+    lang: "en"
+  };
+  const normalized: Record<string, string> = {};
+
+  for (const [name, value] of Object.entries(attributes)) {
+    if (value === false || value === null || value === undefined) {
+      continue;
+    }
+
+    normalized[name] = String(value);
+  }
+
+  return normalized;
 }
 
 function isNitroApiPathname(pathname: string) {
