@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@qwik.dev/core",
+    "strict": true,
+    "types": ["vite/client"],
+    "plugins": [
+      {
+        "name": "@resumable.dev/typescript-plugin",
+        "pagesDir": "./pages"
+      }
+    ]
+  },
+  "include": [
+    "resumable-env.d.ts",
+    "api",
+    "middleware",
+    "pages",
+    "data",
+    "vite.config.ts"
+  ]
+}

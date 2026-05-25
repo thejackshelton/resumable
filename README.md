@@ -22,8 +22,7 @@
 
   <p>
     Resumable keeps the app model plain: pages are files, layouts are
-    components, server data stays Nitro-native, and work runs only when your
-    users care.
+    components, data can resume, and work runs only when your users care.
   </p>
 </div>
 
@@ -58,8 +57,8 @@ Generated apps are designed to use Vite+ locally:
 ```txt
 pages/       -> Resumable UI routes
 components/  -> Qwik component tree
-api/         -> Nitro API routes
-middleware/  -> Nitro request pipeline
+api/         -> HTTP method exports lowered to Nitro
+middleware/  -> request functions lowered to Nitro
 public/      -> Nitro public assets
 vite.config  -> Vite, Qwik, Resumable, and Nitro config
 ```

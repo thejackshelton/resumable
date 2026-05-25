@@ -48,8 +48,8 @@ including:
 
 Implementation agents should use grep MCP as a normal part of implementation
 research. Use it before making non-trivial choices about CLI structure, routing,
-typed routing, Nitro integration, SSR, MDX, and Nitro-owned data fetching.
-Prefer real framework/source examples over recalled patterns.
+typed routing, server function transport, Nitro integration, SSR, MDX, and data
+fetching. Prefer real framework/source examples over recalled patterns.
 
 Before changing bundler integration code such as `libs/core/src/vite/vite.ts`,
 Vite plugins, Nitro/Vite wiring, virtual modules, environment entries, or build
@@ -67,7 +67,9 @@ https://nitro.build/docs
 ```
 
 When Nitro behavior is unclear, consult the Nitro docs instead of creating a
-Resumable-specific abstraction or alias.
+Resumable-specific abstraction or alias. API and middleware user files are the
+exception to direct Nitro authoring: users write regular TypeScript convention
+files, and Resumable generates the Nitro wrapper modules.
 
 ## Shared Path And URL Helpers
 
@@ -252,7 +254,9 @@ Framework boundary:
 - `resumable()` wires Nitro internally.
 - Users do not add `nitro()` in standard Resumable apps.
 - Users configure Nitro with top-level `nitro: {}` in `vite.config.ts`.
-- `api/`, `middleware/`, and `public/` use Nitro-native behavior.
+- `api/` and `middleware/` are regular TypeScript convention folders lowered to
+  Nitro behavior.
+- `public/` uses Nitro-native behavior.
 - `pages/` uses Resumable UI routing.
 
 ## Initial Implementation Scope
@@ -274,14 +278,15 @@ Build in the first core implementation pass:
 - Qwik SSR for matched pages.
 - Optional top-level `document.tsx` with `Html`.
 - Root `pages/404.tsx` and `pages/500.tsx` status pages.
-- Nitro-native `api/`, `middleware/`, and `public/` passthrough.
+- Plain TypeScript `api/` and `middleware/` files lowered to Nitro, plus
+  Nitro-native `public/` passthrough.
 - Typed route generation.
 - Native anchor JSX type augmentation.
 - `Link` component for SPA navigation.
 
 Do not build in the first core implementation pass:
 
-- A Resumable-owned data layer or server-function transport.
+- Public `query$`, `action$`, or `schema` runtime.
 - Public data cache implementation.
 - Native form action lowering.
 - MDX page support.
@@ -359,7 +364,7 @@ Deno        deno.json
 Minimal     one page
 App         layouts, status pages
 Docs        MDX docs routes
-Full-stack  app plus Nitro api/ and middleware/
+Full-stack  app plus api/ and middleware/
 ```
 
 Initial visible starters should be `Minimal`, `App`, and `Full-stack`. Show
@@ -415,6 +420,7 @@ Build:
 - Vite plugin skeleton.
 - Nitro plugin wiring inside `resumable()`.
 - Internal defaults for top-level `api/`, `middleware/`, and `public/`.
+- Generated Nitro wrapper modules for top-level `api/` and `middleware/`.
 - Direct error if user duplicates Nitro plugin wiring in a standard app.
 - No wrapper over Qwik plugin options.
 
@@ -422,7 +428,9 @@ Exit criteria:
 
 - A fixture can use `plugins: [qwik(), resumable()]`.
 - Top-level `nitro: {}` config still reaches Nitro.
-- User-authored `api/`, `middleware/`, and `public/` use Nitro behavior.
+- User-authored `api/` and `middleware/` are plain TypeScript while preserving
+  Nitro runtime behavior through generated wrappers.
+- User-authored `public/` uses Nitro behavior.
 
 ### 3. Route Manifest
 
@@ -556,8 +564,8 @@ Exit criteria:
 
 ### 7. Nitro Passthrough
 
-Goal: top-level Nitro-owned app surfaces keep Nitro behavior while Resumable
-owns page rendering.
+Goal: top-level API, middleware, public assets, and Nitro config keep Nitro
+runtime behavior while Resumable owns page rendering and generated wrappers.
 
 Research before coding:
 
@@ -572,7 +580,8 @@ Build:
 - Top-level `middleware/` runs through Nitro before API routes.
 - Top-level `public/` assets are served directly by Nitro.
 - Native `nitro.routeRules` still apply.
-- Existing top-level `api/` evidence remains Nitro-native.
+- Existing top-level `api/` evidence remains Nitro-compatible through generated
+  wrappers.
 
 Exit criteria:
 
@@ -666,31 +675,41 @@ Exit criteria:
 - MDX `layout` frontmatter does not create a layout wrapper.
 - `.tsx` and `.mdx` route conflicts are detected.
 
-### 11. Nitro-Owned Data Examples
+### 11. Data Fetching Prototype
 
-Goal: prove the documented data direction without adding a Resumable data
-layer.
+Goal: prove the data direction before public release.
 
 Research before coding:
 
-- Check Nitro v3 docs before using Nitro handler, middleware, cache, storage, or
-  route-rule primitives in examples.
-- Inspect Qwik async UI primitives before documenting page/component data usage.
+- Inspect local Qwik `build/v2` async primitives, serialization support, and
+  optimizer `$` extraction behavior.
+- Use grep MCP for current query/action/server-function implementations before
+  choosing transport, refresh, validation, or cache behavior.
+- Check Nitro v3 docs before using Nitro cache/storage primitives.
 
-Implementation shape:
+Prototype after SSR and SPA payloads exist:
 
-- Keep data endpoints in top-level `api/` with native Nitro handlers.
-- Keep request context in top-level `middleware/` with native Nitro middleware.
-- Use Nitro route rules, storage, and cache primitives for server data behavior.
-- Use Qwik primitives for async UI state.
-- Keep forms pointed at real Nitro API URLs.
+- `schema`.
+- `query$`.
+- `action$`.
+- plain TypeScript `api/` convention files lowered to Nitro handlers.
+- plain TypeScript `middleware/` convention files lowered to Nitro middleware.
+- TypeScript language-plugin contextual types for API method exports and
+  middleware default exports based on folder location.
+- request dedupe.
+- query records.
+- SSR serialization.
+- SPA query deltas.
+- `ctx.refresh(...)`.
+- native form action lowering.
 
 Exit criteria:
 
-- Do not add public Resumable APIs for data fetching, mutation, validation,
-  framework data caching, mutation refresh, or form action transport.
-- Any data-focused fixture or example must use Nitro-native `api/`,
-  `middleware/`, and `nitro: {}` behavior.
+- Do not ship public data APIs until the confidence gates in
+  [`DATA_FETCHING.md`](./DATA_FETCHING.md) pass.
+- Do not add public `api$` or `middleware$` APIs.
+- Do not require user-authored `defineHandler(...)` or `defineMiddleware(...)`
+  calls in the normal `api/` and `middleware/` path.
 
 ## Parallel Work
 
@@ -701,7 +720,8 @@ Can happen in parallel:
 - CLI dependency/package refactor and core Vite plugin skeleton.
 - Typed routing generator and route conflict tests, after manifest shape is
   stable.
-- Nitro-native API/middleware/public fixtures and page renderer work.
+- API/middleware wrapper fixtures, Nitro-native public fixtures, and page
+  renderer work.
 
 Should wait:
 
@@ -727,7 +747,7 @@ Later fixtures:
 
 ```txt
 fixtures/mdx
-fixtures/nitro-data
+fixtures/data-fetching
 fixtures/deno
 fixtures/bun
 ```
@@ -766,7 +786,8 @@ It should not include user-authored `nitro()`, `resumable.config.ts`,
 - Do not rename Nitro concepts.
 - Do not implement page-local middleware.
 - Do not implement file-based layouts in v0.
-- Do not implement a Resumable-owned data-fetching layer.
+- Do not implement data fetching before route/SSR/SPAs are proven.
+- Do not expose public `api$` or `middleware$` helpers.
 - Do not expose prototype/unstable labels in user prompts.
 - Keep errors direct and file-specific.
 - Check local Qwik `build/v2`, grep MCP examples, and Nitro v3 docs before
@@ -785,8 +806,8 @@ Before claiming v0 core complete:
 - App generated app builds.
 - Full-stack generated app builds.
 - Route conflict fixture fails with the expected direct error.
-- Nitro `api/`, `middleware/`, `public/`, and top-level `nitro: {}` behavior is
-  verified.
+- Generated Nitro wrapper behavior for `api/` and `middleware/`, Nitro
+  `public/`, and top-level `nitro: {}` behavior is verified.
 - Qwik SSR output contains expected page HTML.
 - Typed routing fixture catches expected valid and invalid cases.
 - `specs/state.md` is updated with completed milestones and remaining deferred

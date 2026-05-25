@@ -138,22 +138,22 @@ leaving SPA navigation, prefetching, MDX, and data APIs out of this slice.
 
 ## Milestone State
 
-| ID  | Milestone                                 | Status      | Can Run In Parallel With         | Depends On                   |
-| --- | ----------------------------------------- | ----------- | -------------------------------- | ---------------------------- |
-| M0  | Spec organization                         | Complete    | none                             | none                         |
-| M1  | CLI create flow                           | Complete    | M2 package/plugin skeleton       | M0                           |
-| M2  | Core Vite plugin skeleton                 | Complete    | M1 CLI create flow               | M0                           |
-| M3  | Route manifest                            | Complete    | starter file content             | M2                           |
-| M4  | Qwik SSR renderer                         | Complete    | Nitro passthrough fixtures       | M2, M3                       |
-| M5  | Document shell                            | Complete    | status page tests                | M4                           |
-| M6  | Status pages                              | Complete    | M5 document shell                | M4                           |
-| M7  | Nitro passthrough                         | Complete    | M4 renderer work                 | M2                           |
-| M8  | Typed routing                             | In Progress | CLI doctor/routes commands       | M3                           |
-| M9  | Link and SPA navigation                   | Pending     | none                             | M4, M8                       |
-| M10 | MDX/Composed MDX fixture and Docs starter | Pending     | none                             | M3, M4, Satteri/Qwik proof   |
+| ID  | Milestone                                 | Status      | Can Run In Parallel With         | Depends On                    |
+| --- | ----------------------------------------- | ----------- | -------------------------------- | ----------------------------- |
+| M0  | Spec organization                         | Complete    | none                             | none                          |
+| M1  | CLI create flow                           | Complete    | M2 package/plugin skeleton       | M0                            |
+| M2  | Core Vite plugin skeleton                 | Complete    | M1 CLI create flow               | M0                            |
+| M3  | Route manifest                            | Complete    | starter file content             | M2                            |
+| M4  | Qwik SSR renderer                         | Complete    | Nitro passthrough fixtures       | M2, M3                        |
+| M5  | Document shell                            | Complete    | status page tests                | M4                            |
+| M6  | Status pages                              | Complete    | M5 document shell                | M4                            |
+| M7  | Nitro passthrough                         | Complete    | M4 renderer work                 | M2                            |
+| M8  | Typed routing                             | In Progress | CLI doctor/routes commands       | M3                            |
+| M9  | Link and SPA navigation                   | Pending     | none                             | M4, M8                        |
+| M10 | MDX/Composed MDX fixture and Docs starter | Pending     | none                             | M3, M4, Satteri/Qwik proof    |
 | M11 | Data fetching prototype                   | Deferred    | none                             | M4, M9, data confidence gates |
-| M12 | Bun fixture                               | Deferred    | CLI/runtime format work after M1 | M1, M2, M4                   |
-| M13 | Deno fixture                              | Deferred    | none                             | M1, M2, M4, Vite+/Deno proof |
+| M12 | Bun fixture                               | Deferred    | CLI/runtime format work after M1 | M1, M2, M4                    |
+| M13 | Deno fixture                              | Deferred    | none                             | M1, M2, M4, Vite+/Deno proof  |
 
 ## Next Recommended Goal
 

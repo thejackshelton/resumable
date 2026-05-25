@@ -55,9 +55,10 @@ Resumable examples. Resumable docs and generated code should use
   Vite+ command surface, and CLI architecture.
 - [`TYPED_ROUTING.md`](./TYPED_ROUTING.md): typed anchors, `Link`, route type
   generation, generated declarations, JSX lowering, and navigation acceptance.
-- [`DATA_FETCHING.md`](./DATA_FETCHING.md): permanent Nitro-owned data
-  fetching boundary for API routes, middleware, forms, validation, caching, and
-  storage.
+- [`DATA_FETCHING.md`](./DATA_FETCHING.md): future data layer direction for
+  `schema`, `query$`, `action$`, native typed forms, query records, cache
+  semantics, SPA reuse, and plain TypeScript API/middleware convention files
+  lowered to Nitro.
 
 ## Exploratory Drafts
 
@@ -69,7 +70,7 @@ Resumable examples. Resumable docs and generated code should use
 ```txt
 Pages are Resumable.
 Components are Qwik.
-Server behavior is Nitro.
+Server behavior is Nitro-backed.
 Configuration is Vite.
 Tooling is Vite+.
 ```
@@ -77,7 +78,9 @@ Tooling is Vite+.
 - Qwik's Vite plugin stays explicit in user config.
 - `resumable()` wires Nitro internally.
 - `nitro: {}` is native Nitro app config.
-- `api/`, `middleware/`, and `public/` are Nitro-native.
+- `api/` and `middleware/` are regular TypeScript convention folders lowered to
+  Nitro.
+- `public/` is Nitro-native.
 - `pages/` is Resumable-owned UI routing.
 - No `resumable.config.ts`.
 - No documented `nitro.config.ts` requirement for generated apps.
@@ -92,6 +95,8 @@ The specs were reorganized into this folder together. During the move:
 - Generated app config examples were aligned on `vite-plus`.
 - CLI wording was aligned on `Starter` instead of `Template`.
 - Project/runtime format and starter choice were kept as separate CLI axes.
-- Data fetching is Nitro-owned instead of a future Resumable data layer.
+- Data fetching remains design direction and prototype scope, not first
+  milestone implementation scope. Public `api$` and `middleware$` helpers are
+  not part of that direction.
 - Implementation agents must consult local Qwik `build/v2`, grep MCP research,
   and Nitro v3 docs before changing Qwik/Nitro-facing implementation details.

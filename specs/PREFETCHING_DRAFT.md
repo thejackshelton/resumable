@@ -376,7 +376,8 @@ can answer:
 - How much waste does `viewport` create in lists and docs nav?
 - Does prefetching route payloads duplicate Qwik's own symbol prefetching?
 - Can in-flight prefetch promotion reliably reduce click-to-render delay?
-- Does page-payload prefetch stay separate from Nitro-owned data fetching?
+- Does page-payload prefetch stay separate from `query$` and API data
+  transport?
 - Does the scheduler respect reduced-data and slow-connection constraints?
 
 ## Promotion Checklist

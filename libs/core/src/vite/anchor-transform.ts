@@ -1,10 +1,7 @@
 import type { RouteManifestRoute } from "../route-manifest.ts";
 import { buildRouteManifestFromFileIds } from "../route-manifest.ts";
 import type { Plugin } from "vite";
-import {
-  discoverPageFiles,
-  type RouteTypegenFileSystem,
-} from "./route-typegen.ts";
+import { discoverPageFiles, type RouteTypegenFileSystem } from "./route-typegen.ts";
 
 const ROUTE_HREF_HELPER_ID = "virtual:resumable/route-href";
 const JSX_FILE_FILTER = /\.[jt]sx(?:$|\?)/;
@@ -33,7 +30,7 @@ export function anchorTransformPlugin(): Plugin {
 
   const refreshRoutes = async (fs: RouteTypegenFileSystem) => {
     routePatterns = routePatternMap(
-      buildRouteManifestFromFileIds(await discoverPageFiles(fs, root)),
+      buildRouteManifestFromFileIds(await discoverPageFiles(fs, root))
     );
     routesLoaded = true;
   };
@@ -43,7 +40,7 @@ export function anchorTransformPlugin(): Plugin {
     transform: {
       order: "pre",
       filter: {
-        id: JSX_FILE_FILTER,
+        id: JSX_FILE_FILTER
       },
       async handler(code, id) {
         if (id.includes("/node_modules/") || !code.includes("<a")) {
@@ -57,14 +54,12 @@ export function anchorTransformPlugin(): Plugin {
         const ast = this.parse(code, {
           astType: "ts",
           lang: id.includes(".jsx") ? "jsx" : "tsx",
-          range: true,
+          range: true
         }) as unknown as Node;
         const transformed = transformAnchorSource(code, ast, routePatterns);
 
-        return transformed === code
-          ? undefined
-          : { code: transformed, map: null };
-      },
+        return transformed === code ? undefined : { code: transformed, map: null };
+      }
     },
     configResolved(config) {
       root = config.root;
@@ -74,14 +69,14 @@ export function anchorTransformPlugin(): Plugin {
     },
     async watchChange() {
       await refreshRoutes(this.fs);
-    },
+    }
   };
 }
 
 export function transformAnchorSource(
   code: string,
   astInput: unknown,
-  routePatterns: RoutePatternMap,
+  routePatterns: RoutePatternMap
 ) {
   const ast = node(astInput);
   if (!ast) {
@@ -91,10 +86,7 @@ export function transformAnchorSource(
   const edits: Edit[] = [];
 
   walk(ast, (current) => {
-    if (
-      current.type !== "JSXOpeningElement" ||
-      jsxName(node(current.name)) !== "a"
-    ) {
+    if (current.type !== "JSXOpeningElement" || jsxName(node(current.name)) !== "a") {
       return;
     }
 
@@ -107,9 +99,7 @@ export function transformAnchorSource(
 
     const routeParams = routePatterns.get(hrefValue);
     if (!routeParams) {
-      fail(
-        `Typed route error: ${hrefValue} does not match any route in pages/.`,
-      );
+      fail(`Typed route error: ${hrefValue} does not match any route in pages/.`);
     }
 
     const params = findJsxAttribute(attributes, "params");
@@ -128,8 +118,8 @@ export function transformAnchorSource(
       ...rangeOf(href),
       text: `href={__resumableHref(${JSON.stringify(hrefValue)}, ${slice(
         code,
-        paramsExpression,
-      )})}`,
+        paramsExpression
+      )})}`
     });
     edits.push({ ...attributeRemovalRange(code, params), text: "" });
   });
@@ -145,14 +135,14 @@ function routePatternMap(manifest: { routes: readonly RouteManifestRoute[] }) {
   return new Map(
     manifest.routes
       .filter((route) => route.params.length > 0)
-      .map((route) => [route.pattern, route.params] as const),
+      .map((route) => [route.pattern, route.params] as const)
   );
 }
 
 function validateObjectLiteralParams(
   pattern: string,
   routeParams: readonly RouteParam[],
-  paramsExpression: Node,
+  paramsExpression: Node
 ) {
   if (paramsExpression.type !== "ObjectExpression") {
     return;
@@ -162,9 +152,7 @@ function validateObjectLiteralParams(
   const actual = objectLiteralKeys(paramsExpression);
   const unknown = actual.filter((param) => !expected.has(param));
   if (unknown.length > 0) {
-    fail(
-      `Typed route error: ${pattern} does not define param:\n${list(unknown)}`,
-    );
+    fail(`Typed route error: ${pattern} does not define param:\n${list(unknown)}`);
   }
 
   const missing = routeParams
@@ -182,8 +170,7 @@ function objectLiteralKeys(expression: Node) {
     }
 
     const key = node(property.key);
-    const name =
-      key?.type === "Identifier" ? string(key.name) : literalString(key);
+    const name = key?.type === "Identifier" ? string(key.name) : literalString(key);
     return name ? [name] : [];
   });
 }
@@ -192,12 +179,9 @@ function helperImport() {
   return `import { __resumableHref } from "${ROUTE_HREF_HELPER_ID}";\n`;
 }
 
-function missingParamsMessage(
-  pattern: string,
-  routeParams: readonly RouteParam[],
-) {
+function missingParamsMessage(pattern: string, routeParams: readonly RouteParam[]) {
   return `Typed route error: ${pattern} requires params:\n${list(
-    routeParams.map((param) => param.name),
+    routeParams.map((param) => param.name)
   )}`;
 }
 
@@ -207,7 +191,7 @@ function list(items: readonly string[]) {
 
 function findJsxAttribute(attributes: readonly Node[], name: string) {
   return attributes.find(
-    (attr) => attr.type === "JSXAttribute" && jsxName(node(attr.name)) === name,
+    (attr) => attr.type === "JSXAttribute" && jsxName(node(attr.name)) === name
   );
 }
 
@@ -246,13 +230,9 @@ function attributeRemovalRange(code: string, attribute: Node) {
 function applyEdits(code: string, edits: readonly Edit[]) {
   let transformed = code;
 
-  for (const edit of [...edits].toSorted(
-    (left, right) => right.start - left.start,
-  )) {
+  for (const edit of [...edits].toSorted((left, right) => right.start - left.start)) {
     transformed =
-      transformed.slice(0, edit.start) +
-      edit.text +
-      transformed.slice(edit.end);
+      transformed.slice(0, edit.start) + edit.text + transformed.slice(edit.end);
   }
 
   return transformed;
@@ -298,15 +278,11 @@ function rangeOf(value: Node) {
 }
 
 function nodes(value: unknown): Node[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is Node => !!node(item))
-    : [];
+  return Array.isArray(value) ? value.filter((item): item is Node => !!node(item)) : [];
 }
 
 function node(value: unknown): Node | undefined {
-  return typeof value === "object" && value !== null
-    ? (value as Node)
-    : undefined;
+  return typeof value === "object" && value !== null ? (value as Node) : undefined;
 }
 
 function string(value: unknown) {

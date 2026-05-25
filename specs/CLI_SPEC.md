@@ -235,7 +235,7 @@ create-resumable
 │ Minimal     one page
 │ App         layouts, status pages
 │ Docs        MDX docs routes
-│ Full-stack  app plus Nitro api/ and middleware/
+│ Full-stack  app plus api/ and middleware/
 
 ◇ Install dependencies?
 │ Yes
@@ -269,7 +269,7 @@ create-resumable
 │ Minimal     one page
 │ App         layouts, status pages
 │ Docs        MDX docs routes
-│ Full-stack  app plus Nitro api/ and middleware/
+│ Full-stack  app plus api/ and middleware/
 
 ◇ Install dependencies?
 │ Yes
@@ -379,7 +379,7 @@ Recommended starter list:
 Minimal     one page
 App         layouts, status pages
 Docs        MDX docs routes
-Full-stack  app plus Nitro api/ and middleware/
+Full-stack  app plus api/ and middleware/
 ```
 
 ### Minimal
@@ -482,7 +482,7 @@ Qwik optimizer work together.
 
 ### Full-stack
 
-The App starter plus Nitro-native server files.
+The App starter plus plain TypeScript server convention files.
 
 ```txt
 my-app/
@@ -509,8 +509,8 @@ Use this when the user wants the full framework boundary visible:
 
 ```txt
 pages/      -> Resumable UI routes
-api/        -> Nitro API routes
-middleware/ -> Nitro request pipeline
+api/        -> HTTP method exports lowered to Nitro
+middleware/ -> request functions lowered to Nitro
 ```
 
 Do not call this starter `API`. `API` sounds like an API-only project and hides
@@ -519,9 +519,13 @@ files.
 
 ### Data
 
-Do not add a separate `Data` starter. Data fetching is Nitro-owned, so examples
-that need server data belong in the `Full-stack` starter or a dedicated example
-app using top-level `api/` and `middleware/`.
+Do not show `Data` as a default starter choice until `query$`, `action$`,
+`schema`, native typed forms, and the SPA/SSR transport protocol are
+implemented.
+
+When the data layer is ready, prefer making data examples part of the
+`Full-stack` starter or a dedicated example app rather than adding another
+default prompt option.
 
 ## Default Starter
 
