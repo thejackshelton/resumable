@@ -22,7 +22,8 @@
 
   <p>
     Resumable keeps the app model plain: pages are files, layouts are
-    components, data can resume, and work runs only when your users care.
+    components, server data stays Nitro-native, and work runs only when your
+    users care.
   </p>
 </div>
 

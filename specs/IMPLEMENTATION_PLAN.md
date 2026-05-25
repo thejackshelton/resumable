@@ -48,8 +48,8 @@ including:
 
 Implementation agents should use grep MCP as a normal part of implementation
 research. Use it before making non-trivial choices about CLI structure, routing,
-typed routing, server function transport, Nitro integration, SSR, MDX, and data
-fetching. Prefer real framework/source examples over recalled patterns.
+typed routing, Nitro integration, SSR, MDX, and Nitro-owned data fetching.
+Prefer real framework/source examples over recalled patterns.
 
 Before changing bundler integration code such as `libs/core/src/vite/vite.ts`,
 Vite plugins, Nitro/Vite wiring, virtual modules, environment entries, or build
@@ -281,7 +281,7 @@ Build in the first core implementation pass:
 
 Do not build in the first core implementation pass:
 
-- Public `query$`, `action$`, or `schema` runtime.
+- A Resumable-owned data layer or server-function transport.
 - Public data cache implementation.
 - Native form action lowering.
 - MDX page support.
@@ -666,34 +666,31 @@ Exit criteria:
 - MDX `layout` frontmatter does not create a layout wrapper.
 - `.tsx` and `.mdx` route conflicts are detected.
 
-### 11. Data Fetching Prototype
+### 11. Nitro-Owned Data Examples
 
-Goal: prove the data direction before public release.
+Goal: prove the documented data direction without adding a Resumable data
+layer.
 
 Research before coding:
 
-- Inspect local Qwik `build/v2` async primitives, serialization support, and
-  optimizer `$` extraction behavior.
-- Use grep MCP for current query/action/server-function implementations before
-  choosing transport, refresh, validation, or cache behavior.
-- Check Nitro v3 docs before using Nitro cache/storage primitives.
+- Check Nitro v3 docs before using Nitro handler, middleware, cache, storage, or
+  route-rule primitives in examples.
+- Inspect Qwik async UI primitives before documenting page/component data usage.
 
-Prototype after SSR and SPA payloads exist:
+Implementation shape:
 
-- `schema`.
-- `query$`.
-- `action$`.
-- request dedupe.
-- query records.
-- SSR serialization.
-- SPA query deltas.
-- `ctx.refresh(...)`.
-- native form action lowering.
+- Keep data endpoints in top-level `api/` with native Nitro handlers.
+- Keep request context in top-level `middleware/` with native Nitro middleware.
+- Use Nitro route rules, storage, and cache primitives for server data behavior.
+- Use Qwik primitives for async UI state.
+- Keep forms pointed at real Nitro API URLs.
 
 Exit criteria:
 
-- Do not ship public data APIs until the confidence gates in
-  [`DATA_FETCHING.md`](./DATA_FETCHING.md) pass.
+- Do not add public Resumable APIs for data fetching, mutation, validation,
+  framework data caching, mutation refresh, or form action transport.
+- Any data-focused fixture or example must use Nitro-native `api/`,
+  `middleware/`, and `nitro: {}` behavior.
 
 ## Parallel Work
 
@@ -730,7 +727,7 @@ Later fixtures:
 
 ```txt
 fixtures/mdx
-fixtures/data-fetching
+fixtures/nitro-data
 fixtures/deno
 fixtures/bun
 ```
@@ -769,7 +766,7 @@ It should not include user-authored `nitro()`, `resumable.config.ts`,
 - Do not rename Nitro concepts.
 - Do not implement page-local middleware.
 - Do not implement file-based layouts in v0.
-- Do not implement data fetching before route/SSR/SPAs are proven.
+- Do not implement a Resumable-owned data-fetching layer.
 - Do not expose prototype/unstable labels in user prompts.
 - Keep errors direct and file-specific.
 - Check local Qwik `build/v2`, grep MCP examples, and Nitro v3 docs before

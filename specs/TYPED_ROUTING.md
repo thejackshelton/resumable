@@ -104,7 +104,7 @@ Typed routing v0 should not require:
 - A generated route tree that users import manually.
 - A Resumable config file.
 - Type-safe form actions in this navigation spec. Progressive form mutations
-  are owned by the data fetching spec.
+  submit to Nitro API routes with normal form URLs.
 - Type-safe API route URLs.
 - Type-safe arbitrary public asset URLs.
 - Client-side data loaders.
@@ -116,8 +116,8 @@ Those can be added later if implementation pressure proves they are needed.
 
 Grep MCP research found these relevant patterns:
 
-- Qwik exposes JSX intrinsic element types through `QwikJSX` and
-  `IntrinsicElements`.
+- Qwik exposes JSX native tag types through `QwikJSX.IntrinsicElements`, while
+  `PropsOf<"a">` reads `QwikIntrinsicElements["a"]`.
 - Qwik's anchor JSX type is part of the intrinsic element surface, so native
   `<a>` typing can be influenced by framework types.
 - Public Qwik projects augment Qwik JSX through module declarations.
@@ -153,6 +153,8 @@ pages/docs/[...slug].mdx
 Generated route model:
 
 ```ts
+export type ResumableStaticPageHref = "/" | "/about" | "/blog" | "/docs";
+
 export type ResumableConcretePageHref =
   | "/"
   | "/about"
@@ -207,23 +209,24 @@ native anchor JSX type and supplies app-specific route props for Resumable's
 Proposed generated shape:
 
 ```ts
-import type { PropsOf } from "@qwik.dev/core";
+import type { QwikHTMLElements } from "@qwik.dev/core";
 
-type BaseAnchorProps = Omit<PropsOf<"a">, "href" | "params">;
+type BaseAnchorProps = Omit<QwikHTMLElements["a"], "href" | "params">;
 
 type RoutePatternAnchor = {
-  [Pattern in ResumableRoutePattern]: BaseAnchorProps & {
+  [Pattern in ResumableRoutePattern]: {
     readonly href: Pattern;
     readonly params: ResumableRouteParams[Pattern];
   };
 }[ResumableRoutePattern];
 
-type ConcreteAnchor = BaseAnchorProps & {
-  readonly href?: ResumableConcretePageHref | ResumableExternalHref | ResumableAssetHref;
+type ConcreteAnchor = {
+  readonly href?: ResumableStaticPageHref | ResumableExternalHref | ResumableAssetHref;
   readonly params?: never;
 };
 
-export type ResumableAnchorProps = ConcreteAnchor | RoutePatternAnchor;
+export type ResumableAnchorProps = BaseAnchorProps &
+  (ConcreteAnchor | RoutePatternAnchor);
 
 export type ResumableLinkProps = ResumableAnchorProps & {
   readonly prefetch?: boolean | "intent" | "viewport";
@@ -233,6 +236,10 @@ export type ResumableLinkProps = ResumableAnchorProps & {
 };
 
 declare module "@qwik.dev/core" {
+  interface QwikIntrinsicElements {
+    a: ResumableAnchorProps;
+  }
+
   namespace QwikJSX {
     interface IntrinsicElements {
       a: ResumableAnchorProps;
@@ -247,6 +254,22 @@ declare module "@resumable.dev/core" {
   }
 }
 ```
+
+Native anchor typing intentionally uses `ResumableStaticPageHref` for concrete
+app hrefs. Dynamic app routes should use the file-route pattern plus `params`.
+If the concrete anchor type accepted broad dynamic templates such as
+`` `/blog/${string}` ``, TypeScript would also accept the literal pattern
+`"/blog/[slug]"` without `params`, defeating the main DX check.
+
+Because the strict union requires `params` for dynamic route patterns,
+TypeScript's built-in JSX completion may hide patterns such as `"/blog/[slug]"`
+while the user is still typing a bare `href=""`. The Resumable TypeScript
+plugin should add route-pattern completion entries for native `<a href="">`
+without weakening the generated anchor types.
+
+The shared `BaseAnchorProps` intersection is intentionally outside the route
+union so normal Qwik anchor props such as `onClick$`, `target`, `rel`, and
+`aria-*` keep completing after the user has already entered a typed `href`.
 
 Expected type behavior:
 

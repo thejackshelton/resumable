@@ -21,13 +21,22 @@ transform hook `filter.id` and the TSX/JSX AST to extract root `<Html>`
 attributes into pre-render container attributes. Route-local `Head` is out of
 v0, and document-shell aliases are intentionally not implemented. The Vite
 plugin resolves Resumable virtual IDs to real `src/vite/entries/*` source files
-and uses Vite dependency config to keep Qwik on one runtime instance.
+and uses Vite dependency config to keep Qwik on one runtime instance. M8 typed
+routing slice 1 now has a runtime-agnostic route declaration generator that
+derives route hrefs, patterns, and param maps from the route manifest. M8 typed
+routing slice 2 now emits generated Qwik JSX anchor augmentation so native
+`<a>` accepts valid static hrefs and dynamic route-pattern hrefs with params,
+while invalid route props fail TypeScript. M8 typed routing slice 3 now writes
+`resumable-env.d.ts` and `.resumable/types/routes.d.ts` through Vite's host
+filesystem so real projects discover those anchor types without manual route
+imports.
 
 ## Current Objective
 
-Start M8 typed routing in TDD slices. M7 Nitro passthrough is complete, so the
-next missing framework evidence should focus on generated route types and typed
-navigation helpers without touching SPA navigation, MDX, or data fetching.
+Continue M8 typed routing in TDD slices. Generated route declarations, Qwik JSX
+anchor types, and real-project declaration discovery now exist; the next missing
+framework evidence should focus on route-pattern anchor lowering before touching
+SPA navigation or MDX.
 
 ## Spec Files
 
@@ -37,7 +46,7 @@ navigation helpers without touching SPA navigation, MDX, or data fetching.
 - [`SPEC.md`](./SPEC.md): main framework contract.
 - [`CLI_SPEC.md`](./CLI_SPEC.md): CLI/create/starter contract.
 - [`TYPED_ROUTING.md`](./TYPED_ROUTING.md): typed navigation contract.
-- [`DATA_FETCHING.md`](./DATA_FETCHING.md): future data layer contract.
+- [`DATA_FETCHING.md`](./DATA_FETCHING.md): Nitro-owned data fetching contract.
 
 ## Current Decisions
 
@@ -48,6 +57,8 @@ navigation helpers without touching SPA navigation, MDX, or data fetching.
 - App-level Nitro config stays in top-level `nitro: {}`.
 - `pages/` is Resumable UI routing.
 - `api/`, `middleware/`, and `public/` are Nitro-native.
+- Data fetching, mutations, request context, validation, caching, storage, and
+  form targets are Nitro-owned; Resumable does not provide a data layer.
 - `resumable()` exposes lazy page discovery through the internal
   `virtual:resumable/routes` module.
 - `resumable()` wires Vite environment entries in `configEnvironment()` by
@@ -59,9 +70,25 @@ navigation helpers without touching SPA navigation, MDX, or data fetching.
   `@qwik.dev/core` to environment `resolve.dedupe`,
   `optimizeDeps.exclude`, and server `resolve.noExternal`. This is a narrow
   Vite-native bridge until Qwik's duplicate-runtime singleton work is ready.
-- Route manifest normalization consumes Vite-discovered file IDs, uses `pathe`
-  for file IDs and `ufo` for route pathnames, and does not import Node `fs` or
-  `path`.
+- Route manifest normalization consumes Vite-discovered file IDs, exposes both
+  the runtime pathname and file-route pattern, uses `pathe` for file IDs and
+  `ufo` for route pathnames, and avoids platform filesystem imports.
+- Typed route declaration generation is pure and runtime-agnostic. It reuses the
+  route manifest and emits declaration text for concrete hrefs, route patterns,
+  and route param maps for `.tsx` page routes.
+- The `resumable:typegen` Vite plugin writes `resumable-env.d.ts` and
+  `.resumable/types/routes.d.ts` through the Vite/Rolldown host filesystem in
+  `buildStart` and `watchChange`. Core Vite code does not import Node
+  filesystem/path/URL helpers for typegen.
+- CLI-generated apps include `resumable-env.d.ts` in `tsconfig.json` so users
+  do not need manual tsconfig edits for typed routes in the default project
+  shape.
+- Generated route declarations also emit `ResumableStaticPageHref` and
+  `ResumableAnchorProps`, then augment `@qwik.dev/core`'s
+  `QwikIntrinsicElements.a` and `QwikJSX.IntrinsicElements.a`. Native anchors
+  and `PropsOf<"a">` accept static app hrefs, external/hash/query hrefs, and
+  asset-like hrefs without params; dynamic and catch-all file-route patterns
+  require matching `params`.
 - CLI path handling uses `pathe`/`ufo`; Node APIs remain only for actual
   filesystem/process CLI responsibilities.
 - Route files are `.tsx` and, after proof, `.mdx`.
@@ -81,7 +108,8 @@ navigation helpers without touching SPA navigation, MDX, or data fetching.
 - CLI runtime/project format is separate from starter.
 - Initial starters: `Minimal`, `App`, `Full-stack`.
 - `Docs` starter waits for MDX and Composed MDX proof.
-- `Data` does not appear as a default starter until the data layer is proven.
+- There is no separate `Data` starter; data examples belong in `Full-stack` or
+  dedicated Nitro-native examples.
 - Implementation must inspect local Qwik at
   `/Users/jacksm5pro/dev/open-source/qwik` on branch `build/v2`.
 - Implementation should use grep MCP for non-trivial research and Nitro v3 docs
@@ -100,35 +128,37 @@ navigation helpers without touching SPA navigation, MDX, or data fetching.
 
 ## Milestone State
 
-| ID  | Milestone                                 | Status   | Can Run In Parallel With         | Depends On                    |
-| --- | ----------------------------------------- | -------- | -------------------------------- | ----------------------------- |
-| M0  | Spec organization                         | Complete | none                             | none                          |
-| M1  | CLI create flow                           | Complete | M2 package/plugin skeleton       | M0                            |
-| M2  | Core Vite plugin skeleton                 | Complete | M1 CLI create flow               | M0                            |
-| M3  | Route manifest                            | Complete | starter file content             | M2                            |
-| M4  | Qwik SSR renderer                         | Complete | Nitro passthrough fixtures       | M2, M3                        |
-| M5  | Document shell                            | Complete | status page tests                | M4                            |
-| M6  | Status pages                              | Complete | M5 document shell                | M4                            |
-| M7  | Nitro passthrough                         | Complete | M4 renderer work                 | M2                            |
-| M8  | Typed routing                             | Pending  | CLI doctor/routes commands       | M3                            |
-| M9  | Link and SPA navigation                   | Pending  | none                             | M4, M8                        |
-| M10 | MDX/Composed MDX fixture and Docs starter | Pending  | none                             | M3, M4, Satteri/Qwik proof    |
-| M11 | Data fetching prototype                   | Deferred | none                             | M4, M9, data confidence gates |
-| M12 | Bun fixture                               | Deferred | CLI/runtime format work after M1 | M1, M2, M4                    |
-| M13 | Deno fixture                              | Deferred | none                             | M1, M2, M4, Vite+/Deno proof  |
+| ID  | Milestone                                 | Status      | Can Run In Parallel With         | Depends On                   |
+| --- | ----------------------------------------- | ----------- | -------------------------------- | ---------------------------- |
+| M0  | Spec organization                         | Complete    | none                             | none                         |
+| M1  | CLI create flow                           | Complete    | M2 package/plugin skeleton       | M0                           |
+| M2  | Core Vite plugin skeleton                 | Complete    | M1 CLI create flow               | M0                           |
+| M3  | Route manifest                            | Complete    | starter file content             | M2                           |
+| M4  | Qwik SSR renderer                         | Complete    | Nitro passthrough fixtures       | M2, M3                       |
+| M5  | Document shell                            | Complete    | status page tests                | M4                           |
+| M6  | Status pages                              | Complete    | M5 document shell                | M4                           |
+| M7  | Nitro passthrough                         | Complete    | M4 renderer work                 | M2                           |
+| M8  | Typed routing                             | In Progress | CLI doctor/routes commands       | M3                           |
+| M9  | Link and SPA navigation                   | Pending     | none                             | M4, M8                       |
+| M10 | MDX/Composed MDX fixture and Docs starter | Pending     | none                             | M3, M4, Satteri/Qwik proof   |
+| M11 | Nitro-owned data examples                 | Deferred    | none                             | M4, M9                       |
+| M12 | Bun fixture                               | Deferred    | CLI/runtime format work after M1 | M1, M2, M4                   |
+| M13 | Deno fixture                              | Deferred    | none                             | M1, M2, M4, Vite+/Deno proof |
 
 ## Next Recommended Goal
 
-Start M8 typed routing with focused fixture evidence:
+Continue M8 typed routing with focused transform evidence:
 
-1. Add red fixture evidence for generated route types matching static, dynamic,
-   and catch-all page routes.
-2. Prove typed navigation catches invalid params and missing params.
-3. Keep this slice scoped to type generation and route contracts; do not add
-   SPA navigation behavior, MDX, or data/form APIs.
+1. Add route-pattern anchor lowering so `<a href="/blog/[slug]" params={...}>`
+   renders a concrete `href` and does not leak `params` into the DOM.
+2. Prove the lowering against SSR output and client/CSR source paths, because
+   native typed anchors should behave the same in both modes.
+3. Keep the next slice scoped to native anchor lowering; do not add SPA
+   navigation behavior, `Link`, MDX, or data/form APIs.
 
-Before changing typed-routing implementation, use grep MCP for current
-file-based route type generation patterns and re-read [`TYPED_ROUTING.md`](./TYPED_ROUTING.md).
+Before changing typed-routing implementation, inspect local Qwik JSX types on
+branch `build/v2`, use grep MCP for current JSX intrinsic augmentation patterns,
+and re-read [`TYPED_ROUTING.md`](./TYPED_ROUTING.md).
 
 ## Parallel Work Notes
 
@@ -143,7 +173,6 @@ Good parallel slices:
 Do not parallelize yet:
 
 - MDX before route/SSR proves `.tsx`.
-- Data fetching before SSR render context and SPA payload exist.
 - Deno before Node/Bun-style generated app flow is stable.
 
 ## Deferred Decisions
@@ -152,9 +181,7 @@ Do not parallelize yet:
 - Whether Docs starter is visible before MDX and Composed MDX are fully proven.
 - Whether Bun is v0 or waits for a fixture.
 - Whether Deno is visible before a full `deno.json` fixture.
-- Exact generated route type file location.
 - Exact SPA page payload protocol.
-- Public `query$`/`action$` release timing.
 
 ## Audit Log
 
@@ -164,8 +191,7 @@ Do not parallelize yet:
 - Added spec index/read order.
 - Aligned generated config examples on `vite-plus`.
 - Converted parent spec references to local links.
-- Preserved data fetching as deferred implementation direction, not immediate
-  v0 core scope.
+- Preserved Nitro-native data fetching as the framework boundary.
 - Added implementation research requirements for local Qwik `build/v2`, grep
   MCP, and Nitro v3 docs.
 - Clarified `IMPLEMENTATION_PLAN.md` to require TDD-first implementation,
@@ -563,14 +589,9 @@ Do not parallelize yet:
   Nitro-native for API, middleware, public assets, route rules, runtime config,
   storage, caching, plugins, and deployment; do not add Resumable wrappers such
   as `defineApi`, `api$`, or `middleware$`.
-- Data API naming research: grep MCP examples from Qwik City, Solid Router,
-  pRPC, TanStack Start, Remix/React Router, SvelteKit, Astro, Next, Fresh,
-  Nuxt, and Nitro show no better Resumable data primitive than `query$` and
-  `action$`. Decision: keep `query$`/`action$` for UI data with
-  cache/reuse/refresh semantics, reject `defineQuery$`/`defineAction$`,
-  `createServerFn`, `server$`, `loader`/`load`, and `defineAction` as primary
-  Resumable data API names, and continue using native Nitro names for public
-  HTTP and middleware.
+- Data API direction superseded: Resumable does not own data fetching. Use
+  Nitro-native handlers, middleware, route rules, storage, caching, and real
+  form URLs instead of adding a framework data layer.
 - M7 research re-checked Nitro v3 docs and local package docs for middleware,
   lifecycle, public assets, route rules, and Vite/Nitro server behavior. Grep
   MCP examples from Nitro's repo and public Vite/Nitro apps confirmed
@@ -590,3 +611,70 @@ Do not parallelize yet:
   additional runtime abstraction was needed.
 - M7 broad verification passed: `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`,
   `pnpm check`, `pnpm test`, `pnpm build`, and `git diff --check`.
+- M8 route type generation red evidence: `pnpm exec vp test libs/core/test/route-types.unit.ts libs/core/test/minimal-fixture.unit.ts`
+  failed because `../src/route-types.ts` did not exist and the fixture had no
+  generated route env file.
+- M8 route type generation green evidence: added a pure
+  `createRouteTypesDeclaration()` generator that emits concrete hrefs, dynamic
+  route patterns, route params, external hrefs, and asset hrefs from the route
+  manifest. Physical file writing was intentionally removed from
+  `@resumable.dev/core/vite`; the remaining file-production step must be
+  host-owned and runtime-agnostic.
+- M8 JSX anchor augmentation research checked local Qwik `build/v2` types and
+  grep MCP examples. Qwik exposes JSX native tag types through
+  `QwikJSX.IntrinsicElements`, while `PropsOf<"a">` reads
+  `QwikIntrinsicElements["a"]`.
+- M8 JSX anchor augmentation red evidence:
+  `pnpm exec vp test libs/core/test/route-types.unit.ts` failed because native
+  Qwik `<a>` did not accept a `params` prop and invalid route hrefs were not
+  rejected by TypeScript.
+- M8 JSX anchor augmentation green evidence: generated route declarations now
+  import `QwikHTMLElements`, export `ResumableStaticPageHref` and
+  `ResumableAnchorProps`, and augment both Qwik anchor type surfaces so native
+  anchors and `PropsOf<"a">` accept valid static hrefs plus dynamic/catch-all
+  route patterns with matching `params`. The in-memory TSX evidence proves
+  unknown routes, missing dynamic params, wrong param names, and params on
+  static routes fail type-checking. Fixture language-service evidence also
+  proves normal Qwik anchor props such as `onClick$`, `target`, and `rel` still
+  complete after typed static and dynamic hrefs.
+- M8 JSX anchor broad verification passed:
+  `pnpm --filter @resumable.dev/core build`,
+  `pnpm exec vp test libs/core/test/route-types.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts libs/cli/test/index.unit.ts`,
+  `pnpm exec vp check`, `git diff --check`, and an audit search for direct
+  Node filesystem/path imports or write helpers in the core route-types path.
+- M8 host typegen research used grep MCP for Vite plugin host filesystem
+  examples and local Vite/Rolldown types for plugin-context `this.fs`. Decision:
+  keep the route declaration generator pure, and isolate physical
+  `resumable-env.d.ts` plus `.resumable/types/routes.d.ts` writes behind the
+  Vite/Rolldown host filesystem instead of importing Node filesystem helpers in
+  core Vite code.
+- M8 host typegen red evidence:
+  `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts -t "generates route declarations"`
+  failed after fixture build because the temporary app did not contain
+  `resumable-env.d.ts`.
+- M8 host typegen green evidence: `resumable:typegen` scans `pages/` through
+  the Vite host filesystem in `buildStart` and `watchChange`, writes
+  `resumable-env.d.ts` and `.resumable/types/routes.d.ts`, and a temporary
+  fixture project type-checks native anchors without importing generated route
+  types. The project TypeScript evidence covers valid static hrefs, valid
+  dynamic route-pattern hrefs with params, unknown routes, missing params,
+  wrong param names, and params on static routes.
+- M8 host typegen broad verification passed:
+  `pnpm exec vp test libs/core/test/route-types.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/vite/vite.unit.ts libs/core/test/minimal-fixture.unit.ts libs/cli/test/index.unit.ts`,
+  `pnpm exec vp check`, `pnpm --filter @resumable.dev/core build`,
+  `pnpm --filter @resumable.dev/cli build`, `git diff --check`, and an audit
+  search found no direct Node filesystem/path/URL imports in the core Vite
+  typegen path.
+- M8 dynamic href completion red evidence:
+  `pnpm --filter @resumable.dev/typescript-plugin proof` failed because bare
+  native `<a href="">` completions did not include `"/blog/[slug]"`. The
+  generated anchor type was correct, but TypeScript's JSX completion filtered
+  out dynamic route-pattern branches until `params` already existed.
+- M8 dynamic href completion green evidence: the TypeScript plugin now appends
+  dynamic file-route patterns to native `<a href="">` completions from the
+  configured `pages/` tree without weakening generated anchor types. Direct
+  language-service proof returns `"/blog/[slug]"`, and tsserver proof returns
+  `"/blog/[slug]"` plus `"/docs/[...slug]"`.
+- M8 dynamic href completion verification passed:
+  `pnpm --filter @resumable.dev/typescript-plugin proof`, `pnpm exec vp check`,
+  and `git diff --check`.

@@ -21,12 +21,11 @@ turning every link into background work.
 The framework-specific problem is larger than generic URL prefetching:
 
 ```txt
-typed route -> route module -> page payload -> query record deltas -> browser reuse
+typed route -> route module -> page payload -> browser reuse
 ```
 
 Generic prefetching libraries can help with heuristics, but they cannot decide
-which Resumable route payloads, Qwik symbols, or query records are safe and
-useful to fetch.
+which Resumable route payloads or Qwik symbols are safe and useful to fetch.
 
 ## Draft Action Items
 
@@ -82,13 +81,13 @@ as separate lanes.
 
 ```txt
 Link SPA prefetch:
-  Resumable owns route modules, SPA page payloads, query deltas, and reuse.
+  Resumable owns route modules, SPA page payloads, and route-level reuse.
 
 Browser document speculation:
   The browser owns document prefetch/prerender when a normal navigation is safe.
 ```
 
-The SPA lane is core to Resumable. It is route-aware, query-aware, and
+The SPA lane is core to Resumable. It is route-aware, Qwik-aware, and
 framework-specific.
 
 The browser document speculation lane is a future enhancement. It may use the
@@ -98,7 +97,7 @@ browser-level prerender.
 
 The two lanes should not be mixed casually. A `Link` prefetch should not
 secretly full-prerender a document, and a browser speculation rule should not
-pretend it has populated Resumable's internal query cache.
+pretend it has populated application data fetched through Nitro endpoints.
 
 ## Why Not Use A Library In Core?
 
@@ -112,8 +111,8 @@ pretend it has populated Resumable's internal query cache.
 - prefetch URLs with optional limits and throttling
 
 That maps well to static document prefetching, but Resumable needs a
-route-aware scheduler that can fetch route modules, SPA payloads, and query
-deltas without sending data the browser already has.
+route-aware scheduler that can fetch route modules and SPA payloads without
+inventing a framework-owned data cache.
 
 ### instant.page
 
@@ -126,7 +125,7 @@ deltas without sending data the browser already has.
 - fallback behavior for slow connections or data saver
 
 That timing model is valuable, but the library prefetches pages, not Resumable
-route payloads and query deltas.
+route payloads.
 
 ### ForesightJS
 
@@ -249,13 +248,11 @@ A link prefetch may need:
 - the generated route manifest entry
 - the route module or Qwik symbols needed for the destination
 - the SPA page payload endpoint
-- query records needed by the destination
-- only missing, stale, or newer query records
 
 Core rule from the data spec still applies:
 
 ```txt
-Send query deltas, not a dehydrated client cache.
+Do not attach framework-owned data records to page payloads.
 ```
 
 ## Default Behavior
@@ -327,23 +324,21 @@ These items are not worth doing now:
 - Default-on prefetching.
 - A public `discover` prop.
 
-## Interaction With Query Records
+## Interaction With Data
 
-Prefetching should reuse the browser query cache from the data fetching spec.
+Prefetching should not depend on a Resumable-owned data cache.
 
 Draft behavior:
 
-- If a destination needs a fresh query record already present in the browser,
-  do not request it again.
-- If a destination needs a missing query record, include it in the page payload
-  delta.
-- If a destination needs a stale query record, request a newer record.
-- If a mutation refreshes a query, invalidate or refresh matching prefetched
-  payloads.
-- Failed query records need a separate policy before implementation.
+- Resumable may prefetch route modules and page payloads for SPA navigation.
+- Data fetched through Nitro API routes follows normal HTTP, Nitro, and browser
+  cache semantics.
+- Resumable should not attach framework data records to prefetch payloads.
+- Mutations posted to Nitro endpoints do not trigger a framework-owned refresh
+  protocol.
 
-This file does not decide whether Resumable exposes a public query prefetch API.
-The first path should be `Link` page-payload prefetching.
+This file does not define a public data prefetch API. The first path should be
+`Link` page-payload prefetching.
 
 ## Future Smart Prefetch
 
@@ -381,7 +376,7 @@ can answer:
 - How much waste does `viewport` create in lists and docs nav?
 - Does prefetching route payloads duplicate Qwik's own symbol prefetching?
 - Can in-flight prefetch promotion reliably reduce click-to-render delay?
-- Do query deltas stay smaller than full page cache hydration?
+- Does page-payload prefetch stay separate from Nitro-owned data fetching?
 - Does the scheduler respect reduced-data and slow-connection constraints?
 
 ## Promotion Checklist

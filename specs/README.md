@@ -55,9 +55,9 @@ Resumable examples. Resumable docs and generated code should use
   Vite+ command surface, and CLI architecture.
 - [`TYPED_ROUTING.md`](./TYPED_ROUTING.md): typed anchors, `Link`, route type
   generation, generated declarations, JSX lowering, and navigation acceptance.
-- [`DATA_FETCHING.md`](./DATA_FETCHING.md): future data layer direction for
-  `schema`, `query$`, `action$`, native typed forms, query records, cache
-  semantics, and SPA reuse.
+- [`DATA_FETCHING.md`](./DATA_FETCHING.md): permanent Nitro-owned data
+  fetching boundary for API routes, middleware, forms, validation, caching, and
+  storage.
 
 ## Exploratory Drafts
 
@@ -92,7 +92,6 @@ The specs were reorganized into this folder together. During the move:
 - Generated app config examples were aligned on `vite-plus`.
 - CLI wording was aligned on `Starter` instead of `Template`.
 - Project/runtime format and starter choice were kept as separate CLI axes.
-- Data fetching remains design direction and prototype scope, not first
-  milestone implementation scope.
+- Data fetching is Nitro-owned instead of a future Resumable data layer.
 - Implementation agents must consult local Qwik `build/v2`, grep MCP research,
   and Nitro v3 docs before changing Qwik/Nitro-facing implementation details.

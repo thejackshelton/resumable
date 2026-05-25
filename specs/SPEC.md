@@ -153,10 +153,10 @@ Resumable v0 should not include:
 - A new server runtime abstraction over Nitro.
 - Resumable-specific API or middleware wrapper functions such as `defineApi`,
   `api$`, `defineResumableMiddleware`, or `middleware$`.
+- A Resumable-owned data-fetching API, server-function transport, framework
+  data cache, mutation refresh model, or typed form action transport.
 - A wrapper over Qwik's Vite plugin or Qwik compiler options.
 - AI-specific framework primitives.
-- A data-loading API unless it is added intentionally after the route contract
-  is stable.
 
 ## Canonical App Shape
 
@@ -248,6 +248,8 @@ API boundary:
 ```txt
 qwik()       -> Qwik compiler, optimizer, and resumability transforms
 resumable()  -> pages/, route manifest, Nitro renderer, and middleware glue
+api/         -> Nitro data endpoints
+middleware/  -> Nitro request context
 nitro: {}    -> native app-level Nitro config
 ```
 
@@ -1487,8 +1489,8 @@ When in doubt, expose the Nitro behavior rather than creating a Resumable alias.
 Decision for v0: Resumable should let users use Nitro directly for API routes,
 middleware, route rules, runtime config, storage, caching, and deployment
 behavior. Resumable should only add abstractions when the behavior is genuinely
-Qwik/page-specific, such as page routing, document shell handling, or future
-query/action APIs that integrate with Qwik resumability.
+Qwik/page-specific, such as page routing, document shell handling, typed route
+declarations, or SPA navigation. Data fetching remains Nitro-owned.
 
 ## Docs Site Direction
 
@@ -1499,6 +1501,7 @@ Primary docs pages should start with the working mental model:
 ```txt
 document.tsx customizes the document shell.
 pages/ maps to routes.
+data fetching is Nitro.
 api/ maps to Nitro API routes.
 layouts are components.
 middleware is Nitro-native.
@@ -1513,6 +1516,7 @@ Suggested initial docs:
 - Pages and Routing
 - Composed MDX
 - Navigation and Typed Routing
+- Data With Nitro
 - API Routes
 - Layouts
 - Middleware

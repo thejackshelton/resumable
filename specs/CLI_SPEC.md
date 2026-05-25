@@ -519,13 +519,9 @@ files.
 
 ### Data
 
-Do not show `Data` as a default starter choice until `query$`, `action$`,
-`schema`, native typed forms, and the SPA/SSR transport protocol are
-implemented.
-
-When the data layer is ready, prefer making data examples part of the
-`Full-stack` starter or a dedicated example app rather than adding another
-default prompt option.
+Do not add a separate `Data` starter. Data fetching is Nitro-owned, so examples
+that need server data belong in the `Full-stack` starter or a dedicated example
+app using top-level `api/` and `middleware/`.
 
 ## Default Starter
 
