@@ -117,6 +117,8 @@ async function writeProject() {
   );
 
   writeFileSync(documentPath, documentSource());
+  writeFileSync(resolve(projectRoot, "pages/index.tsx"), defaultPageSource());
+  writeFileSync(resolve(projectRoot, "pages/about.tsx"), defaultPageSource());
   writeFileSync(pagePath, defaultPageSource());
   writeFileSync(newPagePath, defaultPageSource());
   writeFileSync(sectionPagePath, defaultPageSource());
@@ -186,6 +188,13 @@ async function runProof() {
       defaultPageSource(),
       "props.status",
       "status"
+    );
+    const hrefCompletion = await completionAtText(
+      client,
+      pagePath,
+      defaultPageSource(),
+      'href="',
+      {}
     );
 
     notify(client, "open", {
@@ -274,6 +283,7 @@ async function runProof() {
       urlQuickInfo: summarizeQuickInfo(urlQuickInfo.body),
       hrefQuickInfo: summarizeQuickInfo(hrefQuickInfo.body),
       statusQuickInfo: summarizeQuickInfo(statusQuickInfo.body),
+      nativeAnchorHrefCompletion: summarizeCompletion(hrefCompletion.body),
       documentPropsCompletion: summarizeCompletion(documentPropsCompletion.body),
       documentParamsCompletion: summarizeCompletion(documentParamsCompletion.body),
       documentDiagnostics: summarizeDiagnostics(documentDiagnostics.body ?? []),
@@ -464,6 +474,13 @@ function summarizeCompletion(body) {
     hasSlug: names.includes("slug"),
     hasNew: names.includes("new"),
     hasSection: names.includes("section"),
+    hasHomeHref: names.includes("/"),
+    hasAboutHref: names.includes("/about"),
+    hasBlogPattern: names.includes("/blog/[slug]"),
+    hasDocsPattern: names.includes("/docs/[...slug]"),
+    hasBlogPatternReplacementSpan: entries.some(
+      (entry) => entry.name === "/blog/[slug]" && entry.replacementSpan
+    ),
     firstNames: names.slice(0, 12)
   };
 }
@@ -524,6 +541,17 @@ function assertProof(result, proofLogPath) {
     throw new Error("tsserver plugin did not expose a typed props.status hover.");
   }
 
+  if (
+    !result.nativeAnchorHrefCompletion.hasBlogPattern ||
+    !result.nativeAnchorHrefCompletion.hasHomeHref ||
+    !result.nativeAnchorHrefCompletion.hasAboutHref ||
+    !result.nativeAnchorHrefCompletion.hasBlogPatternReplacementSpan
+  ) {
+    throw new Error(
+      "tsserver plugin did not return dynamic route pattern completions for native anchor href."
+    );
+  }
+
   if (result.srcPagesCompletion.hasSlug) {
     throw new Error("tsserver plugin should not complete src/pages route params.");
   }
@@ -578,7 +606,7 @@ export default component$((props) => {
   const status = props.status;
   props.
   props.params.
-  return <article>{slug}{href}{status}</article>;
+  return <article><a href="" />{slug}{href}{status}</article>;
 });
 `;
 }

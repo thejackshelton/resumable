@@ -9,6 +9,7 @@ const pagesDir = resolve(fixtureRoot, "pages");
 const blogPagePath = resolve(pagesDir, "blog/[slug].tsx");
 const newBlogPagePath = resolve(pagesDir, "blog/[new].tsx");
 const aboutPagePath = resolve(pagesDir, "about.tsx");
+const statusPagePath = resolve(pagesDir, "500.tsx");
 const sectionPagePath = resolve(pagesDir, "[section].tsx");
 const documentPath = resolve(fixtureRoot, "document.tsx");
 const srcDocumentPath = resolve(fixtureRoot, "src/document.tsx");
@@ -158,6 +159,33 @@ const nativeHints = `const rounded = Math.
 changeDocument(blogPagePath, nativeHints);
 const nativeMathCompletion = completionAtText(blogPagePath, nativeHints, "Math.");
 
+const routeHrefSource = `import { component$ } from "@qwik.dev/core";
+
+export default component$((props) => {
+  const pathname = props.url.pathname;
+  return <a href="">{pathname}</a>;
+});
+`;
+
+openDocument(statusPagePath, routeHrefSource);
+const routeHrefCompletion = completionAtText(
+  statusPagePath,
+  routeHrefSource,
+  'href="',
+  {}
+);
+
+const anchorPropSource = `import { component$ } from "@qwik.dev/core";
+
+export default component$((props) => {
+  const pathname = props.url.pathname;
+  return <a href="/about" on>{pathname}</a>;
+});
+`;
+
+changeDocument(statusPagePath, anchorPropSource);
+const anchorPropCompletion = completionAtText(statusPagePath, anchorPropSource, " on");
+
 const namedDefault = `import { component$ } from "@qwik.dev/core";
 
 const Page = component$((props) => {
@@ -294,6 +322,8 @@ const result = {
   defaultPageStatusQuickInfo: summarizeQuickInfo(defaultPageStatusQuickInfo),
   defaultPageSyntaxDiagnostic: summarizeDiagnostic(defaultPageSyntaxDiagnostic),
   nativeTypeScriptCompletion: summarizeCompletion(nativeMathCompletion),
+  nativeAnchorHrefCompletion: summarizeCompletion(routeHrefCompletion),
+  nativeAnchorPropCompletion: summarizeCompletion(anchorPropCompletion),
   namedDefaultPageProps: summarizeCompletion(namedDefaultCompletion),
   staticAboutPageParamsControl: summarizeCompletion(aboutCompletion),
   notDefaultExportControl: summarizeCompletion(notDefaultCompletion),
@@ -368,10 +398,29 @@ function summarizeCompletion(response) {
     hasHref: labels.includes("href"),
     hasPathname: labels.includes("pathname"),
     hasSearch: labels.includes("search"),
+    hasHomeHref: labels.includes("/"),
+    hasAboutHref: labels.includes("/about"),
+    hasBlogTestHref: labels.includes("/blog/test"),
+    hasBlogPattern: labels.includes("/blog/[slug]"),
+    hasDocsPattern: labels.includes("/docs/[...slug]"),
+    hasBlogPatternReplacementSpan: entries.some(
+      (entry) => entry.name === "/blog/[slug]" && entry.replacementSpan
+    ),
+    hasOnClick: labels.includes("onClick$"),
+    hasOnInput: labels.includes("onInput$"),
+    hasRel: labels.includes("rel"),
+    hasTarget: labels.includes("target"),
+    hasOnClickReplacementSpan: entries.some(
+      (entry) => entry.name === "onClick$" && entry.replacementSpan
+    ),
+    hasTargetReplacementSpan: entries.some(
+      (entry) => entry.name === "target" && entry.replacementSpan
+    ),
     firstLabels: labels.slice(0, 12),
     items: entries.slice(0, 12).map((entry) => ({
       name: entry.name,
       kind: entry.kind,
+      replacementSpan: entry.replacementSpan,
       sourceDisplay: entry.sourceDisplay?.map((part) => part.text).join("")
     }))
   };
@@ -460,6 +509,37 @@ function assertProof(proofResult) {
 
   if (!proofResult.nativeTypeScriptCompletion.hasAbs) {
     throw new Error("TS plugin did not preserve native TypeScript Math completions.");
+  }
+
+  if (
+    !proofResult.nativeAnchorHrefCompletion.hasBlogPattern ||
+    !proofResult.nativeAnchorHrefCompletion.hasDocsPattern ||
+    !proofResult.nativeAnchorHrefCompletion.hasHomeHref ||
+    !proofResult.nativeAnchorHrefCompletion.hasAboutHref ||
+    !proofResult.nativeAnchorHrefCompletion.hasBlogTestHref ||
+    !proofResult.nativeAnchorHrefCompletion.hasBlogPatternReplacementSpan
+  ) {
+    throw new Error(
+      "TS plugin did not provide dynamic route pattern completions for native anchor href."
+    );
+  }
+
+  if (
+    !proofResult.nativeAnchorPropCompletion.hasOnClick ||
+    !proofResult.nativeAnchorPropCompletion.hasOnInput ||
+    !proofResult.nativeAnchorPropCompletion.hasRel ||
+    !proofResult.nativeAnchorPropCompletion.hasTarget
+  ) {
+    throw new Error("TS plugin did not preserve native Qwik anchor prop completions.");
+  }
+
+  if (
+    !proofResult.nativeAnchorPropCompletion.hasOnClickReplacementSpan ||
+    !proofResult.nativeAnchorPropCompletion.hasTargetReplacementSpan
+  ) {
+    throw new Error(
+      "Native anchor prop completions should include replacement spans for editors."
+    );
   }
 
   if (proofResult.staticAboutPageParamsControl.hasSlug) {

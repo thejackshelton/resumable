@@ -1,7 +1,6 @@
 import { component$ } from "@qwik.dev/core";
-import type { PageProps } from "@resumable.dev/core";
 
-export default component$((props: PageProps) => {
+export default component$((props) => {
   return (
     <div>
       <h1>500</h1>
@@ -10,6 +9,7 @@ export default component$((props: PageProps) => {
       <p>Search: {props.url.search}</p>
       <p>Href: {props.url.href}</p>
       <p>Params: {Object.keys(props.params).length}</p>
+      <a href="/"></a>
     </div>
   );
 });

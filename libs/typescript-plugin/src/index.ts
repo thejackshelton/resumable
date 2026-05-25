@@ -96,11 +96,23 @@ function init(modules: { typescript: TypeScript }): ts.server.PluginModule {
       ) => {
         const transform = transformFor(fileName);
         const generatedPosition = toGeneratedPosition(transform, position);
-        return languageService.getCompletionsAtPosition(
+        const completions = languageService.getCompletionsAtPosition(
           fileName,
           generatedPosition,
           options,
           formattingSettings
+        );
+
+        return withRouteHrefCompletions(
+          typeScript,
+          info,
+          languageService,
+          originalGetScriptSnapshot,
+          pagesDir,
+          fileName,
+          position,
+          generatedPosition,
+          completions
         );
       };
 
@@ -254,6 +266,417 @@ function toGeneratedPosition(
   }
 
   return position + transform.insertedLength;
+}
+
+function withRouteHrefCompletions(
+  typeScript: TypeScript,
+  info: ts.server.PluginCreateInfo,
+  languageService: ts.LanguageService,
+  getScriptSnapshot: ((fileName: string) => ts.IScriptSnapshot | undefined) | undefined,
+  pagesDir: string,
+  fileName: string,
+  position: number,
+  generatedPosition: number,
+  completions: ts.CompletionInfo | undefined
+): ts.CompletionInfo | undefined {
+  const snapshot = getScriptSnapshot?.(fileName);
+  const sourceText = snapshot?.getText(0, snapshot.getLength());
+  const replacementSpan = sourceText
+    ? nativeAnchorHrefReplacementSpan(typeScript, fileName, sourceText, position)
+    : undefined;
+  if (!replacementSpan) {
+    return sourceText
+      ? withNativeAnchorPropCompletions(
+          typeScript,
+          languageService,
+          fileName,
+          sourceText,
+          position,
+          generatedPosition,
+          completions
+        )
+      : completions;
+  }
+
+  const baseCompletions = completions ?? emptyCompletionInfo();
+  const routeHrefs = routeHrefCompletions(typeScript, info, pagesDir);
+  const routeHrefSet = new Set(routeHrefs);
+  const routeEntries = routeHrefs.map(
+    (href): ts.CompletionEntry => ({
+      name: href,
+      kind: typeScript.ScriptElementKind.string,
+      kindModifiers: "",
+      sortText: `0 ${href}`,
+      replacementSpan
+    })
+  );
+
+  if (routeEntries.length === 0) {
+    return completions;
+  }
+
+  return {
+    ...baseCompletions,
+    entries: [
+      ...routeEntries,
+      ...baseCompletions.entries.filter((entry) => !routeHrefSet.has(entry.name))
+    ]
+  };
+}
+
+function withNativeAnchorPropCompletions(
+  typeScript: TypeScript,
+  languageService: ts.LanguageService,
+  fileName: string,
+  sourceText: string,
+  position: number,
+  generatedPosition: number,
+  completions: ts.CompletionInfo | undefined
+): ts.CompletionInfo | undefined {
+  const replacementSpan = nativeAnchorAttributeNameReplacementSpan(
+    typeScript,
+    fileName,
+    sourceText,
+    position
+  );
+  if (!replacementSpan) {
+    return completions;
+  }
+
+  const baseCompletions = completions ?? emptyCompletionInfo();
+  const existingNames = new Set(baseCompletions.entries.map((entry) => entry.name));
+  const entries = baseCompletions.entries.map((entry) =>
+    entry.replacementSpan ? entry : { ...entry, replacementSpan }
+  );
+
+  const anchorProps = nativeAnchorPropEntries(
+    typeScript,
+    languageService,
+    fileName,
+    generatedPosition,
+    existingNames,
+    replacementSpan
+  );
+
+  return {
+    ...baseCompletions,
+    entries: [...entries, ...anchorProps]
+  };
+}
+
+function emptyCompletionInfo(): ts.CompletionInfo {
+  return {
+    isGlobalCompletion: false,
+    isMemberCompletion: false,
+    isNewIdentifierLocation: false,
+    entries: []
+  };
+}
+
+function nativeAnchorHrefReplacementSpan(
+  typeScript: TypeScript,
+  fileName: string,
+  sourceText: string,
+  position: number
+): ts.TextSpan | undefined {
+  const extension = extname(fileName);
+  if (extension !== ".tsx" && extension !== ".jsx") {
+    return undefined;
+  }
+
+  const sourceFile = typeScript.createSourceFile(
+    fileName,
+    sourceText,
+    typeScript.ScriptTarget.Latest,
+    true,
+    extension === ".jsx" ? typeScript.ScriptKind.JSX : typeScript.ScriptKind.TSX
+  );
+  let replacementSpan: ts.TextSpan | undefined;
+
+  const visit = (node: ts.Node) => {
+    if (replacementSpan || position < node.getFullStart() || position > node.getEnd()) {
+      return;
+    }
+
+    if (
+      typeScript.isJsxAttribute(node) &&
+      typeScript.isIdentifier(node.name) &&
+      node.name.text === "href" &&
+      node.initializer &&
+      typeScript.isStringLiteral(node.initializer) &&
+      isNativeAnchorAttribute(typeScript, node)
+    ) {
+      const valueStart = node.initializer.getStart(sourceFile) + 1;
+      const valueEnd = node.initializer.getEnd() - 1;
+      if (position >= valueStart && position <= valueEnd) {
+        replacementSpan = { start: valueStart, length: valueEnd - valueStart };
+      }
+      return;
+    }
+
+    typeScript.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return replacementSpan;
+}
+
+function nativeAnchorAttributeNameReplacementSpan(
+  typeScript: TypeScript,
+  fileName: string,
+  sourceText: string,
+  position: number
+): ts.TextSpan | undefined {
+  const sourceFile = createJsxSourceFile(typeScript, fileName, sourceText);
+  if (!sourceFile) {
+    return undefined;
+  }
+
+  let replacementSpan: ts.TextSpan | undefined;
+  const visit = (node: ts.Node) => {
+    if (replacementSpan || position < node.getFullStart() || position > node.getEnd()) {
+      return;
+    }
+
+    if (isNativeAnchorElement(typeScript, node)) {
+      const tagEnd = node.tagName.getEnd();
+      if (position > tagEnd && position <= node.getEnd()) {
+        const isAttributeNamePosition = !isInsideJsxAttributeValue(
+          typeScript,
+          sourceFile,
+          node.attributes,
+          position
+        );
+        if (isAttributeNamePosition) {
+          const start = attributeNamePrefixStart(sourceText, tagEnd, position);
+          const prefixLength = position - start;
+          replacementSpan = {
+            start,
+            length: prefixLength === 0 && sourceText[position] === " " ? 1 : prefixLength
+          };
+        }
+      }
+      return;
+    }
+
+    typeScript.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return replacementSpan;
+}
+
+function attributeNamePrefixStart(sourceText: string, tagEnd: number, position: number) {
+  let start = position;
+  while (start > tagEnd && isJsxAttributeNameCharacter(sourceText[start - 1])) {
+    start--;
+  }
+
+  return start;
+}
+
+function isJsxAttributeNameCharacter(char: string | undefined) {
+  return Boolean(char && /[$\w:-]/.test(char));
+}
+
+function isInsideJsxAttributeValue(
+  typeScript: TypeScript,
+  sourceFile: ts.SourceFile,
+  attributes: ts.JsxAttributes,
+  position: number
+) {
+  return attributes.properties.some((property) => {
+    if (!typeScript.isJsxAttribute(property) || !property.initializer) {
+      return false;
+    }
+
+    return (
+      position >= property.initializer.getStart(sourceFile) &&
+      position <= property.initializer.getEnd()
+    );
+  });
+}
+
+function nativeAnchorPropEntries(
+  typeScript: TypeScript,
+  languageService: ts.LanguageService,
+  fileName: string,
+  generatedPosition: number,
+  existingNames: ReadonlySet<string>,
+  replacementSpan: ts.TextSpan
+) {
+  const program = languageService.getProgram?.();
+  const sourceFile = program?.getSourceFile(fileName);
+  if (!program || !sourceFile) {
+    return [];
+  }
+
+  const anchor = nativeAnchorElementAtPosition(typeScript, sourceFile, generatedPosition);
+  if (!anchor) {
+    return [];
+  }
+
+  const checker = program.getTypeChecker();
+  const anchorType = checker.getContextualType(anchor.attributes);
+  if (!anchorType) {
+    return [];
+  }
+
+  return anchorType
+    .getProperties()
+    .map((symbol): ts.CompletionEntry | undefined => {
+      if (!symbol.name || symbol.name.includes("__@") || existingNames.has(symbol.name)) {
+        return undefined;
+      }
+
+      return {
+        name: symbol.name,
+        kind: typeScript.ScriptElementKind.memberVariableElement,
+        kindModifiers: "",
+        sortText: "12",
+        replacementSpan
+      };
+    })
+    .filter((entry): entry is ts.CompletionEntry => Boolean(entry));
+}
+
+function nativeAnchorElementAtPosition(
+  typeScript: TypeScript,
+  sourceFile: ts.SourceFile,
+  position: number
+) {
+  let anchor: ts.JsxOpeningElement | ts.JsxSelfClosingElement | undefined;
+
+  const visit = (node: ts.Node) => {
+    if (anchor || position < node.getFullStart() || position > node.getEnd()) {
+      return;
+    }
+
+    if (isNativeAnchorElement(typeScript, node)) {
+      anchor = node;
+      return;
+    }
+
+    typeScript.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return anchor;
+}
+
+function isNativeAnchorAttribute(typeScript: TypeScript, attribute: ts.JsxAttribute) {
+  const attributes = attribute.parent;
+  const element = attributes.parent;
+
+  return isNativeAnchorElement(typeScript, element);
+}
+
+function isNativeAnchorElement(
+  typeScript: TypeScript,
+  node: ts.Node
+): node is ts.JsxOpeningElement | ts.JsxSelfClosingElement {
+  return (
+    (typeScript.isJsxOpeningElement(node) || typeScript.isJsxSelfClosingElement(node)) &&
+    typeScript.isIdentifier(node.tagName) &&
+    node.tagName.text === "a"
+  );
+}
+
+function createJsxSourceFile(
+  typeScript: TypeScript,
+  fileName: string,
+  sourceText: string
+): ts.SourceFile | undefined {
+  const extension = extname(fileName);
+  if (extension !== ".tsx" && extension !== ".jsx") {
+    return undefined;
+  }
+
+  return typeScript.createSourceFile(
+    fileName,
+    sourceText,
+    typeScript.ScriptTarget.Latest,
+    true,
+    extension === ".jsx" ? typeScript.ScriptKind.JSX : typeScript.ScriptKind.TSX
+  );
+}
+
+function routeHrefCompletions(
+  typeScript: TypeScript,
+  info: ts.server.PluginCreateInfo,
+  pagesDir: string
+) {
+  const hrefs = new Set<string>();
+
+  for (const pageFileName of routeCompletionPageFileNames(typeScript, info, pagesDir)) {
+    const relativeFileId = relative(pagesDir, pageFileName);
+    if (!isRelativeInsidePath(relativeFileId)) {
+      continue;
+    }
+
+    const fileId = normalizeRouteFileId(relativeFileId);
+    if (!PAGE_EXTENSIONS.has(extname(fileId))) {
+      continue;
+    }
+
+    const href = routeHrefCompletion(typeScript, fileId);
+    if (href) {
+      hrefs.add(href);
+    }
+  }
+
+  return Array.from(hrefs).toSorted();
+}
+
+function routeHrefCompletion(typeScript: TypeScript, fileId: string) {
+  if (isReservedOrUnsupportedPage(fileId)) {
+    return undefined;
+  }
+
+  return routeFromFileId(typeScript, fileId).pattern;
+}
+
+function isReservedOrUnsupportedPage(fileId: string) {
+  const extension = extname(fileId);
+  const withoutExtension = fileId.slice(0, -extension.length);
+  const routeFile = normalize(withoutExtension);
+  const segments = routeFile === "." ? [] : routeFile.split("/").filter(Boolean);
+
+  return (
+    segments[0] === "api" ||
+    (segments.length === 1 && (segments[0] === "404" || segments[0] === "500"))
+  );
+}
+
+function routeCompletionPageFileNames(
+  typeScript: TypeScript,
+  info: ts.server.PluginCreateInfo,
+  pagesDir: string
+) {
+  const fileNames = new Set(projectFileNames(info));
+
+  for (const fileName of readPageFileNames(typeScript, pagesDir)) {
+    fileNames.add(fileName);
+  }
+
+  return fileNames;
+}
+
+function readPageFileNames(typeScript: TypeScript, pagesDir: string) {
+  if (typeScript.sys.directoryExists && !typeScript.sys.directoryExists(pagesDir)) {
+    return [];
+  }
+
+  try {
+    return typeScript.sys.readDirectory(
+      pagesDir,
+      Array.from(PAGE_EXTENSIONS),
+      undefined,
+      undefined
+    );
+  } catch {
+    return [];
+  }
 }
 
 function toOriginalPosition(
