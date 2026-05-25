@@ -11,6 +11,7 @@ const PAGE_EXTENSION = ".tsx";
 
 export interface RouteManifestRoute {
   readonly pathname: string;
+  readonly pattern: string;
   readonly file: string;
   readonly params: readonly RouteManifestParam[];
 }
@@ -137,6 +138,7 @@ function normalizePage(file: string): NormalizedPage {
     rawSegments.pop();
   }
 
+  const pattern = routePathname(rawSegments);
   const segments = rawSegments.map((segment, index) =>
     normalizeSegment(segment, index, rawSegments, relativeFile)
   );
@@ -148,6 +150,7 @@ function normalizePage(file: string): NormalizedPage {
     kind: "route",
     route: {
       pathname: routePathname(pathnameSegments),
+      pattern,
       identity: routePathname(identitySegments),
       params,
       file: relativeFile,
@@ -237,6 +240,7 @@ function assertNoRouteConflicts(routes: readonly InternalRouteManifestRoute[]) {
 function toPublicRoute(route: InternalRouteManifestRoute): RouteManifestRoute {
   return {
     pathname: route.pathname,
+    pattern: route.pattern,
     params: route.params,
     file: route.file
   };

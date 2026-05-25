@@ -4,6 +4,8 @@ dist
 .output
 .nitro
 .vite
+.resumable
+resumable-env.d.ts
 .turbo
 .DS_Store
 *.log

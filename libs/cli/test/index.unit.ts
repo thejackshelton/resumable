@@ -112,9 +112,9 @@ describe("CreateProgram", () => {
       vite: expect.any(String),
       "vite-plus": expect.any(String)
     });
-    await expect(readFile(join(appDir, "tsconfig.json"), "utf-8")).resolves.toContain(
-      '"name": "@resumable.dev/typescript-plugin"'
-    );
+    const tsconfigJson = await readFile(join(appDir, "tsconfig.json"), "utf-8");
+    expect(tsconfigJson).toContain('"name": "@resumable.dev/typescript-plugin"');
+    expect(tsconfigJson).toContain('"resumable-env.d.ts"');
     expect(viteConfig).toContain('import { defineConfig } from "vite-plus";');
     expect(viteConfig).toContain('import { qwik } from "qwik-bundler/vite";');
     expect(viteConfig).toContain('import { resumable } from "@resumable.dev/core/vite";');

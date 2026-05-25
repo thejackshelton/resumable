@@ -41,6 +41,7 @@ describe("resumable Vite plugin", () => {
     const names = plugins.map((plugin) => plugin.name);
 
     expect(names).toContain("resumable:vite");
+    expect(names).toContain("resumable:typegen");
     expect(names).toContain("resumable:html");
     expect(names).toContain("nitro:init");
     expect(names).not.toContain("vite-plugin-qwik");
@@ -382,6 +383,19 @@ describe("resumable Vite plugin", () => {
     expect(source).toContain("sortUserPlugins");
     expect(source).not.toContain("function flattenPlugins");
     expect(source).not.toContain("...nitroPlugins");
+  });
+
+  it("generates route type files through the Vite host filesystem", async () => {
+    const source = await readFile(
+      new URL("../../src/vite/route-typegen.ts", import.meta.url),
+      "utf-8"
+    );
+
+    expect(source).toContain("this.fs");
+    expect(source).toContain("createRouteTypesDeclaration");
+    expect(source).toContain("routeTypesEnvDeclaration");
+    expect(source).not.toContain('"node:');
+    expect(source).not.toContain("'node:");
   });
 
   it("uses Vite environment hooks instead of name-specific environment input helpers", async () => {

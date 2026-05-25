@@ -10,6 +10,7 @@ import {
 } from "vite";
 import { decodePath, parseURL } from "ufo";
 import { htmlTransformPlugin } from "./html-transform.ts";
+import { routeTypegenPlugin } from "./route-typegen.ts";
 
 const QWIK_CORE_PACKAGE_ID = "@qwik.dev/core";
 const QWIK_CORE_IMPORT_RE = /^@qwik\.dev\/core(?:\/.*)?$/;
@@ -36,6 +37,7 @@ export function resumable(_options: ResumableOptions = {}): PluginOption[] {
 
   return [
     configPlugin(nitroPlugins),
+    routeTypegenPlugin(),
     htmlTransformPlugin(),
     virtualModulesPlugin(),
     nitroPlugins

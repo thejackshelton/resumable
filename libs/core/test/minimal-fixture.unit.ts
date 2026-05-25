@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { join } from "pathe";
 import { describe, expect, it } from "vite-plus/test";
 import { createBuilder } from "vite";
+import ts from "typescript";
 
 const fixtureUrl = new URL("../../../fixtures/minimal/", import.meta.url);
 const fixtureRoot = fileURLToPath(fixtureUrl);
@@ -229,6 +230,26 @@ describe("Resumable fixtures", () => {
     }
   });
 
+  it("generates route declarations that project TypeScript discovers without route imports", async () => {
+    const typedRoutesFixtureUrl = await createTemporaryTypedRoutesFixture();
+
+    try {
+      await buildFixture(typedRoutesFixtureUrl);
+
+      await expect(
+        readFile(new URL("resumable-env.d.ts", typedRoutesFixtureUrl), "utf-8")
+      ).resolves.toBe('/// <reference path="./.resumable/types/routes.d.ts" />\n');
+      await expect(
+        readFile(new URL(".resumable/types/routes.d.ts", typedRoutesFixtureUrl), "utf-8")
+      ).resolves.toContain("export type ResumableAnchorProps =");
+
+      await expectProjectTypecheck(typedRoutesFixtureUrl);
+      await expectProjectAnchorCompletions(typedRoutesFixtureUrl);
+    } finally {
+      await rm(typedRoutesFixtureUrl, { recursive: true, force: true });
+    }
+  });
+
   it("keeps Nitro middleware, public assets, and routeRules native around page rendering", async () => {
     const nitroFixtureUrl = await createTemporaryNitroPassthroughFixture();
 
@@ -441,6 +462,119 @@ async function createTemporaryNitroPassthroughFixture() {
   );
 }
 
+async function createTemporaryTypedRoutesFixture() {
+  return createTemporaryFixture(
+    "resumable-typed-routes-",
+    {
+      "pages/index.tsx": pageCode("Typed routes home"),
+      "pages/about.tsx": pageCode("Typed routes about"),
+      "pages/blog/[slug].tsx": pageCode("Typed routes blog"),
+      "pages/completion-proof.tsx": typedRoutesCompletionProofPageCode,
+      "pages/type-proof.tsx": typedRoutesProofPageCode
+    },
+    minimalViteConfig
+  );
+}
+
+async function expectProjectTypecheck(rootUrl: URL) {
+  const root = fileURLToPath(rootUrl);
+  const tsconfigPath = fileURLToPath(new URL("tsconfig.json", rootUrl));
+  const config = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
+  if (config.error) {
+    throw new Error(formatTsDiagnostics([config.error]));
+  }
+
+  const parsed = ts.parseJsonConfigFileContent(
+    config.config,
+    ts.sys,
+    root,
+    {
+      noEmit: true,
+      skipLibCheck: true
+    },
+    tsconfigPath
+  );
+  const program = ts.createProgram(parsed.fileNames, parsed.options);
+  const diagnostics = ts.getPreEmitDiagnostics(program);
+
+  expect(formatTsDiagnostics(diagnostics)).toEqual([]);
+}
+
+async function expectProjectAnchorCompletions(rootUrl: URL) {
+  const root = fileURLToPath(rootUrl);
+  const tsconfigPath = fileURLToPath(new URL("tsconfig.json", rootUrl));
+  const config = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
+  if (config.error) {
+    throw new Error(formatTsDiagnostics([config.error]).join("\n"));
+  }
+
+  const parsed = ts.parseJsonConfigFileContent(
+    config.config,
+    ts.sys,
+    root,
+    {
+      noEmit: true,
+      skipLibCheck: true
+    },
+    tsconfigPath
+  );
+  const languageService = ts.createLanguageService({
+    getCompilationSettings: () => parsed.options,
+    getCurrentDirectory: () => root,
+    getDefaultLibFileName: (options) => ts.getDefaultLibFilePath(options),
+    getScriptFileNames: () => parsed.fileNames,
+    getScriptSnapshot(fileName) {
+      const source = ts.sys.readFile(fileName);
+      return source === undefined ? undefined : ts.ScriptSnapshot.fromString(source);
+    },
+    getScriptVersion: () => "0",
+    readDirectory: ts.sys.readDirectory,
+    readFile: ts.sys.readFile,
+    fileExists: ts.sys.fileExists,
+    directoryExists: ts.sys.directoryExists,
+    getDirectories: ts.sys.getDirectories,
+    realpath: ts.sys.realpath
+  });
+
+  const pageUrl = new URL("pages/completion-proof.tsx", rootUrl);
+  const fileName = fileURLToPath(pageUrl);
+  const source = await readFile(pageUrl, "utf-8");
+
+  expectAnchorPropCompletion(languageService, fileName, source, 'href="/about"  />');
+  expectAnchorPropCompletion(
+    languageService,
+    fileName,
+    source,
+    'href="/blog/[slug]" params={{ slug: "hello" }}  />'
+  );
+}
+
+function expectAnchorPropCompletion(
+  languageService: ts.LanguageService,
+  fileName: string,
+  source: string,
+  marker: string
+) {
+  const offset = source.indexOf(marker);
+  if (offset === -1) {
+    throw new Error(`completion marker not found: ${marker}`);
+  }
+
+  const position = offset + marker.indexOf("  />") + 1;
+  const completions = languageService.getCompletionsAtPosition(fileName, position, {});
+  const names = completions?.entries.map((entry) => entry.name) ?? [];
+
+  expect(names).toContain("onClick$");
+  expect(names).toContain("target");
+  expect(names).toContain("rel");
+}
+
+function formatTsDiagnostics(diagnostics: readonly ts.Diagnostic[]) {
+  return diagnostics.map((diagnostic) =>
+    ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")
+  );
+}
+
 async function createTemporaryFixture(
   prefix: string,
   files: Record<string, string>,
@@ -482,7 +616,7 @@ const minimalTsconfigJson = `{
     "strict": true,
     "types": ["vite/client"]
   },
-  "include": ["document.tsx", "document.jsx", "pages", "vite.config.ts"]
+  "include": ["resumable-env.d.ts", "document.tsx", "document.jsx", "pages", "vite.config.ts"]
 }
 `;
 
@@ -565,5 +699,51 @@ const pageCode = (title: string) => `import { component$ } from "@qwik.dev/core"
 
 export default component$(() => {
   return <main>${title}</main>;
+});
+`;
+
+const typedRoutesProofPageCode = `import { component$ } from "@qwik.dev/core";
+
+export default component$(() => {
+  const validAbout = <a href="/about" />;
+  const validBlog = <a href="/blog/[slug]" params={{ slug: "hello" }} />;
+
+  // @ts-expect-error unknown route
+  const missing = <a href="/missing" />;
+
+  // @ts-expect-error dynamic route patterns require params
+  const missingParams = <a href="/blog/[slug]" />;
+
+  // @ts-expect-error dynamic route params must match the route pattern
+  const wrongParams = <a href="/blog/[slug]" params={{ id: "hello" }} />;
+
+  // @ts-expect-error static routes do not accept params
+  const staticParams = <a href="/about" params={{ slug: "hello" }} />;
+
+  return (
+    <nav>
+      {validAbout}
+      {validBlog}
+      {missing}
+      {missingParams}
+      {wrongParams}
+      {staticParams}
+    </nav>
+  );
+});
+`;
+
+const typedRoutesCompletionProofPageCode = `import { component$ } from "@qwik.dev/core";
+
+export default component$(() => {
+  const staticAnchor = <a href="/about"  />;
+  const dynamicAnchor = <a href="/blog/[slug]" params={{ slug: "hello" }}  />;
+
+  return (
+    <nav>
+      {staticAnchor}
+      {dynamicAnchor}
+    </nav>
+  );
 });
 `;

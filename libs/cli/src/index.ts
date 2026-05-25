@@ -510,7 +510,7 @@ function tsconfig() {
       ],
       types: ["vite/client"]
     },
-    include: ["pages", "document.tsx", "vite.config.ts"]
+    include: ["resumable-env.d.ts", "pages", "document.tsx", "vite.config.ts"]
   };
 }
 

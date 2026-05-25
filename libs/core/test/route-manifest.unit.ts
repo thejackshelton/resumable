@@ -50,11 +50,13 @@ describe("route manifest", () => {
       routes: [
         {
           pathname: "/blog/:slug",
+          pattern: "/blog/[slug]",
           file: "pages/blog/[slug].tsx",
           params: [{ name: "slug", kind: "dynamic" }]
         },
         {
           pathname: "/docs/**",
+          pattern: "/docs/[...slug]",
           file: "pages/docs/[...slug].tsx",
           params: [{ name: "slug", kind: "catch-all" }]
         }

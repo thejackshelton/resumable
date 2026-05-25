@@ -14,5 +14,5 @@
       }
     ]
   },
-  "include": ["document.tsx", "pages", "vite.config.ts"]
+  "include": ["resumable-env.d.ts", "document.tsx", "pages", "vite.config.ts"]
 }
