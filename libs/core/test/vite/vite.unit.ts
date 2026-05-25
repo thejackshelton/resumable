@@ -42,6 +42,7 @@ describe("resumable Vite plugin", () => {
 
     expect(names).toContain("resumable:vite");
     expect(names).toContain("resumable:typegen");
+    expect(names).toContain("resumable:anchors");
     expect(names).toContain("resumable:html");
     expect(names).toContain("nitro:init");
     expect(names).not.toContain("vite-plugin-qwik");
@@ -50,14 +51,23 @@ describe("resumable Vite plugin", () => {
 
   it("runs the html transform in normal plugin order", () => {
     const plugins = flattenPlugins([resumable()]);
+    const anchorPlugin = plugins.find((plugin) => plugin.name === "resumable:anchors");
     const htmlPlugin = plugins.find((plugin) => plugin.name === "resumable:html");
 
+    expect(anchorPlugin).toBeDefined();
+    expect(anchorPlugin).not.toHaveProperty("enforce");
+    expect((anchorPlugin?.transform as { order?: string } | undefined)?.order).toBe(
+      "pre"
+    );
     expect(htmlPlugin).toBeDefined();
     expect(htmlPlugin).not.toHaveProperty("enforce");
     expect((htmlPlugin?.transform as { order?: string } | undefined)?.order).toBe("pre");
     expect(plugins.findIndex((plugin) => plugin.name === "resumable:vite")).toBeLessThan(
-      plugins.findIndex((plugin) => plugin.name === "resumable:html")
+      plugins.findIndex((plugin) => plugin.name === "resumable:anchors")
     );
+    expect(
+      plugins.findIndex((plugin) => plugin.name === "resumable:anchors")
+    ).toBeLessThan(plugins.findIndex((plugin) => plugin.name === "resumable:html"));
     expect(plugins.findIndex((plugin) => plugin.name === "resumable:html")).toBeLessThan(
       plugins.findIndex((plugin) => plugin.name === "nitro:init")
     );
@@ -121,6 +131,9 @@ describe("resumable Vite plugin", () => {
     );
     expect(resolveId?.("virtual:resumable/server-entry")).toBe(
       expectedEntryPath("server-entry.ts")
+    );
+    expect(resolveId?.("virtual:resumable/route-href")).toBe(
+      expectedEntryPath("route-href.ts")
     );
     const clientEntrySource = await readFile(
       new URL("../../src/vite/entries/client-entry.ts", import.meta.url),
@@ -197,6 +210,10 @@ describe("resumable Vite plugin", () => {
       "../../lib/entries/server-entry.ts",
       import.meta.url
     );
+    const rawRouteHrefEntryUrl = new URL(
+      "../../lib/entries/route-href.ts",
+      import.meta.url
+    );
     const deletedClientRuntimeOutputUrl = new URL(
       "../../lib/vite/runtime/create-client-entry.mjs",
       import.meta.url
@@ -209,11 +226,13 @@ describe("resumable Vite plugin", () => {
     await expect(access(serverRuntimeOutputUrl)).resolves.toBeUndefined();
     await expect(access(routeRuntimeOutputUrl)).resolves.toBeUndefined();
     await expect(access(rawServerEntryUrl)).resolves.toBeUndefined();
+    await expect(access(rawRouteHrefEntryUrl)).resolves.toBeUndefined();
     await expect(access(deletedClientRuntimeOutputUrl)).rejects.toThrow();
     await expect(access(deletedDocumentModuleLoaderOutputUrl)).rejects.toThrow();
 
     const serverRuntimeOutput = await readFile(serverRuntimeOutputUrl, "utf-8");
     const rawServerEntryOutput = await readFile(rawServerEntryUrl, "utf-8");
+    const rawRouteHrefEntryOutput = await readFile(rawRouteHrefEntryUrl, "utf-8");
 
     expect(serverRuntimeOutput).not.toContain("@qwik.dev/core/jsx-runtime");
     expect(serverRuntimeOutput).not.toContain("@qwik.dev/core/server");
@@ -222,6 +241,7 @@ describe("resumable Vite plugin", () => {
     expect(rawServerEntryOutput).toContain(
       'import.meta.glob(["/document.tsx", "/document.jsx"])'
     );
+    expect(rawRouteHrefEntryOutput).toContain("export function __resumableHref");
   });
 
   it("preserves user top-level nitro config while adding minimal scan defaults", () => {

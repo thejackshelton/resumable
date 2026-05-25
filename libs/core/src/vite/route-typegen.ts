@@ -9,7 +9,7 @@ import {
   routeTypesOutputPath
 } from "../route-types.ts";
 
-type RouteTypegenFileSystem = {
+export type RouteTypegenFileSystem = {
   mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
   readdir(
     path: string,
@@ -19,7 +19,7 @@ type RouteTypegenFileSystem = {
   writeFile(path: string, data: string, options?: { encoding?: "utf8" }): Promise<void>;
 };
 
-type RouteTypegenDirent = {
+export type RouteTypegenDirent = {
   name: string;
   isDirectory(): boolean;
   isFile(): boolean;
@@ -56,7 +56,7 @@ async function writeRouteTypes(fs: RouteTypegenFileSystem, root: string) {
   );
 }
 
-async function discoverPageFiles(fs: RouteTypegenFileSystem, root: string) {
+export async function discoverPageFiles(fs: RouteTypegenFileSystem, root: string) {
   const pagesDir = join(root, "pages");
   const files: string[] = [];
 

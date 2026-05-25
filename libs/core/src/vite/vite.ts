@@ -9,6 +9,7 @@ import {
   type UserConfig
 } from "vite";
 import { decodePath, parseURL } from "ufo";
+import { anchorTransformPlugin } from "./anchor-transform.ts";
 import { htmlTransformPlugin } from "./html-transform.ts";
 import { routeTypegenPlugin } from "./route-typegen.ts";
 
@@ -17,8 +18,9 @@ const QWIK_CORE_IMPORT_RE = /^@qwik\.dev\/core(?:\/.*)?$/;
 const ROUTE_DISCOVERY_ID = "virtual:resumable/routes";
 const CLIENT_ENTRY_ID = "virtual:resumable/client-entry";
 const SERVER_ENTRY_ID = "virtual:resumable/server-entry";
+const ROUTE_HREF_ID = "virtual:resumable/route-href";
 const PUBLIC_VIRTUAL_MODULE_ID_RE =
-  /^virtual:resumable\/(?:routes|client-entry|server-entry)$/;
+  /^virtual:resumable\/(?:routes|client-entry|server-entry|route-href)$/;
 const VITE_PLUGIN_FILE = decodePath(parseURL(import.meta.url).pathname);
 const VIRTUAL_ENTRY_DIR = VITE_PLUGIN_FILE.endsWith(".ts")
   ? join(dirname(VITE_PLUGIN_FILE), "entries")
@@ -27,7 +29,8 @@ const VIRTUAL_ENTRY_DIR = VITE_PLUGIN_FILE.endsWith(".ts")
 const virtualEntryFiles = {
   [ROUTE_DISCOVERY_ID]: "route-discovery.ts",
   [CLIENT_ENTRY_ID]: "client-entry.ts",
-  [SERVER_ENTRY_ID]: "server-entry.ts"
+  [SERVER_ENTRY_ID]: "server-entry.ts",
+  [ROUTE_HREF_ID]: "route-href.ts"
 } as const;
 
 export interface ResumableOptions {}
@@ -38,6 +41,7 @@ export function resumable(_options: ResumableOptions = {}): PluginOption[] {
   return [
     configPlugin(nitroPlugins),
     routeTypegenPlugin(),
+    anchorTransformPlugin(),
     htmlTransformPlugin(),
     virtualModulesPlugin(),
     nitroPlugins

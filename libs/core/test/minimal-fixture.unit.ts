@@ -1,5 +1,14 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  symlink,
+  writeFile
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -250,6 +259,49 @@ describe("Resumable fixtures", () => {
     }
   });
 
+  it("lowers route-pattern native anchors for SSR and client builds", async () => {
+    const anchorFixtureUrl = await createTemporaryAnchorLoweringFixture();
+
+    try {
+      await buildFixture(anchorFixtureUrl);
+
+      const responses = await fetchBuiltSsrServer(anchorFixtureUrl, ["/links"]);
+      const linksResponse = responses.get("/links")!;
+      expect(linksResponse.status).toBe(200);
+      expect(linksResponse.contentType).toContain("text/html");
+      expect(linksResponse.body).toContain('href="/blog/hello%20world"');
+      expect(linksResponse.body).toContain('href="/blog/a%2Fb"');
+      expect(linksResponse.body).toContain('href="/docs/guides/getting%20started"');
+      expect(linksResponse.body).toContain('class="post-link"');
+      expect(linksResponse.body).toContain('data-kind="dynamic"');
+      expect(linksResponse.body).toContain('target="_self"');
+      expect(linksResponse.body).toContain('rel="nofollow"');
+      expect(linksResponse.body).not.toContain("params=");
+
+      const clientOutput = await readBuiltClientOutput(anchorFixtureUrl);
+      expect(clientOutput).toContain("/blog/[slug]");
+      expect(clientOutput).toContain("hello world");
+      expect(clientOutput).toContain("a/b");
+      expect(clientOutput).toContain("getting started");
+      expect(clientOutput).toContain("requires a non-empty catch-all param");
+      expect(clientOutput).not.toContain("params=");
+    } finally {
+      await rm(anchorFixtureUrl, { recursive: true, force: true });
+    }
+  });
+
+  it("fails builds for invalid route-pattern native anchors", async () => {
+    const anchorFixtureUrl = await createTemporaryInvalidAnchorLoweringFixture();
+
+    try {
+      await expect(buildFixture(anchorFixtureUrl)).rejects.toThrow(
+        "Typed route error: /missing/[slug] does not match any route in pages/."
+      );
+    } finally {
+      await rm(anchorFixtureUrl, { recursive: true, force: true });
+    }
+  });
+
   it("keeps Nitro middleware, public assets, and routeRules native around page rendering", async () => {
     const nitroFixtureUrl = await createTemporaryNitroPassthroughFixture();
 
@@ -470,10 +522,59 @@ async function createTemporaryTypedRoutesFixture() {
       "pages/about.tsx": pageCode("Typed routes about"),
       "pages/blog/[slug].tsx": pageCode("Typed routes blog"),
       "pages/completion-proof.tsx": typedRoutesCompletionProofPageCode,
-      "pages/type-proof.tsx": typedRoutesProofPageCode
+      "type-proof.tsx": typedRoutesProofPageCode
     },
     minimalViteConfig
   );
+}
+
+async function createTemporaryAnchorLoweringFixture() {
+  return createTemporaryFixture(
+    "resumable-anchor-lowering-",
+    {
+      "pages/index.tsx": pageCode("Anchor lowering home"),
+      "pages/links.tsx": anchorLoweringPageCode,
+      "pages/blog/[slug].tsx": pageCode("Anchor lowering blog"),
+      "pages/docs/[...slug].tsx": pageCode("Anchor lowering docs")
+    },
+    minimalViteConfig
+  );
+}
+
+async function createTemporaryInvalidAnchorLoweringFixture() {
+  return createTemporaryFixture(
+    "resumable-invalid-anchor-lowering-",
+    {
+      "pages/index.tsx": pageCode("Invalid anchor home"),
+      "pages/broken.tsx": invalidAnchorLoweringPageCode
+    },
+    minimalViteConfig
+  );
+}
+
+async function readBuiltClientOutput(rootUrl: URL) {
+  const files = await collectFiles(new URL(".output/public/", rootUrl));
+  const jsFiles = files.filter(
+    (file) => file.pathname.endsWith(".js") || file.pathname.endsWith(".mjs")
+  );
+  const chunks = await Promise.all(jsFiles.map((file) => readFile(file, "utf-8")));
+  return chunks.join("\n");
+}
+
+async function collectFiles(rootUrl: URL): Promise<URL[]> {
+  const entries = await readdir(rootUrl, { withFileTypes: true });
+  const nested = await Promise.all(
+    entries.map(async (entry) => {
+      const entryUrl = new URL(entry.name, rootUrl);
+      if (entry.isDirectory()) {
+        return collectFiles(new URL(`${entry.name}/`, rootUrl));
+      }
+
+      return entry.isFile() ? [entryUrl] : [];
+    })
+  );
+
+  return nested.flat();
 }
 
 async function expectProjectTypecheck(rootUrl: URL) {
@@ -616,7 +717,7 @@ const minimalTsconfigJson = `{
     "strict": true,
     "types": ["vite/client"]
   },
-  "include": ["resumable-env.d.ts", "document.tsx", "document.jsx", "pages", "vite.config.ts"]
+  "include": ["resumable-env.d.ts", "document.tsx", "document.jsx", "type-proof.tsx", "pages", "vite.config.ts"]
 }
 `;
 
@@ -745,5 +846,40 @@ export default component$(() => {
       {dynamicAnchor}
     </nav>
   );
+});
+`;
+
+const anchorLoweringPageCode = `import { component$ } from "@qwik.dev/core";
+
+export default component$(() => {
+  const spacedSlug = "hello world";
+  const slashSlug = "a/b";
+
+  return (
+    <nav>
+      <a
+        class="post-link"
+        data-kind="dynamic"
+        href="/blog/[slug]"
+        params={{ slug: spacedSlug }}
+        target="_self"
+      >
+        Blog
+      </a>
+      <a href="/blog/[slug]" params={{ slug: slashSlug }}>
+        Slash
+      </a>
+      <a href="/docs/[...slug]" params={{ slug: ["guides", "getting started"] }} rel="nofollow">
+        Docs
+      </a>
+    </nav>
+  );
+});
+`;
+
+const invalidAnchorLoweringPageCode = `import { component$ } from "@qwik.dev/core";
+
+export default component$(() => {
+  return <a href="/missing/[slug]" params={{ slug: "hello" }}>Broken</a>;
 });
 `;

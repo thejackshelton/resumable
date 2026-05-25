@@ -1,6 +1,6 @@
 # Resumable Implementation State
 
-Last updated: 2026-05-24
+Last updated: 2026-05-25
 
 Status: M1 CLI create flow, M2 core Vite plugin skeleton, M3 route manifest,
 M4 Qwik SSR renderer, M5 document shell, M6 status pages, and M7 Nitro
@@ -29,14 +29,18 @@ routing slice 2 now emits generated Qwik JSX anchor augmentation so native
 while invalid route props fail TypeScript. M8 typed routing slice 3 now writes
 `resumable-env.d.ts` and `.resumable/types/routes.d.ts` through Vite's host
 filesystem so real projects discover those anchor types without manual route
-imports.
+imports. M8 typed routing slice 4 now lowers native route-pattern anchors to
+real hrefs for SSR and client builds, preserves normal anchor props, removes
+`params` before DOM output, and uses an internal route href helper for dynamic
+and catch-all param encoding.
 
 ## Current Objective
 
 Continue M8 typed routing in TDD slices. Generated route declarations, Qwik JSX
-anchor types, and real-project declaration discovery now exist; the next missing
-framework evidence should focus on route-pattern anchor lowering before touching
-SPA navigation or MDX.
+anchor types, real-project declaration discovery, TypeScript completion support,
+and native route-pattern anchor lowering now exist. The next missing typed
+navigation work should move to `Link`'s typed surface/runtime lowering while
+leaving SPA navigation, prefetching, MDX, and data APIs out of this slice.
 
 ## Spec Files
 
@@ -46,7 +50,8 @@ SPA navigation or MDX.
 - [`SPEC.md`](./SPEC.md): main framework contract.
 - [`CLI_SPEC.md`](./CLI_SPEC.md): CLI/create/starter contract.
 - [`TYPED_ROUTING.md`](./TYPED_ROUTING.md): typed navigation contract.
-- [`DATA_FETCHING.md`](./DATA_FETCHING.md): Nitro-owned data fetching contract.
+- [`DATA_FETCHING.md`](./DATA_FETCHING.md): future `query$`/`action$` data
+  layer and plain TypeScript API/middleware convention contract.
 
 ## Current Decisions
 
@@ -56,9 +61,11 @@ SPA navigation or MDX.
 - `resumable()` wires Nitro internally.
 - App-level Nitro config stays in top-level `nitro: {}`.
 - `pages/` is Resumable UI routing.
-- `api/`, `middleware/`, and `public/` are Nitro-native.
-- Data fetching, mutations, request context, validation, caching, storage, and
-  form targets are Nitro-owned; Resumable does not provide a data layer.
+- `api/` and `middleware/` are regular TypeScript convention folders lowered to
+  Nitro.
+- `public/` is Nitro-native.
+- Data fetching direction is `schema`, `query$`, and `action$`, with no public
+  `api$` or `middleware$` helpers.
 - `resumable()` exposes lazy page discovery through the internal
   `virtual:resumable/routes` module.
 - `resumable()` wires Vite environment entries in `configEnvironment()` by
@@ -89,6 +96,10 @@ SPA navigation or MDX.
   and `PropsOf<"a">` accept static app hrefs, external/hash/query hrefs, and
   asset-like hrefs without params; dynamic and catch-all file-route patterns
   require matching `params`.
+- The `resumable:anchors` Vite transform lowers lowercase native `<a>` elements
+  whose `href` is a string literal route pattern. It rewrites `href` to the
+  internal `virtual:resumable/route-href` helper, removes the `params` prop, and
+  leaves static anchors plus expression hrefs alone.
 - CLI path handling uses `pathe`/`ufo`; Node APIs remain only for actual
   filesystem/process CLI responsibilities.
 - Route files are `.tsx` and, after proof, `.mdx`.
@@ -108,8 +119,7 @@ SPA navigation or MDX.
 - CLI runtime/project format is separate from starter.
 - Initial starters: `Minimal`, `App`, `Full-stack`.
 - `Docs` starter waits for MDX and Composed MDX proof.
-- There is no separate `Data` starter; data examples belong in `Full-stack` or
-  dedicated Nitro-native examples.
+- `Data` does not appear as a default starter until the data layer is proven.
 - Implementation must inspect local Qwik at
   `/Users/jacksm5pro/dev/open-source/qwik` on branch `build/v2`.
 - Implementation should use grep MCP for non-trivial research and Nitro v3 docs
@@ -141,24 +151,24 @@ SPA navigation or MDX.
 | M8  | Typed routing                             | In Progress | CLI doctor/routes commands       | M3                           |
 | M9  | Link and SPA navigation                   | Pending     | none                             | M4, M8                       |
 | M10 | MDX/Composed MDX fixture and Docs starter | Pending     | none                             | M3, M4, Satteri/Qwik proof   |
-| M11 | Nitro-owned data examples                 | Deferred    | none                             | M4, M9                       |
+| M11 | Data fetching prototype                   | Deferred    | none                             | M4, M9, data confidence gates |
 | M12 | Bun fixture                               | Deferred    | CLI/runtime format work after M1 | M1, M2, M4                   |
 | M13 | Deno fixture                              | Deferred    | none                             | M1, M2, M4, Vite+/Deno proof |
 
 ## Next Recommended Goal
 
-Continue M8 typed routing with focused transform evidence:
+Continue typed navigation with `Link` as the next focused slice:
 
-1. Add route-pattern anchor lowering so `<a href="/blog/[slug]" params={...}>`
-   renders a concrete `href` and does not leak `params` into the DOM.
-2. Prove the lowering against SSR output and client/CSR source paths, because
-   native typed anchors should behave the same in both modes.
-3. Keep the next slice scoped to native anchor lowering; do not add SPA
-   navigation behavior, `Link`, MDX, or data/form APIs.
+1. Re-read [`TYPED_ROUTING.md`](./TYPED_ROUTING.md) and decide whether `Link`
+   belongs at the end of M8 or as the first M9 slice.
+2. Add the typed `Link` props surface and route-pattern lowering evidence,
+   reusing the native anchor route model and href helper.
+3. Do not add SPA navigation behavior, prefetching, MDX, or data/form APIs until
+   the typed `Link` surface is proven.
 
-Before changing typed-routing implementation, inspect local Qwik JSX types on
-branch `build/v2`, use grep MCP for current JSX intrinsic augmentation patterns,
-and re-read [`TYPED_ROUTING.md`](./TYPED_ROUTING.md).
+Before changing typed-navigation implementation, inspect local Qwik JSX/types on
+branch `build/v2`, use grep MCP for current router `Link` patterns, and keep the
+implementation TDD-first.
 
 ## Parallel Work Notes
 
@@ -191,7 +201,7 @@ Do not parallelize yet:
 - Added spec index/read order.
 - Aligned generated config examples on `vite-plus`.
 - Converted parent spec references to local links.
-- Preserved Nitro-native data fetching as the framework boundary.
+- Preserved data fetching as deferred design/prototype scope.
 - Added implementation research requirements for local Qwik `build/v2`, grep
   MCP, and Nitro v3 docs.
 - Clarified `IMPLEMENTATION_PLAN.md` to require TDD-first implementation,
@@ -585,13 +595,14 @@ Do not parallelize yet:
   `defineHandler`, `defineMiddleware`, `nitro()`, and `routeRules` usage rather
   than framework-specific server aliases. Official Nitro docs confirm `api/`,
   `routes/`, and `middleware/` handlers are auto-registered, `routeRules` own
-  route behavior, and `public/` is the asset convention. Decision: keep v0
-  Nitro-native for API, middleware, public assets, route rules, runtime config,
-  storage, caching, plugins, and deployment; do not add Resumable wrappers such
-  as `defineApi`, `api$`, or `middleware$`.
-- Data API direction superseded: Resumable does not own data fetching. Use
-  Nitro-native handlers, middleware, route rules, storage, caching, and real
-  form URLs instead of adding a framework data layer.
+  route behavior, and `public/` is the asset convention. This research informs
+  the generated Nitro wrappers and the decision not to add public helpers such
+  as `defineApi`, `api$`, or `middleware$`; app-authored `api/` and
+  `middleware/` files are regular TypeScript convention files.
+- Data API direction restored: keep `schema`, `query$`, and `action$` as the
+  future data layer direction. Public API routes and middleware should be
+  regular TypeScript convention files that the bundler lowers to Nitro; do not
+  add public `api$` or `middleware$` helpers.
 - M7 research re-checked Nitro v3 docs and local package docs for middleware,
   lifecycle, public assets, route rules, and Vite/Nitro server behavior. Grep
   MCP examples from Nitro's repo and public Vite/Nitro apps confirmed
@@ -678,3 +689,30 @@ Do not parallelize yet:
 - M8 dynamic href completion verification passed:
   `pnpm --filter @resumable.dev/typescript-plugin proof`, `pnpm exec vp check`,
   and `git diff --check`.
+- M8 native anchor lowering red evidence:
+  `pnpm exec vp test libs/core/test/vite/anchor-transform.unit.ts libs/core/test/minimal-fixture.unit.ts -t "anchor|lowers route-pattern"`
+  failed before implementation because `anchor-transform.ts` and the href
+  helper did not exist, and the temporary fixture still rendered
+  `href="/blog/[slug]"` plus a leaked `params` attribute in SSR output.
+- M8 native anchor lowering green evidence: `resumable:anchors` runs as a Vite
+  transform with `order: "pre"` and `filter.id` for JSX/TSX files, discovers
+  routes through the existing Vite host filesystem page discovery, lowers native
+  route-pattern `<a>` elements to `__resumableHref(...)`, and removes `params`.
+  The internal `virtual:resumable/route-href` entry encodes dynamic params as
+  one URL segment, encodes catch-all params segment-by-segment, and throws a
+  direct Resumable error for empty catch-all values. Unit evidence covers
+  preserved normal props, static/expression href no-ops, unknown route-pattern
+  errors, missing params, wrong object-literal params, param encoding, and empty
+  catch-all errors.
+- M8 native anchor lowering fixture evidence: a temporary built fixture renders
+  `/links` SSR output with concrete `href="/blog/hello%20world"`,
+  `href="/blog/a%2Fb"`, and `href="/docs/guides/getting%20started"` values,
+  preserves normal anchor props such as `class`, `data-*`, `target`, and `rel`,
+  and does not emit `params=`. The client build output also contains the
+  transformed helper path and omits `params=`, proving the transform applies to
+  both SSR and client builds. A separate temporary fixture proves invalid
+  route-pattern anchors fail the Vite build with a direct `Typed route error`.
+- M8 native anchor lowering verification passed:
+  `pnpm exec vp test libs/core/test/vite/anchor-transform.unit.ts libs/core/test/vite/vite.unit.ts libs/core/test/route-types.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts`,
+  `pnpm exec vp check`, `pnpm --filter @resumable.dev/core build`, and
+  `git diff --check`.

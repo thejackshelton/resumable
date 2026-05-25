@@ -16,3 +16,10 @@ declare module "virtual:resumable/server-entry" {
   export const fetch: typeof entry.fetch;
   export default entry;
 }
+
+declare module "virtual:resumable/route-href" {
+  export function __resumableHref(
+    pattern: string,
+    params: Readonly<Record<string, unknown>>
+  ): string;
+}
