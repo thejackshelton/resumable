@@ -1,4 +1,3 @@
-import { defineHandler } from "nitro";
 import { useStorage } from "nitro/storage";
 import { readValidatedBody, setCookie } from "nitro/h3";
 
@@ -30,7 +29,7 @@ function isRecord(input: unknown): input is Record<string, unknown> {
   return typeof input === "object" && input !== null;
 }
 
-export default defineHandler(async (event) => {
+export default async function (event) {
   const body = await readValidatedBody(event, validateContactSubmission, {
     onError: () => ({
       message: "Email and message are required.",
@@ -59,4 +58,4 @@ export default defineHandler(async (event) => {
     saved: true,
     stored: await storage.getItem(key)
   };
-});
+}

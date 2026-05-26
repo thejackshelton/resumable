@@ -14,6 +14,8 @@ const sectionPagePath = resolve(pagesDir, "[section].tsx");
 const documentPath = resolve(fixtureRoot, "document.tsx");
 const srcDocumentPath = resolve(fixtureRoot, "src/document.tsx");
 const srcPagesBlogPagePath = resolve(fixtureRoot, "src/pages/blog/[slug].tsx");
+const apiUserPath = resolve(fixtureRoot, "api/users/[id].get.ts");
+const middlewarePath = resolve(fixtureRoot, "middleware/00.request.ts");
 
 const files = new Map();
 const versions = new Map();
@@ -140,6 +142,67 @@ const defaultPageStatusQuickInfo = quickInfoAtText(
   defaultPageDiagnosticSource,
   "props.status",
   "status"
+);
+
+const endpointDiagnosticSource = `export default async function (event) {
+  const id = event.context.params.id;
+  const href = event.url.href;
+  event.
+  event.context.params.
+  event.url.
+  return { id, href };
+}
+`;
+
+openDocument(apiUserPath, endpointDiagnosticSource);
+const endpointEventCompletion = completionAtText(
+  apiUserPath,
+  endpointDiagnosticSource,
+  "  event."
+);
+const endpointParamsCompletion = completionAtText(
+  apiUserPath,
+  endpointDiagnosticSource,
+  "event.context.params."
+);
+const endpointUrlCompletion = completionAtText(
+  apiUserPath,
+  endpointDiagnosticSource,
+  "event.url."
+);
+const endpointDiagnostic = plugin.getSemanticDiagnostics(apiUserPath);
+const endpointIdQuickInfo = quickInfoAtText(
+  apiUserPath,
+  endpointDiagnosticSource,
+  "event.context.params.id",
+  "id"
+);
+
+const middlewareDiagnosticSource = `export default function (event) {
+  const href = event.url.href;
+  event.
+  event.url.
+  return href;
+}
+`;
+
+openDocument(middlewarePath, middlewareDiagnosticSource);
+const middlewareEventCompletion = completionAtText(
+  middlewarePath,
+  middlewareDiagnosticSource,
+  "  event."
+);
+const middlewareUrlCompletion = completionAtText(
+  middlewarePath,
+  middlewareDiagnosticSource,
+  "event.url."
+);
+const middlewareDiagnostic = plugin.getSemanticDiagnostics(middlewarePath);
+const middlewareHrefQuickInfo = quickInfoAtText(
+  middlewarePath,
+  middlewareDiagnosticSource,
+  "event.url.href",
+  "href"
 );
 
 const defaultPageSyntaxErrorSource = `import { component$ } from "@qwik.dev/core";
@@ -320,6 +383,15 @@ const result = {
   defaultPageUrlQuickInfo: summarizeQuickInfo(defaultPageUrlQuickInfo),
   defaultPageHrefQuickInfo: summarizeQuickInfo(defaultPageHrefQuickInfo),
   defaultPageStatusQuickInfo: summarizeQuickInfo(defaultPageStatusQuickInfo),
+  endpointEventCompletion: summarizeCompletion(endpointEventCompletion),
+  endpointParamsCompletion: summarizeCompletion(endpointParamsCompletion),
+  endpointUrlCompletion: summarizeCompletion(endpointUrlCompletion),
+  endpointDiagnostic: summarizeDiagnostic(endpointDiagnostic),
+  endpointIdQuickInfo: summarizeQuickInfo(endpointIdQuickInfo),
+  middlewareEventCompletion: summarizeCompletion(middlewareEventCompletion),
+  middlewareUrlCompletion: summarizeCompletion(middlewareUrlCompletion),
+  middlewareDiagnostic: summarizeDiagnostic(middlewareDiagnostic),
+  middlewareHrefQuickInfo: summarizeQuickInfo(middlewareHrefQuickInfo),
   defaultPageSyntaxDiagnostic: summarizeDiagnostic(defaultPageSyntaxDiagnostic),
   nativeTypeScriptCompletion: summarizeCompletion(nativeMathCompletion),
   nativeAnchorHrefCompletion: summarizeCompletion(routeHrefCompletion),
@@ -393,8 +465,12 @@ function summarizeCompletion(response) {
     hasNew: labels.includes("new"),
     hasSection: labels.includes("section"),
     hasParams: labels.includes("params"),
+    hasContext: labels.includes("context"),
+    hasReq: labels.includes("req"),
+    hasRes: labels.includes("res"),
     hasUrl: labels.includes("url"),
     hasStatus: labels.includes("status"),
+    hasId: labels.includes("id"),
     hasHref: labels.includes("href"),
     hasPathname: labels.includes("pathname"),
     hasSearch: labels.includes("search"),
@@ -433,6 +509,11 @@ function summarizeDiagnostic(items) {
       (item) =>
         item.code === 18046 &&
         ts.flattenDiagnosticMessageText(item.messageText, "\n").includes("props")
+    ),
+    hasImplicitAnyEvent: items.some(
+      (item) =>
+        item.code === 7006 &&
+        ts.flattenDiagnosticMessageText(item.messageText, "\n").includes("event")
     ),
     items: items.map((item) => ({
       code: item.code,
@@ -493,6 +574,58 @@ function assertProof(proofResult) {
 
   if (!proofResult.defaultPageStatusQuickInfo.text.includes("status: number")) {
     throw new Error("TS plugin did not provide a real typed props.status hover.");
+  }
+
+  if (
+    !proofResult.endpointEventCompletion.hasContext ||
+    !proofResult.endpointEventCompletion.hasReq ||
+    !proofResult.endpointEventCompletion.hasRes ||
+    !proofResult.endpointEventCompletion.hasUrl
+  ) {
+    throw new Error("TS plugin did not provide endpoint event completions.");
+  }
+
+  if (!proofResult.endpointParamsCompletion.hasId) {
+    throw new Error("TS plugin did not provide endpoint route param completions.");
+  }
+
+  if (
+    !proofResult.endpointUrlCompletion.hasHref ||
+    !proofResult.endpointUrlCompletion.hasPathname
+  ) {
+    throw new Error("TS plugin did not provide endpoint URL completions.");
+  }
+
+  if (proofResult.endpointDiagnostic.hasImplicitAnyEvent) {
+    throw new Error("Endpoint event parameter should not report implicit any.");
+  }
+
+  if (!proofResult.endpointIdQuickInfo.text.includes("id: string")) {
+    throw new Error("TS plugin did not provide endpoint route param hover.");
+  }
+
+  if (
+    !proofResult.middlewareEventCompletion.hasContext ||
+    !proofResult.middlewareEventCompletion.hasReq ||
+    !proofResult.middlewareEventCompletion.hasRes ||
+    !proofResult.middlewareEventCompletion.hasUrl
+  ) {
+    throw new Error("TS plugin did not provide middleware event completions.");
+  }
+
+  if (
+    !proofResult.middlewareUrlCompletion.hasHref ||
+    !proofResult.middlewareUrlCompletion.hasPathname
+  ) {
+    throw new Error("TS plugin did not provide middleware URL completions.");
+  }
+
+  if (proofResult.middlewareDiagnostic.hasImplicitAnyEvent) {
+    throw new Error("Middleware event parameter should not report implicit any.");
+  }
+
+  if (!proofResult.middlewareHrefQuickInfo.text.includes("href: string")) {
+    throw new Error("TS plugin did not provide middleware URL hover.");
   }
 
   if (proofResult.defaultPageSyntaxDiagnostic.itemCount === 0) {

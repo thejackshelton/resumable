@@ -25,7 +25,29 @@ type TypedSourceCacheEntry = {
   transform: TypedSourceTransform | undefined;
 };
 
+type FunctionParameterTypeTarget = {
+  insertTypeAt: number;
+  hasType: boolean;
+};
+
+type RequestFileRoute = {
+  kind: "api" | "middleware";
+  params: string[];
+};
+
 const PAGE_EXTENSIONS = new Set([".tsx", ".jsx", ".mdx"]);
+const REQUEST_FILE_EXTENSION = ".ts";
+const HTTP_METHODS = new Set([
+  "connect",
+  "delete",
+  "get",
+  "head",
+  "options",
+  "patch",
+  "post",
+  "put",
+  "trace"
+]);
 
 function init(modules: { typescript: TypeScript }): ts.server.PluginModule {
   const typeScript = modules.typescript;
@@ -221,6 +243,29 @@ function createTypedSourceTransform(
   fileName: string,
   sourceText: string
 ): TypedSourceTransform | undefined {
+  const pageTransform = createPageTypedSourceTransform(
+    typeScript,
+    info,
+    projectRoot,
+    pagesDir,
+    fileName,
+    sourceText
+  );
+
+  return (
+    pageTransform ??
+    createRequestFileTypedSourceTransform(typeScript, projectRoot, fileName, sourceText)
+  );
+}
+
+function createPageTypedSourceTransform(
+  typeScript: TypeScript,
+  info: ts.server.PluginCreateInfo,
+  projectRoot: string,
+  pagesDir: string,
+  fileName: string,
+  sourceText: string
+): TypedSourceTransform | undefined {
   if (extname(fileName) !== ".tsx") {
     return undefined;
   }
@@ -247,12 +292,49 @@ function createTypedSourceTransform(
     route.optionalParams
   )}>`;
 
+  return insertGeneratedType(sourceText, props.insertTypeAt, annotation);
+}
+
+function createRequestFileTypedSourceTransform(
+  typeScript: TypeScript,
+  projectRoot: string,
+  fileName: string,
+  sourceText: string
+): TypedSourceTransform | undefined {
+  const route = requestFileRouteForFileName(typeScript, projectRoot, fileName);
+  if (!route) {
+    return undefined;
+  }
+
+  const sourceFile = typeScript.createSourceFile(
+    fileName,
+    sourceText,
+    typeScript.ScriptTarget.Latest,
+    true,
+    typeScript.ScriptKind.TS
+  );
+  const parameter = defaultExportFunctionParameter(typeScript, sourceFile);
+  if (!parameter || parameter.hasType) {
+    return undefined;
+  }
+
+  const annotation =
+    route.kind === "api"
+      ? `: import("@resumable.dev/core").EndpointEvent<${pageParamsType(route.params)}>`
+      : `: import("@resumable.dev/core").MiddlewareEvent`;
+
+  return insertGeneratedType(sourceText, parameter.insertTypeAt, annotation);
+}
+
+function insertGeneratedType(
+  sourceText: string,
+  insertAt: number,
+  annotation: string
+): TypedSourceTransform {
   return {
     generatedText:
-      sourceText.slice(0, props.insertTypeAt) +
-      annotation +
-      sourceText.slice(props.insertTypeAt),
-    insertAt: props.insertTypeAt,
+      sourceText.slice(0, insertAt) + annotation + sourceText.slice(insertAt),
+    insertAt,
     insertedLength: annotation.length
   };
 }
@@ -640,7 +722,8 @@ function isReservedOrUnsupportedPage(fileId: string) {
   const extension = extname(fileId);
   const withoutExtension = fileId.slice(0, -extension.length);
   const routeFile = normalize(withoutExtension);
-  const segments = routeFile === "." ? [] : routeFile.split("/").filter(Boolean);
+  const segments: string[] =
+    routeFile === "." ? [] : routeFile.split("/").filter(Boolean);
 
   return (
     segments[0] === "api" ||
@@ -847,7 +930,8 @@ function routeFromFileId(typeScript: TypeScript, fileId: string) {
   const extension = extname(fileId);
   const withoutExtension = fileId.slice(0, -extension.length);
   const routeFile = normalize(withoutExtension);
-  const segments = routeFile === "." ? [] : routeFile.split("/").filter(Boolean);
+  const segments: string[] =
+    routeFile === "." ? [] : routeFile.split("/").filter(Boolean);
 
   if (segments.at(-1) === "index") {
     segments.pop();
@@ -880,6 +964,69 @@ function routeFromFileId(typeScript: TypeScript, fileId: string) {
   };
 }
 
+function requestFileRouteForFileName(
+  typeScript: TypeScript,
+  projectRoot: string,
+  fileName: string
+): RequestFileRoute | undefined {
+  const relativeFileId = relative(projectRoot, fileName);
+  if (!isRelativeInsidePath(relativeFileId)) {
+    return undefined;
+  }
+
+  const fileId = normalizeRouteFileId(relativeFileId);
+  if (extname(fileId) !== REQUEST_FILE_EXTENSION) {
+    return undefined;
+  }
+
+  if (fileId.startsWith("api/")) {
+    return {
+      kind: "api",
+      params: apiRouteParamsFromFileId(typeScript, fileId)
+    };
+  }
+
+  return fileId.startsWith("middleware/")
+    ? {
+        kind: "middleware",
+        params: []
+      }
+    : undefined;
+}
+
+function apiRouteParamsFromFileId(typeScript: TypeScript, fileId: string) {
+  const apiFile = relative("api", fileId);
+  const withoutExtension = apiFile.slice(0, -REQUEST_FILE_EXTENSION.length);
+  const routeFile = normalize(withoutExtension);
+  const segments: string[] =
+    routeFile === "." ? [] : routeFile.split("/").filter(Boolean);
+  const finalSegment = segments.at(-1);
+  const method = finalSegment ? methodSuffix(finalSegment) : undefined;
+
+  if (finalSegment && method) {
+    segments[segments.length - 1] = finalSegment.slice(0, -(method.length + 1));
+  }
+
+  if (segments.at(-1) === "index") {
+    segments.pop();
+  }
+
+  return segments.flatMap((segment) => {
+    const catchAllName = bracketParamName(typeScript, segment, "[...");
+    if (catchAllName) {
+      return [catchAllName];
+    }
+
+    const dynamicName = bracketParamName(typeScript, segment, "[");
+    return dynamicName ? [dynamicName] : [];
+  });
+}
+
+function methodSuffix(finalSegment: string) {
+  const suffix = finalSegment.split(".").at(-1);
+  return suffix && HTTP_METHODS.has(suffix) ? suffix : undefined;
+}
+
 function bracketParamName(
   typeScript: TypeScript,
   segment: string,
@@ -904,6 +1051,102 @@ function routePathname(segments: readonly string[]) {
 
 function isRelativeInsidePath(path: string) {
   return path !== "" && path !== ".." && !path.startsWith("../") && !isAbsolute(path);
+}
+
+function defaultExportFunctionParameter(
+  typeScript: TypeScript,
+  sourceFile: ts.SourceFile
+): FunctionParameterTypeTarget | undefined {
+  const functionBindings = new Map<
+    string,
+    ts.ArrowFunction | ts.FunctionDeclaration | ts.FunctionExpression
+  >();
+  let defaultExpression: ts.Expression | undefined;
+
+  for (const statement of sourceFile.statements) {
+    if (typeScript.isFunctionDeclaration(statement)) {
+      if (isDefaultExportDeclaration(typeScript, statement)) {
+        return functionParameterTypeTarget(typeScript, statement);
+      }
+
+      if (statement.name) {
+        functionBindings.set(statement.name.text, statement);
+      }
+      continue;
+    }
+
+    if (typeScript.isExportAssignment(statement) && !statement.isExportEquals) {
+      defaultExpression = statement.expression;
+      continue;
+    }
+
+    if (!typeScript.isVariableStatement(statement)) {
+      continue;
+    }
+
+    for (const declaration of statement.declarationList.declarations) {
+      if (!typeScript.isIdentifier(declaration.name) || !declaration.initializer) {
+        continue;
+      }
+
+      const initializer = skipOuterExpressions(typeScript, declaration.initializer);
+      if (
+        typeScript.isArrowFunction(initializer) ||
+        typeScript.isFunctionExpression(initializer)
+      ) {
+        functionBindings.set(declaration.name.text, initializer);
+      }
+    }
+  }
+
+  if (!defaultExpression) {
+    return undefined;
+  }
+
+  const expression = skipOuterExpressions(typeScript, defaultExpression);
+  if (
+    typeScript.isArrowFunction(expression) ||
+    typeScript.isFunctionExpression(expression)
+  ) {
+    return functionParameterTypeTarget(typeScript, expression);
+  }
+
+  if (typeScript.isIdentifier(expression)) {
+    const functionBinding = functionBindings.get(expression.text);
+    return functionBinding
+      ? functionParameterTypeTarget(typeScript, functionBinding)
+      : undefined;
+  }
+
+  return undefined;
+}
+
+function functionParameterTypeTarget(
+  typeScript: TypeScript,
+  fn: ts.ArrowFunction | ts.FunctionDeclaration | ts.FunctionExpression
+): FunctionParameterTypeTarget | undefined {
+  const [parameter] = fn.parameters;
+  if (!parameter || !typeScript.isIdentifier(parameter.name)) {
+    return undefined;
+  }
+
+  return {
+    insertTypeAt: parameter.name.getEnd(),
+    hasType: parameter.type !== undefined
+  };
+}
+
+function isDefaultExportDeclaration(typeScript: TypeScript, node: ts.Node) {
+  return (
+    hasModifier(node, typeScript.SyntaxKind.ExportKeyword) &&
+    hasModifier(node, typeScript.SyntaxKind.DefaultKeyword)
+  );
+}
+
+function hasModifier(node: ts.Node, kind: ts.SyntaxKind) {
+  const modifiers = (node as { modifiers?: readonly { kind: ts.SyntaxKind }[] })
+    .modifiers;
+  return modifiers?.some((modifier) => modifier.kind === kind) ?? false;
 }
 
 function defaultExportPageProps(typeScript: TypeScript, sourceFile: ts.SourceFile) {

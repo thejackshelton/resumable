@@ -753,9 +753,7 @@ export default defineConfig({
 });
 `;
 
-const nitroPassthroughMiddlewareCode = `import { defineMiddleware } from "nitro";
-
-export default defineMiddleware((event) => {
+const nitroPassthroughMiddlewareCode = `export default function (event) {
   event.context.requestId = "m7-middleware";
   event.res.headers.set("x-resumable-middleware", "ran");
 
@@ -767,16 +765,14 @@ export default defineMiddleware((event) => {
       }
     });
   }
-});
+}
 `;
 
-const nitroPassthroughApiCode = `import { defineHandler } from "nitro";
-
-export default defineHandler((event) => {
+const nitroPassthroughApiCode = `export default function (event) {
   return {
     requestId: event.context.requestId
   };
-});
+}
 `;
 
 const documentShellJsxCode = `import { component$, Slot } from "@qwik.dev/core";

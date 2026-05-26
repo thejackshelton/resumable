@@ -16,6 +16,7 @@
   },
   "include": [
     "resumable-env.d.ts",
+    "app.d.ts",
     "api",
     "middleware",
     "pages",

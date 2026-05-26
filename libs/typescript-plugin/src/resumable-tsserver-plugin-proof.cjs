@@ -16,6 +16,8 @@ const newPagePath = resolve(projectRoot, "pages/blog/[new].tsx");
 const sectionPagePath = resolve(projectRoot, "pages/[section].tsx");
 const srcDocumentPath = resolve(projectRoot, "src/document.tsx");
 const srcPagesPath = resolve(projectRoot, "src/pages/blog/[slug].tsx");
+const apiUserPath = resolve(projectRoot, "api/users/[id].get.ts");
+const middlewarePath = resolve(projectRoot, "middleware/00.request.ts");
 
 void main();
 
@@ -27,6 +29,8 @@ async function main() {
 async function writeProject() {
   await mkdir(resolve(projectRoot, "pages/blog"), { recursive: true });
   await mkdir(resolve(projectRoot, "pages/docs"), { recursive: true });
+  await mkdir(resolve(projectRoot, "api/users"), { recursive: true });
+  await mkdir(resolve(projectRoot, "middleware"), { recursive: true });
   await mkdir(resolve(projectRoot, "src"), { recursive: true });
   await mkdir(resolve(projectRoot, "src/pages/blog"), { recursive: true });
   await mkdir(resolve(projectRoot, "node_modules/@resumable.dev"), { recursive: true });
@@ -74,7 +78,7 @@ async function writeProject() {
             }
           ]
         },
-        include: ["document.tsx", "pages", "src"]
+        include: ["document.tsx", "pages", "api", "middleware", "src"]
       },
       null,
       2
@@ -98,6 +102,17 @@ async function writeProject() {
       "  readonly url: { readonly href: string; readonly pathname: string; readonly search: string; };",
       "  readonly status: number;",
       "}",
+      "export interface AppContext {}",
+      "export interface RequestEvent<Context extends object = AppContext> {",
+      "  readonly context: Context;",
+      "  readonly req: Request;",
+      "  readonly res: { status?: number; statusText?: string; readonly headers: Headers; readonly errHeaders: Headers; };",
+      "  readonly url: URL;",
+      "}",
+      "export interface EndpointEvent<Params extends object = Readonly<Record<string, string>>, Context extends object = AppContext> extends RequestEvent<Context> {",
+      "  readonly context: Context & { readonly params: Readonly<Params>; };",
+      "}",
+      "export interface MiddlewareEvent<Context extends object = AppContext> extends RequestEvent<Context> {}",
       ""
     ].join("\n")
   );
@@ -123,6 +138,8 @@ async function writeProject() {
   writeFileSync(newPagePath, defaultPageSource());
   writeFileSync(sectionPagePath, defaultPageSource());
   writeFileSync(resolve(projectRoot, "pages/docs/[...slug].tsx"), defaultPageSource());
+  writeFileSync(apiUserPath, endpointSource());
+  writeFileSync(middlewarePath, middlewareSource());
   writeFileSync(srcDocumentPath, defaultPageSource());
   writeFileSync(srcPagesPath, defaultPageSource());
 }
@@ -195,6 +212,62 @@ async function runProof() {
       defaultPageSource(),
       'href="',
       {}
+    );
+
+    notify(client, "open", {
+      file: apiUserPath,
+      fileContent: endpointSource(),
+      projectRootPath: projectRoot,
+      scriptKindName: "TS"
+    });
+
+    const endpointEventCompletion = await completionAtText(
+      client,
+      apiUserPath,
+      endpointSource(),
+      "  event."
+    );
+    const endpointParamsCompletion = await completionAtText(
+      client,
+      apiUserPath,
+      endpointSource(),
+      "event.context.params."
+    );
+    const endpointDiagnostics = await request(client, "semanticDiagnosticsSync", {
+      file: apiUserPath,
+      includeLinePosition: true
+    });
+    const endpointIdQuickInfo = await quickInfoAtText(
+      client,
+      apiUserPath,
+      endpointSource(),
+      "event.context.params.id",
+      "id"
+    );
+
+    notify(client, "open", {
+      file: middlewarePath,
+      fileContent: middlewareSource(),
+      projectRootPath: projectRoot,
+      scriptKindName: "TS"
+    });
+
+    const middlewareEventCompletion = await completionAtText(
+      client,
+      middlewarePath,
+      middlewareSource(),
+      "  event."
+    );
+    const middlewareDiagnostics = await request(client, "semanticDiagnosticsSync", {
+      file: middlewarePath,
+      includeLinePosition: true
+    });
+    const middlewareHrefQuickInfo = await quickInfoAtText(
+      client,
+      middlewarePath,
+      middlewareSource(),
+      "event.url.href",
+      "href"
     );
 
     notify(client, "open", {
@@ -284,6 +357,13 @@ async function runProof() {
       hrefQuickInfo: summarizeQuickInfo(hrefQuickInfo.body),
       statusQuickInfo: summarizeQuickInfo(statusQuickInfo.body),
       nativeAnchorHrefCompletion: summarizeCompletion(hrefCompletion.body),
+      endpointEventCompletion: summarizeCompletion(endpointEventCompletion.body),
+      endpointParamsCompletion: summarizeCompletion(endpointParamsCompletion.body),
+      endpointDiagnostics: summarizeDiagnostics(endpointDiagnostics.body ?? []),
+      endpointIdQuickInfo: summarizeQuickInfo(endpointIdQuickInfo.body),
+      middlewareEventCompletion: summarizeCompletion(middlewareEventCompletion.body),
+      middlewareDiagnostics: summarizeDiagnostics(middlewareDiagnostics.body ?? []),
+      middlewareHrefQuickInfo: summarizeQuickInfo(middlewareHrefQuickInfo.body),
       documentPropsCompletion: summarizeCompletion(documentPropsCompletion.body),
       documentParamsCompletion: summarizeCompletion(documentParamsCompletion.body),
       documentDiagnostics: summarizeDiagnostics(documentDiagnostics.body ?? []),
@@ -469,8 +549,14 @@ function summarizeCompletion(body) {
   return {
     itemCount: entries.length,
     hasParams: names.includes("params"),
+    hasContext: names.includes("context"),
+    hasReq: names.includes("req"),
+    hasRes: names.includes("res"),
     hasUrl: names.includes("url"),
     hasStatus: names.includes("status"),
+    hasId: names.includes("id"),
+    hasHref: names.includes("href"),
+    hasPathname: names.includes("pathname"),
     hasSlug: names.includes("slug"),
     hasNew: names.includes("new"),
     hasSection: names.includes("section"),
@@ -490,6 +576,9 @@ function summarizeDiagnostics(items) {
     itemCount: items.length,
     hasUnknownProps: items.some(
       (item) => item.code === 18046 && diagnosticText(item).includes("props")
+    ),
+    hasImplicitAnyEvent: items.some(
+      (item) => item.code === 7006 && diagnosticText(item).includes("event")
     ),
     items: items.map((item) => ({
       code: item.code,
@@ -539,6 +628,44 @@ function assertProof(result, proofLogPath) {
 
   if (!result.statusQuickInfo.text.includes("status: number")) {
     throw new Error("tsserver plugin did not expose a typed props.status hover.");
+  }
+
+  if (
+    !result.endpointEventCompletion.hasContext ||
+    !result.endpointEventCompletion.hasReq ||
+    !result.endpointEventCompletion.hasRes ||
+    !result.endpointEventCompletion.hasUrl
+  ) {
+    throw new Error("tsserver plugin did not return endpoint event completions.");
+  }
+
+  if (!result.endpointParamsCompletion.hasId) {
+    throw new Error("tsserver plugin did not return endpoint route param completions.");
+  }
+
+  if (result.endpointDiagnostics.hasImplicitAnyEvent) {
+    throw new Error("Endpoint event parameter should not report implicit any.");
+  }
+
+  if (!result.endpointIdQuickInfo.text.includes("id: string")) {
+    throw new Error("tsserver plugin did not expose endpoint route param hover.");
+  }
+
+  if (
+    !result.middlewareEventCompletion.hasContext ||
+    !result.middlewareEventCompletion.hasReq ||
+    !result.middlewareEventCompletion.hasRes ||
+    !result.middlewareEventCompletion.hasUrl
+  ) {
+    throw new Error("tsserver plugin did not return middleware event completions.");
+  }
+
+  if (result.middlewareDiagnostics.hasImplicitAnyEvent) {
+    throw new Error("Middleware event parameter should not report implicit any.");
+  }
+
+  if (!result.middlewareHrefQuickInfo.text.includes("href: string")) {
+    throw new Error("tsserver plugin did not expose middleware URL hover.");
   }
 
   if (
@@ -608,6 +735,26 @@ export default component$((props) => {
   props.params.
   return <article><a href="" />{slug}{href}{status}</article>;
 });
+`;
+}
+
+function endpointSource() {
+  return `export default async function (event) {
+  const id = event.context.params.id;
+  const href = event.url.href;
+  event.
+  event.context.params.
+  return { id, href };
+}
+`;
+}
+
+function middlewareSource() {
+  return `export default function (event) {
+  const href = event.url.href;
+  event.
+  return href;
+}
 `;
 }
 
