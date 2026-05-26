@@ -46,6 +46,9 @@ describe("route type declarations", () => {
     );
 
     expect(declaration).toContain("export type ResumableAnchorProps =");
+    expect(declaration).toContain("export type ResumableLinkProps =");
+    expect(declaration).toContain("interface ResumableGeneratedRoutes");
+    expect(declaration).toContain("readonly link: ResumableLinkProps;");
     expect(declaration).toContain('declare module "@qwik.dev/core"');
     expect(declaration).toContain("interface IntrinsicElements");
   });
@@ -173,6 +176,96 @@ describe("route type declarations", () => {
         module: ts.ModuleKind.ESNext,
         moduleResolution: ts.ModuleResolutionKind.Bundler,
         noEmit: true,
+        skipLibCheck: true,
+        strict: true,
+        target: ts.ScriptTarget.ES2023
+      },
+      createMemoryCompilerHost(sources)
+    );
+    const diagnostics = ts.getPreEmitDiagnostics(program);
+
+    expect(
+      diagnostics.map((diagnostic) =>
+        ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")
+      )
+    ).toEqual([]);
+  });
+
+  it("produces route-aware Link types from the generated route model", async () => {
+    const manifest = buildRouteManifestFromFileIds([
+      "/pages/index.tsx",
+      "/pages/about.tsx",
+      "/pages/blog/[slug].tsx",
+      "/pages/docs/[...slug].tsx"
+    ]);
+    const testRoot = `${process.cwd()}/libs/core/.resumable-test`;
+    const routesFile = `${testRoot}/routes.d.ts`;
+    const corePackageJson = `${testRoot}/node_modules/@resumable.dev/core/package.json`;
+    const coreTypesFile = `${testRoot}/node_modules/@resumable.dev/core/index.d.ts`;
+    const testFile = `${testRoot}/test.tsx`;
+    const sources = new Map([
+      [routesFile, createRouteTypesDeclaration(manifest)],
+      [
+        corePackageJson,
+        JSON.stringify({
+          name: "@resumable.dev/core",
+          types: "index.d.ts"
+        })
+      ],
+      [
+        coreTypesFile,
+        [
+          'import type { Component, PropsOf } from "@qwik.dev/core";',
+          "export interface ResumableGeneratedRoutes {}",
+          "export type LinkProps = ResumableGeneratedRoutes extends { readonly link: infer Props } ? Props : PropsOf<\"a\">;",
+          "export declare const Link: Component<LinkProps>;"
+        ].join("\n")
+      ],
+      [
+        testFile,
+        [
+          'import { Link } from "@resumable.dev/core";',
+          "",
+          'const slug = "hello";',
+          "",
+          'const validAbout = <Link href="/about" prefetch="intent" replace scroll={false} reload>About</Link>;',
+          'const validBlog = <Link href="/blog/[slug]" params={{ slug }} class="post">Blog</Link>;',
+          'const validDocs = <Link href="/docs/[...slug]" params={{ slug: ["guides", "intro"] }} />;',
+          "",
+          "// @ts-expect-error unknown route",
+          'const missing = <Link href="/missing" />;',
+          "",
+          "// @ts-expect-error dynamic route patterns require params",
+          'const missingParams = <Link href="/blog/[slug]" />;',
+          "",
+          "// @ts-expect-error dynamic route params must match the route pattern",
+          'const wrongParams = <Link href="/blog/[slug]" params={{ id: "hello" }} />;',
+          "",
+          "// @ts-expect-error static routes do not accept params",
+          'const staticParams = <Link href="/about" params={{ slug: "hello" }} />;',
+          "",
+          "void validAbout;",
+          "void validBlog;",
+          "void validDocs;",
+          "void missing;",
+          "void missingParams;",
+          "void wrongParams;",
+          "void staticParams;"
+        ].join("\n")
+      ]
+    ]);
+
+    const program = ts.createProgram(
+      [routesFile, testFile],
+      {
+        jsx: ts.JsxEmit.ReactJSX,
+        jsxImportSource: "@qwik.dev/core",
+        module: ts.ModuleKind.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+        noEmit: true,
+        paths: {
+          "@resumable.dev/core": [coreTypesFile]
+        },
         skipLibCheck: true,
         strict: true,
         target: ts.ScriptTarget.ES2023

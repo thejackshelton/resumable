@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 import { parseAst } from "vite";
 import { __resumableHref } from "../../src/vite/entries/route-href.ts";
-import { transformAnchorSource } from "../../src/vite/anchor-transform.ts";
+import {
+  anchorTransformPlugin,
+  transformAnchorSource
+} from "../../src/vite/anchor-transform.ts";
+import type { RouteTypegenFileSystem } from "../../src/vite/route-typegen.ts";
 
 const routePatterns = new Map([
   ["/blog/[slug]", [{ name: "slug", kind: "dynamic" }]],
@@ -50,10 +54,98 @@ export default component$(() => {
     expect(transform(source)).toBe(source);
   });
 
+  it("lowers imported Link route patterns and preserves Link runtime props", () => {
+    const source = `import { Link } from "@resumable.dev/core";
+
+export default () => {
+  const slug = "hello";
+
+  return (
+    <Link class="post" href="/blog/[slug]" params={{ slug }} prefetch="intent" replace scroll={false} reload>
+      Blog
+    </Link>
+  );
+};
+`;
+
+    const transformed = transform(source);
+
+    expect(transformed).toContain(
+      'import { __resumableHref } from "virtual:resumable/route-href";'
+    );
+    expect(transformed).toContain(
+      '<Link class="post" href={__resumableHref("/blog/[slug]", { slug })} prefetch="intent" replace scroll={false} reload>'
+    );
+    expect(transformed).not.toContain("params=");
+  });
+
+  it("transforms route-pattern markup from ids with package-cache-looking segments", async () => {
+    const plugin = anchorTransformPlugin();
+    const transformHandler = (
+      plugin.transform as {
+        handler: (
+          this: {
+            fs: RouteTypegenFileSystem;
+            parse: (code: string, options: Record<string, unknown>) => unknown;
+          },
+          code: string,
+          id: string
+        ) => Promise<{ code: string; map: null } | undefined>;
+      }
+    ).handler;
+    const id = "/project/node_modules/.deno/cache/app/page.tsx";
+    const source = `export default () => <a href="/blog/[slug]" params={{ slug: "hello" }}>Post</a>;`;
+
+    (plugin.configResolved as ((config: { root: string }) => void) | undefined)?.({
+      root: "/project"
+    });
+    const result = await transformHandler.call(
+      {
+        fs: routeTypegenFs(),
+        parse: (code, options) =>
+          parseAst(code, options as Parameters<typeof parseAst>[1], id)
+      },
+      source,
+      id
+    );
+
+    expect(result?.code).toContain(
+      'href={__resumableHref("/blog/[slug]", { slug: "hello" })}'
+    );
+    expect(result?.code).not.toContain("params=");
+  });
+
+  it("does not rewrite static Links or unrelated Link components", () => {
+    const source = `import { Link } from "@resumable.dev/core";
+import { Link as DesignLink } from "./design";
+
+export default () => {
+  return (
+    <nav>
+      <Link href="/about">About</Link>
+      <DesignLink href="/blog/[slug]" params={{ slug: "hello" }}>Design</DesignLink>
+    </nav>
+  );
+};
+`;
+
+    expect(transform(source)).toBe(source);
+  });
+
   it("rejects route-pattern anchors that do not match pages", () => {
     expect(() =>
       transform(
         `export default () => <a href="/missing/[slug]" params={{ slug: "x" }} />;`
+      )
+    ).toThrow("Typed route error: /missing/[slug] does not match any route in pages/.");
+  });
+
+  it("rejects route-pattern Links that do not match pages", () => {
+    expect(() =>
+      transform(
+        `import { Link } from "@resumable.dev/core";
+
+export default () => <Link href="/missing/[slug]" params={{ slug: "x" }} />;`
       )
     ).toThrow("Typed route error: /missing/[slug] does not match any route in pages/.");
   });
@@ -109,4 +201,37 @@ function transform(source: string) {
     parseAst(source, { astType: "ts", lang: "tsx", range: true }, "/project/page.tsx"),
     routePatterns
   );
+}
+
+function routeTypegenFs(): RouteTypegenFileSystem {
+  return {
+    async mkdir() {},
+    async readdir(path) {
+      if (path === "/project/pages") {
+        return [dirent("blog", "directory")];
+      }
+
+      if (path === "/project/pages/blog") {
+        return [dirent("[slug].tsx", "file")];
+      }
+
+      throw notFound(path);
+    },
+    async readFile(path) {
+      throw notFound(path);
+    },
+    async writeFile() {}
+  };
+}
+
+function dirent(name: string, type: "directory" | "file") {
+  return {
+    name,
+    isDirectory: () => type === "directory",
+    isFile: () => type === "file"
+  };
+}
+
+function notFound(path: string) {
+  return Object.assign(new Error(`${path} not found`), { code: "ENOENT" });
 }

@@ -43,7 +43,7 @@ export function anchorTransformPlugin(): Plugin {
         id: JSX_FILE_FILTER
       },
       async handler(code, id) {
-        if (id.includes("/node_modules/") || !code.includes("<a")) {
+        if (!isTransformCandidateCode(code)) {
           return;
         }
 
@@ -73,6 +73,10 @@ export function anchorTransformPlugin(): Plugin {
   };
 }
 
+function isTransformCandidateCode(code: string) {
+  return code.includes("<a") || code.includes("@resumable.dev/core");
+}
+
 export function transformAnchorSource(
   code: string,
   astInput: unknown,
@@ -84,9 +88,15 @@ export function transformAnchorSource(
   }
 
   const edits: Edit[] = [];
+  const linkNames = resumableLinkImportNames(ast);
 
   walk(ast, (current) => {
-    if (current.type !== "JSXOpeningElement" || jsxName(node(current.name)) !== "a") {
+    if (current.type !== "JSXOpeningElement") {
+      return;
+    }
+
+    const name = jsxName(node(current.name));
+    if (name !== "a" && (!name || !linkNames.has(name))) {
       return;
     }
 
@@ -129,6 +139,33 @@ export function transformAnchorSource(
   }
 
   return `${helperImport()}${applyEdits(code, edits)}`;
+}
+
+function resumableLinkImportNames(ast: Node) {
+  const names = new Set<string>();
+
+  walk(ast, (current) => {
+    if (
+      current.type !== "ImportDeclaration" ||
+      literalString(node(current.source)) !== "@resumable.dev/core"
+    ) {
+      return;
+    }
+
+    for (const specifier of nodes(current.specifiers)) {
+      if (
+        specifier.type === "ImportSpecifier" &&
+        identifierName(node(specifier.imported)) === "Link"
+      ) {
+        const localName = identifierName(node(specifier.local));
+        if (localName) {
+          names.add(localName);
+        }
+      }
+    }
+  });
+
+  return names;
 }
 
 function routePatternMap(manifest: { routes: readonly RouteManifestRoute[] }) {
@@ -201,6 +238,10 @@ function stringLiteralValue(value: Node | undefined) {
 
 function literalString(value: Node | undefined) {
   return value?.type === "Literal" ? string(value.value) : undefined;
+}
+
+function identifierName(value: Node | undefined) {
+  return value?.type === "Identifier" ? string(value.name) : undefined;
 }
 
 function jsxExpression(value: Node | undefined) {

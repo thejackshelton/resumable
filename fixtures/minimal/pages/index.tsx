@@ -8,6 +8,7 @@ export default component$(() => {
       <a href="/blog/[slug]" params={{ slug: "fixture-post" }}>
         Typed blog route
       </a>
+      <a href="/links">Link fixture</a>
     </main>
   );
 });

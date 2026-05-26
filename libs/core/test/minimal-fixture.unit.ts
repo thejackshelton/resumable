@@ -36,6 +36,7 @@ describe("Resumable fixtures", () => {
     await expectPath("pages/about.tsx", true);
     await expectPath("pages/404.tsx", true);
     await expectPath("pages/500.tsx", true);
+    await expectPath("pages/links.tsx", true);
     await expectPath("pages/missing-default.tsx", true);
     await expectPath("pages/throws.tsx", true);
     await expectPath("api/health.ts", true);
@@ -93,6 +94,19 @@ describe("Resumable fixtures", () => {
     await expect(
       renderPage(serverEntry, "/docs/guides/getting-started")
     ).resolves.toContain("Docs catch-all slug: guides/getting-started");
+    const linksHtml = await renderPage(serverEntry, "/links");
+    expect(linksHtml).toContain("Link fixture");
+    expect(linksHtml).toContain("Static Link");
+    expect(linksHtml).toContain("Dynamic Link");
+    expect(linksHtml).toContain("Catch-all Link");
+    expect(linksHtml).toContain('href="/about"');
+    expect(linksHtml).toContain('href="/blog/fixture-link-post"');
+    expect(linksHtml).toContain('href="/docs/guides/fixture"');
+    expect(linksHtml).toContain('class="link-static"');
+    expect(linksHtml).toContain('class="link-dynamic"');
+    expect(linksHtml).toContain('class="link-catch-all"');
+    expect(linksHtml).toContain('data-kind="dynamic-link"');
+    expect(linksHtml).not.toContain("params=");
 
     const notFoundResponse = await fetchPage(serverEntry, "/ccc?hello=test");
     expect(notFoundResponse.status).toBe(404);
@@ -251,6 +265,9 @@ describe("Resumable fixtures", () => {
       await expect(
         readFile(new URL(".resumable/types/routes.d.ts", typedRoutesFixtureUrl), "utf-8")
       ).resolves.toContain("export type ResumableAnchorProps =");
+      await expect(
+        readFile(new URL(".resumable/types/routes.d.ts", typedRoutesFixtureUrl), "utf-8")
+      ).resolves.toContain("export type ResumableLinkProps =");
 
       await expectProjectTypecheck(typedRoutesFixtureUrl);
       await expectProjectAnchorCompletions(typedRoutesFixtureUrl);
@@ -272,8 +289,11 @@ describe("Resumable fixtures", () => {
       expect(linksResponse.body).toContain('href="/blog/hello%20world"');
       expect(linksResponse.body).toContain('href="/blog/a%2Fb"');
       expect(linksResponse.body).toContain('href="/docs/guides/getting%20started"');
+      expect(linksResponse.body).toContain('href="/blog/link%20post"');
       expect(linksResponse.body).toContain('class="post-link"');
+      expect(linksResponse.body).toContain('class="link-post"');
       expect(linksResponse.body).toContain('data-kind="dynamic"');
+      expect(linksResponse.body).toContain('data-kind="link"');
       expect(linksResponse.body).toContain('target="_self"');
       expect(linksResponse.body).toContain('rel="nofollow"');
       expect(linksResponse.body).not.toContain("params=");
@@ -282,6 +302,7 @@ describe("Resumable fixtures", () => {
       expect(clientOutput).toContain("/blog/[slug]");
       expect(clientOutput).toContain("hello world");
       expect(clientOutput).toContain("a/b");
+      expect(clientOutput).toContain("link post");
       expect(clientOutput).toContain("getting started");
       expect(clientOutput).toContain("requires a non-empty catch-all param");
       expect(clientOutput).not.toContain("params=");
@@ -800,10 +821,13 @@ export default component$(() => {
 `;
 
 const typedRoutesProofPageCode = `import { component$ } from "@qwik.dev/core";
+import { Link } from "@resumable.dev/core";
 
 export default component$(() => {
   const validAbout = <a href="/about" />;
   const validBlog = <a href="/blog/[slug]" params={{ slug: "hello" }} />;
+  const validLinkAbout = <Link href="/about" prefetch="intent" replace scroll={false} reload />;
+  const validLinkBlog = <Link href="/blog/[slug]" params={{ slug: "hello" }} class="post" />;
 
   // @ts-expect-error unknown route
   const missing = <a href="/missing" />;
@@ -817,39 +841,64 @@ export default component$(() => {
   // @ts-expect-error static routes do not accept params
   const staticParams = <a href="/about" params={{ slug: "hello" }} />;
 
+  // @ts-expect-error unknown Link route
+  const missingLink = <Link href="/missing" />;
+
+  // @ts-expect-error dynamic Link route patterns require params
+  const missingLinkParams = <Link href="/blog/[slug]" />;
+
+  // @ts-expect-error dynamic Link route params must match the route pattern
+  const wrongLinkParams = <Link href="/blog/[slug]" params={{ id: "hello" }} />;
+
+  // @ts-expect-error static Link routes do not accept params
+  const staticLinkParams = <Link href="/about" params={{ slug: "hello" }} />;
+
   return (
     <nav>
       {validAbout}
       {validBlog}
+      {validLinkAbout}
+      {validLinkBlog}
       {missing}
       {missingParams}
       {wrongParams}
       {staticParams}
+      {missingLink}
+      {missingLinkParams}
+      {wrongLinkParams}
+      {staticLinkParams}
     </nav>
   );
 });
 `;
 
 const typedRoutesCompletionProofPageCode = `import { component$ } from "@qwik.dev/core";
+import { Link } from "@resumable.dev/core";
 
 export default component$(() => {
   const staticAnchor = <a href="/about"  />;
   const dynamicAnchor = <a href="/blog/[slug]" params={{ slug: "hello" }}  />;
+  const staticLink = <Link href="/about"  />;
+  const dynamicLink = <Link href="/blog/[slug]" params={{ slug: "hello" }}  />;
 
   return (
     <nav>
       {staticAnchor}
       {dynamicAnchor}
+      {staticLink}
+      {dynamicLink}
     </nav>
   );
 });
 `;
 
 const anchorLoweringPageCode = `import { component$ } from "@qwik.dev/core";
+import { Link } from "@resumable.dev/core";
 
 export default component$(() => {
   const spacedSlug = "hello world";
   const slashSlug = "a/b";
+  const linkSlug = "link post";
 
   return (
     <nav>
@@ -868,6 +917,19 @@ export default component$(() => {
       <a href="/docs/[...slug]" params={{ slug: ["guides", "getting started"] }} rel="nofollow">
         Docs
       </a>
+      <Link
+        class="link-post"
+        data-kind="link"
+        href="/blog/[slug]"
+        params={{ slug: linkSlug }}
+        prefetch="intent"
+        replace
+        scroll={false}
+        reload
+      >
+        Link
+      </Link>
+      <Link href="/about">Static Link</Link>
     </nav>
   );
 });

@@ -32,15 +32,20 @@ filesystem so real projects discover those anchor types without manual route
 imports. M8 typed routing slice 4 now lowers native route-pattern anchors to
 real hrefs for SSR and client builds, preserves normal anchor props, removes
 `params` before DOM output, and uses an internal route href helper for dynamic
-and catch-all param encoding.
+and catch-all param encoding. M8 typed routing slice 5 now adds the typed
+`Link` surface, generated `ResumableLinkProps` and
+`ResumableGeneratedRoutes["link"]`, a minimal public `Link` function component,
+and route-pattern `Link` lowering that reuses the native anchor route model and
+href helper without adding SPA behavior.
 
 ## Current Objective
 
-Continue M8 typed routing in TDD slices. Generated route declarations, Qwik JSX
-anchor types, real-project declaration discovery, TypeScript completion support,
-and native route-pattern anchor lowering now exist. The next missing typed
-navigation work should move to `Link`'s typed surface/runtime lowering while
-leaving SPA navigation, prefetching, MDX, and data APIs out of this slice.
+M8 typed routing is complete for v0 foundation scope. Generated route
+declarations, Qwik JSX anchor types, real-project declaration discovery,
+TypeScript completion support, native route-pattern anchor lowering, typed
+`Link`, and route-pattern `Link` lowering now exist. The next implementation
+work should start M9 SPA navigation from the proven `Link` surface while
+leaving prefetching, MDX, and data APIs out of the first SPA slice.
 
 ## Spec Files
 
@@ -103,10 +108,16 @@ leaving SPA navigation, prefetching, MDX, and data APIs out of this slice.
   and `PropsOf<"a">` accept static app hrefs, external/hash/query hrefs, and
   asset-like hrefs without params; dynamic and catch-all file-route patterns
   require matching `params`.
+- `Link` is exported from `@resumable.dev/core`, uses the same generated route
+  prop model as native anchors, accepts future SPA props (`prefetch`, `replace`,
+  `scroll`, `reload`), renders a real anchor, and strips `params` plus inactive
+  SPA props from DOM output in the current no-SPA runtime.
 - The `resumable:anchors` Vite transform lowers lowercase native `<a>` elements
-  whose `href` is a string literal route pattern. It rewrites `href` to the
-  internal `virtual:resumable/route-href` helper, removes the `params` prop, and
-  leaves static anchors plus expression hrefs alone.
+  and imported Resumable `Link` components whose `href` is a string literal
+  route pattern. It rewrites `href` to the internal
+  `virtual:resumable/route-href` helper, removes the `params` prop, and leaves
+  static anchors, static links, unrelated `Link` components, and expression
+  hrefs alone.
 - CLI path handling uses `pathe`/`ufo`; Node APIs remain only for actual
   filesystem/process CLI responsibilities.
 - Route files are `.tsx` and, after proof, `.mdx`.
@@ -155,7 +166,7 @@ leaving SPA navigation, prefetching, MDX, and data APIs out of this slice.
 | M5  | Document shell                            | Complete    | status page tests                | M4                            |
 | M6  | Status pages                              | Complete    | M5 document shell                | M4                            |
 | M7  | Nitro passthrough                         | Complete    | M4 renderer work                 | M2                            |
-| M8  | Typed routing                             | In Progress | CLI doctor/routes commands       | M3                            |
+| M8  | Typed routing                             | Complete    | CLI doctor/routes commands       | M3                            |
 | M9  | Link and SPA navigation                   | Pending     | none                             | M4, M8                        |
 | M10 | MDX/Composed MDX fixture and Docs starter | Pending     | none                             | M3, M4, Satteri/Qwik proof    |
 | M11 | Data fetching prototype                   | Deferred    | none                             | M4, M9, data confidence gates |
@@ -164,18 +175,20 @@ leaving SPA navigation, prefetching, MDX, and data APIs out of this slice.
 
 ## Next Recommended Goal
 
-Continue typed navigation with `Link` as the next focused slice:
+Start M9 SPA navigation with `Link` enhancement as the next focused slice:
 
-1. Re-read [`TYPED_ROUTING.md`](./TYPED_ROUTING.md) and decide whether `Link`
-   belongs at the end of M8 or as the first M9 slice.
-2. Add the typed `Link` props surface and route-pattern lowering evidence,
-   reusing the native anchor route model and href helper.
-3. Do not add SPA navigation behavior, prefetching, MDX, or data/form APIs until
-   the typed `Link` surface is proven.
+1. Re-read [`TYPED_ROUTING.md`](./TYPED_ROUTING.md), especially `Link And SPA
+   Navigation`, and keep native anchors as platform navigation.
+2. Add TDD evidence for `Link` click eligibility before runtime behavior:
+   same-origin page links may be enhanced, while external, `target`, `download`,
+   and `reload` links must remain normal browser navigation.
+3. Implement the smallest Navigation API/polyfill bridge needed for internal
+   `Link` navigation. Do not add prefetching, MDX, query/action data APIs, or
+   global native-anchor interception in this slice.
 
-Before changing typed-navigation implementation, inspect local Qwik JSX/types on
-branch `build/v2`, use grep MCP for current router `Link` patterns, and keep the
-implementation TDD-first.
+Before changing SPA implementation, inspect local Qwik `build/v2`, use grep MCP
+for current Navigation API/polyfill/router patterns, and keep the implementation
+TDD-first.
 
 ## Parallel Work Notes
 
@@ -719,4 +732,38 @@ Do not parallelize yet:
 - M8 native anchor lowering verification passed:
   `pnpm exec vp test libs/core/test/vite/anchor-transform.unit.ts libs/core/test/vite/vite.unit.ts libs/core/test/route-types.unit.ts libs/core/test/route-manifest.unit.ts libs/core/test/minimal-fixture.unit.ts`,
   `pnpm exec vp check`, `pnpm --filter @resumable.dev/core build`, and
+  `git diff --check`.
+- M8 typed `Link` research checked local Qwik `build/v2` component and JSX
+  types. `PropsOf<COMP>` reads a function/component prop type, and public Qwik
+  `Link`-like examples use normal component props plus `<Slot />` when a Qwik
+  component boundary is needed. Grep MCP examples across Next/TanStack-style
+  links reinforced keeping Resumable's public shape anchor-like with `href`
+  instead of introducing a router-object API.
+- M8 typed `Link` red evidence:
+  `pnpm exec vp test libs/core/test/route-types.unit.ts` failed because the
+  generated route declarations did not emit `ResumableLinkProps` and
+  `@resumable.dev/core` did not export `Link`; `pnpm exec vp test
+  libs/core/test/vite/anchor-transform.unit.ts` failed because imported
+  Resumable `Link` route patterns were not lowered or rejected.
+- M8 typed `Link` green evidence: generated route declarations now export
+  `ResumableLinkProps`, augment `ResumableGeneratedRoutes["link"]`, and let
+  imported `Link` usages type-check with the same static href, dynamic params,
+  catch-all params, and invalid-route failures as native anchors. The public
+  `Link` function component renders a real `<a>` and strips `params`,
+  `prefetch`, `replace`, `scroll`, and `reload` from DOM output until M9 adds
+  runtime SPA behavior. The Vite transform now lowers imported Resumable
+  `Link` route patterns through `__resumableHref(...)`, preserves normal anchor
+  props and future SPA props for the runtime surface, ignores unrelated
+  `Link` components, and leaves static links unchanged.
+- M8 typed `Link` fixture evidence: a temporary built fixture type-checks
+  static and route-pattern `Link` usages through generated project
+  declarations, renders `/links` SSR output with
+  `href="/blog/link%20post"`, preserves `class` and `data-*`, omits `params=`,
+  and keeps a static `<Link href="/about">` as a normal anchor. Client build
+  output includes the transformed route-pattern values and omits `params=`.
+- M8 typed `Link` verification passed:
+  `pnpm exec vp test libs/core/test/route-types.unit.ts`,
+  `pnpm exec vp test libs/core/test/vite/anchor-transform.unit.ts`,
+  `pnpm --filter @resumable.dev/core build`,
+  `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`, and
   `git diff --check`.

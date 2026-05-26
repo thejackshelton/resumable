@@ -1,4 +1,11 @@
-import type { JSXOutput, PropsOf } from "@qwik.dev/core";
+import {
+  component$,
+  jsx,
+  Slot,
+  type Component,
+  type JSXOutput,
+  type PropsOf
+} from "@qwik.dev/core";
 import type { H3Event } from "nitro";
 
 export {
@@ -38,6 +45,19 @@ export interface PageProps<Params extends object = Readonly<Record<string, strin
   };
   readonly status: number;
 }
+
+export interface ResumableGeneratedRoutes {}
+
+export interface LinkNavigationProps {
+  readonly prefetch?: boolean | "intent" | "viewport";
+  readonly replace?: boolean;
+  readonly scroll?: boolean;
+  readonly reload?: boolean;
+}
+
+export type LinkProps = ResumableGeneratedRoutes extends { readonly link: infer Props }
+  ? Props
+  : PropsOf<"a"> & LinkNavigationProps;
 
 export interface AppLocals {}
 
@@ -80,3 +100,23 @@ export function __resumableCreateHttpContext<
 export function Html(props: PropsOf<"html">): JSXOutput {
   return props.children as JSXOutput;
 }
+
+export const Link: Component<LinkProps> = component$((props) => {
+  const {
+    children: _children,
+    params: _params,
+    prefetch: _prefetch,
+    replace: _replace,
+    scroll: _scroll,
+    reload: _reload,
+    ...anchorProps
+  } = props as LinkProps &
+    LinkNavigationProps & {
+      readonly params?: unknown;
+    };
+
+  return jsx("a", {
+    ...(anchorProps as Record<string, unknown>),
+    children: jsx(Slot, {})
+  });
+});
