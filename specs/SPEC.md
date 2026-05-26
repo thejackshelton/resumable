@@ -85,7 +85,7 @@ DX rating for the final public vocabulary:
   9.4/10 because they are explicit and easy to type, but add visible ceremony
   that the folder convention can already express.
 - Generic `handler(...)` everywhere: about 8.5/10 because it is too broad and
-  reads like a UI event handler to many junior developers and AI agents.
+  reads like a generic callback to many junior developers and AI agents.
 - `server/api/` and `server/middleware/`: rejected because they teach a
   server/client split that does not fit Qwik resumability.
 
@@ -96,8 +96,8 @@ Naming decisions:
 - Keep top-level `middleware/`, not `server/middleware/`, because middleware is
   part of the request lifecycle rather than a separate user-facing server app.
 - Use plain default exports in `api/` and `middleware/`. The file location is
-  the lifecycle contract, and the TypeScript plugin injects the framework event
-  type in editor tooling.
+  the lifecycle contract, and the TypeScript plugin injects the framework HTTP
+  context type in editor tooling.
 - Do not use generic public `handler(...)`; it is too broad for the public HTTP
   lifecycle.
 
@@ -225,10 +225,11 @@ import {
   query$
 } from "@resumable.dev/core";
 import type {
-  EndpointEvent,
-  MiddlewareEvent,
+  EndpointHttpContext,
+  HttpContext,
+  MiddlewareHttpContext,
   PageProps,
-  RequestEvent
+  AppLocals
 } from "@resumable.dev/core";
 
 import { HTTPError } from "@resumable.dev/core/http";
@@ -536,7 +537,7 @@ export default component$<PageProps>(({ params }) => {
 Reason: `component$()` stays visually and conceptually Qwik-owned, while
 `PageProps` is the Resumable page input.
 
-Required v0 type shape:
+Required public type shape:
 
 ```ts
 export interface PageProps<Params extends object = Readonly<Record<string, string>>> {
@@ -549,25 +550,53 @@ export interface PageProps<Params extends object = Readonly<Record<string, strin
   readonly status: number;
 }
 
-export interface AppContext {}
+export interface AppLocals {}
 
-export interface RequestEvent<Context extends object = AppContext> {
-  readonly context: Context;
-  readonly url: URL;
+export interface HttpResponse {
+  readonly headers: Headers;
+  status?: number;
+  statusText?: string;
+}
+
+export interface HttpContext<Locals extends object = AppLocals> {
+  readonly locals: Locals;
   readonly request: Request;
+  readonly response: HttpResponse;
+  readonly url: URL;
 }
 
-export interface EndpointEvent<
+export interface EndpointHttpContext<
   Params extends object = Readonly<Record<string, string>>,
-  Context extends object = AppContext
-> extends RequestEvent<Context> {
-  readonly context: Context & {
-    readonly params: Readonly<Params>;
-  };
+  Locals extends object = AppLocals
+> extends HttpContext<Locals> {
+  readonly params: Readonly<Params>;
 }
 
-export interface MiddlewareEvent<Context extends object = AppContext>
-  extends RequestEvent<Context> {}
+export interface MiddlewareHttpContext<Locals extends object = AppLocals>
+  extends HttpContext<Locals> {}
+```
+
+Endpoint and middleware files receive an HTTP context. Public docs should use
+`http` as the conventional parameter name:
+
+```txt
+http.url       -> parsed URL
+http.request   -> incoming Request
+http.response  -> prepared response, including status and headers
+http.locals    -> middleware-provided app locals
+http.params    -> endpoint route params, only for api/ files
+```
+
+Do not expose the underlying runtime object or its short property aliases as the
+beginner API. The implementation may adapt this public HTTP context to H3/Nitro
+internally:
+
+```txt
+http.request   -> internal H3 req
+http.response  -> internal H3 res
+http.url       -> internal H3 URL
+http.locals    -> internal H3 context
+http.params    -> internal H3 context.params
 ```
 
 The Resumable TypeScript language service plugin should provide route-specific
@@ -581,8 +610,9 @@ The same typed-source transform model should type unannotated default exports in
 `api/` and `middleware/`. The current TypeScript plugin already overrides
 `getScriptSnapshot`, creates generated source text, injects framework parameter
 types, and maps positions and diagnostics back to the original file for page
-props. Endpoint and middleware typing should extend that same mechanism instead
-of requiring public helper wrappers.
+props. Endpoint and middleware typing should extend that same mechanism by
+injecting `EndpointHttpContext` and `MiddlewareHttpContext` instead of requiring
+public helper wrappers.
 
 This must not be editor-only magic. A shared file classifier/parser should power:
 
@@ -1151,10 +1181,10 @@ export default function () {
 Supported default export shapes:
 
 ```ts
-export default async function (event) {}
-export default async (event) => {};
+export default async function (http) {}
+export default async (http) => {};
 
-const route = async (event) => {};
+const route = async (http) => {};
 export default route;
 ```
 
@@ -1164,18 +1194,18 @@ Cached HTTP endpoints use a sidecar `cache` export:
 // api/posts.get.ts
 export const cache = { maxAge: 60 };
 
-export default async function (event) {
+export default async function (http) {
   return { posts: await listPosts() };
 }
 ```
 
-Dynamic params are available through the endpoint event:
+Dynamic params are available through the endpoint HTTP context:
 
 ```ts
 // api/users/[id].get.ts
-export default function (event) {
+export default function (http) {
   return {
-    id: event.context.params.id
+    id: http.params.id
   };
 }
 ```
@@ -1195,13 +1225,26 @@ default export function parameters based on file location. For example,
 
 ```ts
 export default function (
-  event: import("@resumable.dev/core").EndpointEvent<{ readonly id: string }>
+  http: import("@resumable.dev/core").EndpointHttpContext<{ readonly id: string }>
 ) {
-  return { id: event.context.params.id };
+  return { id: http.params.id };
 }
 ```
 
-Users should not need to import an endpoint event type for the normal path.
+Users should not need to import an endpoint HTTP context type for the normal
+path. Values attached by middleware should be typed by augmenting `AppLocals` in an
+app type file included by `tsconfig.json`:
+
+```ts
+// app.d.ts
+import "@resumable.dev/core";
+
+declare module "@resumable.dev/core" {
+  interface AppLocals {
+    requestId?: string;
+  }
+}
+```
 
 Core rule:
 
@@ -1316,18 +1359,19 @@ Middleware files default-export a function:
 
 ```ts
 // middleware/01.request-id.ts
-export default function (event) {
-  event.context.requestId = crypto.randomUUID();
+export default function (http) {
+  http.locals.requestId = crypto.randomUUID();
+  http.response.headers.set("x-request-id", http.locals.requestId);
 }
 ```
 
 Supported default export shapes match API files:
 
 ```ts
-export default async function (event) {}
-export default async (event) => {};
+export default async function (http) {}
+export default async (http) => {};
 
-const auth = async (event) => {};
+const auth = async (http) => {};
 export default auth;
 ```
 
@@ -1337,14 +1381,15 @@ contract.
 
 The TypeScript language plugin should provide contextual types for the default
 export in `middleware/` based on file location. Users should not need to import
-a `MiddlewareEvent` type for the normal path. A middleware file should be typed
-as if the user wrote:
+a `MiddlewareHttpContext` type for the normal path. A middleware file should be
+typed as if the user wrote:
 
 ```ts
 export default function (
-  event: import("@resumable.dev/core").MiddlewareEvent
+  http: import("@resumable.dev/core").MiddlewareHttpContext
 ) {
-  event.context.requestId = crypto.randomUUID();
+  http.locals.requestId = crypto.randomUUID();
+  http.response.headers.set("x-request-id", http.locals.requestId);
 }
 ```
 
@@ -1372,9 +1417,9 @@ Examples:
 
 ```ts
 // middleware/10.admin.ts
-export default function (event) {
-  if (event.url.pathname.startsWith("/admin")) {
-    event.context.requiresAuth = true;
+export default function (http) {
+  if (http.url.pathname.startsWith("/admin")) {
+    http.locals.requiresAuth = true;
   }
 }
 ```

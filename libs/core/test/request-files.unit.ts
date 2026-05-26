@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { parseRequestFile } from "../src/request-files.ts";
+import { parseRequestFile, transformRequestFileSource } from "../src/request-files.ts";
 
 describe("request file parser", () => {
   it("classifies non-request files as neither API nor middleware", () => {
@@ -14,12 +14,12 @@ describe("request file parser", () => {
     expect(
       parseRequestFile(
         "api/users/[id].get.ts",
-        "export default async function (event) { return event.context.params.id; }"
+        "export default async function (http) { return http.params.id; }"
       )
     ).toMatchObject({
       defaultExport: {
         kind: "function",
-        parameterName: "event"
+        parameterName: "http"
       },
       diagnostics: [],
       file: "api/users/[id].get.ts",
@@ -35,11 +35,11 @@ describe("request file parser", () => {
 
   it("treats API files without a method suffix as all-method endpoints", () => {
     expect(
-      parseRequestFile("api/posts.ts", "export default async (event) => ({ ok: true });")
+      parseRequestFile("api/posts.ts", "export default async (http) => ({ ok: true });")
     ).toMatchObject({
       defaultExport: {
         kind: "function",
-        parameterName: "event"
+        parameterName: "http"
       },
       diagnostics: [],
       kind: "api",
@@ -56,12 +56,12 @@ describe("request file parser", () => {
     expect(
       parseRequestFile(
         "api/proxy/[...path].ts",
-        "const route = async (event) => event.context.params.path; export default route;"
+        "const route = async (http) => http.params.path; export default route;"
       )
     ).toMatchObject({
       defaultExport: {
         kind: "function",
-        parameterName: "event"
+        parameterName: "http"
       },
       diagnostics: [],
       kind: "api",
@@ -92,12 +92,12 @@ describe("request file parser", () => {
     expect(
       parseRequestFile(
         "middleware/01.auth.ts",
-        "export default async (event) => { event.context.user = {}; };"
+        "export default async (http) => { http.locals.user = {}; };"
       )
     ).toMatchObject({
       defaultExport: {
         kind: "function",
-        parameterName: "event"
+        parameterName: "http"
       },
       diagnostics: [],
       file: "middleware/01.auth.ts",
@@ -145,5 +145,44 @@ describe("request file parser", () => {
         message: "Use export const cache for endpoint cache metadata."
       }
     ]);
+  });
+
+  it("wraps API files so user handlers receive an HTTP context", () => {
+    expect(
+      transformRequestFileSource(
+        "api/users/[id].get.ts",
+        "export default async function (http) { return http.params.id; }"
+      )?.code
+    ).toContain(
+      "import { __resumableCreateHttpContext as __resumable_create_http_context__ } from \"@resumable.dev/core\";"
+    );
+    expect(
+      transformRequestFileSource(
+        "api/users/[id].get.ts",
+        "export default async function (http) { return http.params.id; }"
+      )?.code
+    ).toContain(
+      "const __resumable_request_handler__ = async function (http) { return http.params.id; }"
+    );
+  });
+
+  it("wraps cached API files with endpoint cache metadata", () => {
+    expect(
+      transformRequestFileSource(
+        "api/posts.get.ts",
+        "export const cache = { maxAge: 60 }; export default function () {}"
+      )?.code
+    ).toContain(
+      'import { defineCachedHandler as __resumable_define_handler__ } from "nitro/cache";'
+    );
+  });
+
+  it("wraps middleware files so user handlers receive an HTTP context", () => {
+    expect(
+      transformRequestFileSource(
+        "middleware/01.auth.ts",
+        "const auth = (http) => { http.locals.user = {}; }; export default auth;"
+      )?.code
+    ).toContain("auth(__resumable_create_http_context__(event))");
   });
 });

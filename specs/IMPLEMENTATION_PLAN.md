@@ -422,7 +422,7 @@ Research before coding:
 Build:
 
 - Public export `@resumable.dev/core/vite`.
-- Public event types `EndpointEvent` and `MiddlewareEvent` from
+- Public HTTP context types `EndpointHttpContext` and `MiddlewareHttpContext` from
   `@resumable.dev/core` as explicit escape hatches; normal app files rely on
   contextual typing.
 - Vite plugin skeleton.

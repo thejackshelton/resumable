@@ -9,20 +9,20 @@ const posts: readonly Post[] = [
   {
     slug: "qwik-resumability",
     title: "Qwik resumability",
-    excerpt: "Async UI state can consume ordinary Nitro API endpoints.",
-    tags: ["qwik", "nitro"]
+    excerpt: "Async UI state can consume ordinary HTTP endpoints.",
+    tags: ["qwik", "http"]
   },
   {
-    slug: "nitro-boundary",
-    title: "Nitro owns data",
-    excerpt: "Routes, middleware, storage, caching, and headers stay Nitro-native.",
-    tags: ["qwik", "nitro"]
+    slug: "http-boundary",
+    title: "HTTP owns requests",
+    excerpt: "Routes, middleware, storage, caching, and headers stay HTTP-native.",
+    tags: ["qwik", "http"]
   },
   {
     slug: "storage-cache",
     title: "Storage and cache",
-    excerpt: "Nitro storage and cached handlers are reusable from API routes.",
-    tags: ["nitro", "cache"]
+    excerpt: "Storage and cached endpoints are reusable from API routes.",
+    tags: ["http", "cache"]
   }
 ];
 

@@ -1,7 +1,7 @@
 import "@resumable.dev/core";
 
 declare module "@resumable.dev/core" {
-  interface AppContext {
+  interface AppLocals {
     requestId?: string;
   }
 }

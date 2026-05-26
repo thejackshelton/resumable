@@ -46,6 +46,12 @@ export interface ApiRequestFileCache {
   readonly maxAge: number;
 }
 
+export interface RequestFileTransformResult {
+  readonly code: string;
+  readonly file: string;
+  readonly kind: "api" | "middleware";
+}
+
 interface NormalizedRequestRouteSegment {
   readonly params: readonly RequestFileParam[];
   readonly pathname: string;
@@ -106,6 +112,31 @@ export function parseRequestFile(
 
 export function normalizeRequestFileId(fileId: string) {
   return withoutLeadingSlash(normalize(fileId));
+}
+
+export function transformRequestFileSource(
+  fileId: string,
+  sourceText: string
+): RequestFileTransformResult | undefined {
+  const requestFile = parseRequestFile(fileId, sourceText);
+  if (
+    requestFile.kind === "none" ||
+    requestFile.diagnostics.length > 0 ||
+    !requestFile.defaultExport
+  ) {
+    return undefined;
+  }
+
+  const handler = localizeDefaultExport(sourceText);
+  if (!handler) {
+    return undefined;
+  }
+
+  return {
+    code: requestFileWrapperSource(requestFile, handler.code, handler.name),
+    file: requestFile.file,
+    kind: requestFile.kind
+  };
 }
 
 function parseApiRequestFile(
@@ -369,6 +400,59 @@ function middlewareRelativeFile(file: string) {
   }
 
   return relative(MIDDLEWARE_DIR, file);
+}
+
+function localizeDefaultExport(sourceText: string) {
+  const defaultIdentifierMatch = sourceText.match(
+    /\bexport\s+default\s+([A-Za-z_$][\w$]*)\s*;/
+  );
+  if (defaultIdentifierMatch) {
+    return {
+      code: sourceText.replace(defaultIdentifierMatch[0], ""),
+      name: defaultIdentifierMatch[1]!
+    };
+  }
+
+  const directDefaultMatch = sourceText.match(/\bexport\s+default\b/);
+  if (!directDefaultMatch || directDefaultMatch.index === undefined) {
+    return undefined;
+  }
+
+  return {
+    code: `${sourceText.slice(
+      0,
+      directDefaultMatch.index
+    )}const __resumable_request_handler__ =${sourceText.slice(
+      directDefaultMatch.index + directDefaultMatch[0].length
+    )}`,
+    name: "__resumable_request_handler__"
+  };
+}
+
+function requestFileWrapperSource(
+  requestFile: Extract<RequestFileParseResult, { kind: "api" | "middleware" }>,
+  sourceText: string,
+  handlerName: string
+) {
+  const defineImport =
+    requestFile.kind === "api" && requestFile.cache
+      ? 'import { defineCachedHandler as __resumable_define_handler__ } from "nitro/cache";'
+      : 'import { defineHandler as __resumable_define_handler__ } from "nitro";';
+
+  const wrappedHandler = `(event) =>
+  ${handlerName}(__resumable_create_http_context__(event))`;
+  const wrappedDefault =
+    requestFile.kind === "api" && requestFile.cache
+      ? `__resumable_define_handler__(${wrappedHandler}, cache)`
+      : `__resumable_define_handler__(${wrappedHandler})`;
+
+  return `${defineImport}
+import { __resumableCreateHttpContext as __resumable_create_http_context__ } from "@resumable.dev/core";
+
+${sourceText.trimEnd()}
+
+export default ${wrappedDefault};
+`;
 }
 
 function isRequestModuleFile(file: string) {

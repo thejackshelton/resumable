@@ -1,5 +1,4 @@
 import { useStorage } from "nitro/storage";
-import { readValidatedBody, setCookie } from "nitro/h3";
 
 interface ContactSubmission {
   readonly email: string;
@@ -29,13 +28,24 @@ function isRecord(input: unknown): input is Record<string, unknown> {
   return typeof input === "object" && input !== null;
 }
 
-export default async function (event) {
-  const body = await readValidatedBody(event, validateContactSubmission, {
-    onError: () => ({
-      message: "Email and message are required.",
-      status: 422
-    })
-  });
+function submissionFromFormData(formData: FormData) {
+  return {
+    email: formData.get("email"),
+    message: formData.get("message")
+  };
+}
+
+export default async function (http) {
+  const body = validateContactSubmission(
+    submissionFromFormData(await http.request.formData())
+  );
+  if (!body) {
+    http.response.status = 422;
+    return {
+      message: "Email and message are required."
+    };
+  }
+
   const storage = useStorage<StoredContactSubmission>("data-fetching");
   const key = `contact:${encodeURIComponent(body.email)}`;
   const stored: StoredContactSubmission = {
@@ -45,16 +55,16 @@ export default async function (event) {
 
   await storage.setItem(key, stored);
 
-  setCookie(event, "data-fetching-contact", key, {
-    path: "/",
-    sameSite: "lax"
-  });
-  event.res.status = 201;
-  event.res.headers.set("x-data-fetching-source", "storage");
+  http.response.status = 201;
+  http.response.headers.append(
+    "set-cookie",
+    `data-fetching-contact=${encodeURIComponent(key)}; Path=/; SameSite=Lax`
+  );
+  http.response.headers.set("x-data-fetching-source", "storage");
 
   return {
     key,
-    requestId: event.context.requestId ?? null,
+    requestId: http.locals.requestId ?? null,
     saved: true,
     stored: await storage.getItem(key)
   };

@@ -1,4 +1,4 @@
-export default function (event) {
-  event.context.requestId = "data-fetching-middleware";
-  event.res.headers.set("x-data-fetching-middleware", "ran");
+export default function (http) {
+  http.locals.requestId = "data-fetching-middleware";
+  http.response.headers.set("x-data-fetching-middleware", "ran");
 }

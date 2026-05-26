@@ -1,43 +1,32 @@
-import { defineHandler, HTTPError, serverFetch } from "nitro";
-import { getRouterParam, withServerTiming } from "nitro/h3";
-import { findPost, type Post } from "../../data/posts";
+import { findPost, listPosts } from "../../data/posts";
 
-interface PostsResponse {
-  readonly posts: readonly Post[];
-}
-
-export default defineHandler(async (event) => {
-  const slug = getRouterParam(event, "slug", { decode: true });
-
+export default async function (http) {
+  const slug = http.params.slug;
   if (!slug) {
-    throw HTTPError.status(400, "Bad Request", {
+    http.response.status = 400;
+    return {
       message: "Missing post slug"
-    });
+    };
   }
 
-  const post = await withServerTiming(event, "post", () => findPost(slug));
+  http.response.headers.set("server-timing", "post");
+  const post = await findPost(slug);
 
   if (!post) {
-    throw HTTPError.status(404, "Not Found", {
+    http.response.status = 404;
+    return {
       data: { slug },
       message: "Post not found"
-    });
+    };
   }
 
-  const relatedResponse = await serverFetch(
-    `/api/posts?tag=${encodeURIComponent(post.tags[0])}`,
-    undefined,
-    event.context
-  );
-  const relatedPosts = relatedResponse.ok
-    ? ((await relatedResponse.json()) as PostsResponse).posts
-    : [];
+  const relatedPosts = await listPosts({ tag: post.tags[0] });
 
   return {
     post,
     related: relatedPosts
       .filter((relatedPost) => relatedPost.slug !== post.slug)
       .map((relatedPost) => relatedPost.slug),
-    requestId: event.context.requestId ?? null
+    requestId: http.locals.requestId ?? null
   };
-});
+}

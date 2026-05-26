@@ -320,8 +320,8 @@ function createRequestFileTypedSourceTransform(
 
   const annotation =
     route.kind === "api"
-      ? `: import("@resumable.dev/core").EndpointEvent<${pageParamsType(route.params)}>`
-      : `: import("@resumable.dev/core").MiddlewareEvent`;
+      ? `: import("@resumable.dev/core").EndpointHttpContext<${pageParamsType(route.params)}>`
+      : `: import("@resumable.dev/core").MiddlewareHttpContext`;
 
   return insertGeneratedType(sourceText, parameter.insertTypeAt, annotation);
 }

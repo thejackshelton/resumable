@@ -160,12 +160,12 @@ Grep MCP research found these relevant patterns:
 - Qwik v2 makes `useAsync$` the async state primitive. `<Suspense>` controls
   fallback UI; it does not fetch data.
 - Qwik City route loaders and runtime handlers expose request state through an
-  explicit event argument.
+  explicit handler argument.
 - Astro actions use an explicit `(input, context)` handler shape.
 - TanStack Start server functions and real-world usage separate validated
   `data` from middleware-provided `context`.
-- SvelteKit remote functions use `getRequestEvent()`, but that hides request
-  state behind a global helper and has timing and route-context caveats.
+- SvelteKit remote functions hide request state behind a global helper with
+  timing and route-context caveats.
 
 Resumable should borrow the query identity and cache semantics people like from
 TanStack Query, but implement them through Qwik resumability and the internal
@@ -206,14 +206,13 @@ The public package entrypoint is:
 import { action$, query$, schema } from "@resumable.dev/core";
 ```
 
-Request context types and HTTP failure helpers stay Resumable-owned in public
-docs:
+HTTP context types and HTTP failure helpers stay Resumable-owned in public docs:
 
 ```ts
 import type {
-  EndpointEvent,
-  MiddlewareEvent,
-  RequestEvent
+  EndpointHttpContext,
+  HttpContext,
+  MiddlewareHttpContext
 } from "@resumable.dev/core";
 import { HTTPError } from "@resumable.dev/core/http";
 ```
@@ -529,10 +528,10 @@ parameter should only appear when the handler needs request/runtime state.
 Query and action handlers may receive a second context argument:
 
 ```ts
-import type { RequestEvent } from "@resumable.dev/core";
+import type { HttpContext } from "@resumable.dev/core";
 
 type QueryContext = {
-  event: RequestEvent;
+  http: HttpContext;
   signal: AbortSignal;
 };
 
@@ -541,16 +540,16 @@ type ActionContext = QueryContext & {
 };
 ```
 
-`ctx.event` is Resumable's request event. It exposes the current request URL,
-headers, cookies, and typed middleware context without requiring normal app code
-to import runtime-specific event types.
+`ctx.http` is Resumable's HTTP context. It exposes the current request, prepared
+response, URL, and typed middleware locals without requiring normal app code to
+import runtime-specific request types.
 
-Applications should be able to augment the event context type through a global
-app type, so middleware-provided values are typed in queries and actions:
+Applications should be able to augment the app locals type through a global app
+type, so middleware-provided values are typed in queries and actions:
 
 ```ts
 declare module "@resumable.dev/core" {
-  interface AppContext {
+  interface AppLocals {
     user?: {
       id: string;
       email: string;
@@ -562,8 +561,8 @@ declare module "@resumable.dev/core" {
 Conceptually:
 
 ```ts
-type QueryContext<Context = AppContext> = {
-  event: RequestEvent<Context>;
+type QueryContext<Locals = AppLocals> = {
+  http: HttpContext<Locals>;
   signal: AbortSignal;
 };
 ```
@@ -572,7 +571,7 @@ Use context for request/runtime state:
 
 ```ts
 export const getCurrentUser = query$(async (_, ctx) => {
-  return getUserFromSession(ctx.event);
+  return getUserFromSession(ctx.http);
 });
 ```
 
@@ -581,7 +580,7 @@ dedupe, caching, refresh, or SPA reuse:
 
 ```ts
 export const getPost = query$(async ({ slug }, ctx) => {
-  const user = await getUserFromSession(ctx.event);
+  const user = await getUserFromSession(ctx.http);
 
   return db.posts.findVisibleToUser(slug, user.id);
 });
@@ -616,10 +615,10 @@ What goes where:
 | Search params                | query/action argument       |
 | Form values                  | action argument             |
 | Selected UI state            | query/action argument       |
-| Cookies                      | `ctx.event`                 |
-| Headers                      | `ctx.event`                 |
-| Auth/session from middleware | `ctx.event.context`         |
-| Runtime config               | runtime helper or `ctx.event` |
+| Cookies                      | `ctx.http` helpers          |
+| Headers                      | `ctx.http.request` / `ctx.http.response` |
+| Auth/session from middleware | `ctx.http.locals`           |
+| Runtime config               | runtime helper or `ctx.http` |
 | Abort/cancel                 | `ctx.signal`                |
 | Refresh reads after mutation | `ctx.refresh(...)`          |
 
@@ -630,7 +629,7 @@ should be passed as query input. Otherwise, the query cache cannot distinguish
 
 Future guardrail: development builds should warn when a public cached query
 reads request-specific state such as cookies, auth/session context, or
-`ctx.event.context.params` without an explicit safe partition. This protects
+`ctx.http.locals` without an explicit safe partition. This protects
 against accidental cross-user cache leaks while keeping v0's public API small.
 
 ### API And Middleware Files
@@ -638,10 +637,27 @@ against accidental cross-user cache leaks while keeping v0's public API small.
 Top-level `api/` contains public HTTP endpoints. Top-level `middleware/`
 contains request pipeline middleware.
 
-Users should not write method exports, generic `handler(...)`, or
-runtime-specific helpers in normal app files. The public API is the file
-contract: default-export a function from `api/` or `middleware/`, and use named
-sidecar exports for endpoint metadata.
+Users should not write method exports, generic `handler(...)`, `defineHandler`,
+or `defineMiddleware` in normal app files. The public API is the file contract:
+default-export a function from `api/` or `middleware/`, and use named sidecar
+exports for endpoint metadata. Runtime utilities such as storage, cookies,
+validated body reads, and route rules may still be imported when needed; the
+function wrapper is the part Resumable owns.
+
+Endpoint and middleware files receive an HTTP context. Public docs should use
+`http` as the conventional parameter name:
+
+```txt
+http.url       -> parsed URL
+http.request   -> incoming Request
+http.response  -> prepared response, including status and headers
+http.locals    -> middleware-provided app locals
+http.params    -> endpoint route params, only for api/ files
+```
+
+Do not expose the underlying runtime object or its short property aliases as the
+beginner API. The implementation may adapt this public HTTP context to H3/Nitro
+internally.
 
 API endpoint example:
 
@@ -649,9 +665,9 @@ API endpoint example:
 // api/posts.get.ts
 import { listPosts } from "../data/posts";
 
-export default async function (event) {
+export default async function (http) {
   return {
-    posts: await listPosts({ userId: event.context.user?.id })
+    posts: await listPosts({ userId: http.locals.user?.id })
   };
 }
 ```
@@ -662,10 +678,27 @@ Middleware example:
 // middleware/10.auth.ts
 import { getUserFromSession } from "../data/session";
 
-export default async function (event) {
-  const user = await getUserFromSession(event);
+export default async function (http) {
+  const user = await getUserFromSession(http);
 
-  event.context.user = user;
+  http.locals.user = user;
+}
+```
+
+Middleware-provided locals should be typed by augmenting `AppLocals` in an app
+type file that is included by `tsconfig.json`:
+
+```ts
+// app.d.ts
+import "@resumable.dev/core";
+
+declare module "@resumable.dev/core" {
+  interface AppLocals {
+    user?: {
+      id: string;
+      email: string;
+    };
+  }
 }
 ```
 
@@ -686,19 +719,19 @@ The TypeScript language plugin should provide contextual types based on folder
 location and the default export:
 
 ```txt
-api/**/*.ts         -> default export first parameter is EndpointEvent<Params>
-middleware/**/*.ts  -> default export first parameter is MiddlewareEvent
+api/**/*.ts         -> default export first parameter is EndpointHttpContext<Params>
+middleware/**/*.ts  -> default export first parameter is MiddlewareHttpContext
 ```
 
-Users should not need to import `EndpointEvent` or `MiddlewareEvent` for the
-common path. Explicit type imports may exist as an escape hatch, but the
-framework should make the file convention self-typing.
+Users should not need to import `EndpointHttpContext` or `MiddlewareHttpContext`
+for the common path. Explicit type imports may exist as an escape hatch, but
+the framework should make the file convention self-typing.
 
 The plugin should reuse the existing typed-source transform approach used for
-page props. It should inject framework event types into the generated TypeScript
-source and map positions and diagnostics back to the original file. The same
-file classifier/parser must also power Vite runtime wrapping and `vp check`
-diagnostics so this is not editor-only behavior.
+page props. It should inject framework HTTP context types into the generated
+TypeScript source and map positions and diagnostics back to the original file.
+The same file classifier/parser must also power Vite runtime wrapping and
+`vp check` diagnostics so this is not editor-only behavior.
 
 Colocated page reads can be defined above the component:
 
@@ -1380,7 +1413,7 @@ Data fetching v0 should not require:
 - HTTP method exports such as `export function GET()` in `api/` files.
 - A broad Resumable router-control API for redirects, rewrites, proxies, or
   route rules.
-- A global `getRequestEvent()` helper as the primary request context API.
+- A global helper as the primary HTTP context API.
 - Tag-based invalidation as a v0 requirement.
 - Durable cross-user caching by default.
 - Mutations inside `query$`.
@@ -1404,7 +1437,7 @@ SSR behavior:
 - Query handler argument validation failure produces a direct error.
 - Query handler return-value validation failure produces a direct error in
   development.
-- Query handlers can access the current request event through `ctx.event`.
+- Query handlers can access the current HTTP context through `ctx.http`.
 - Query handlers can access cancellation through `ctx.signal`.
 - Thrown HTTP failure values preserve their status and headers.
 - A thrown `404` from a page query can render `pages/404.tsx` with a
@@ -1437,7 +1470,7 @@ Action behavior:
 - `action$(handler, options)` works for configured side effects.
 - Actions validate the handler argument before executing.
 - Actions validate the handler return value before returning.
-- Actions can access the current request event through `ctx.event`.
+- Actions can access the current HTTP context through `ctx.http`.
 - Actions can access cancellation through `ctx.signal`.
 - Actions can call `ctx.refresh(queryFn, input?)`.
 - Action refreshes are queued while the action runs and applied only after the

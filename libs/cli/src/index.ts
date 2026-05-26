@@ -566,16 +566,16 @@ export default component$(() => <h1>${title}</h1>);
 }
 
 function apiHealth() {
-  return `export default defineEventHandler(() => {
+  return `export default function () {
   return { ok: true };
-});
+}
 `;
 }
 
 function requestMiddleware() {
-  return `export default defineEventHandler((event) => {
-  event.context.startedAt = Date.now();
-});
+  return `export default function (http) {
+  http.response.headers.set("x-resumable-started-at", String(Date.now()));
+}
 `;
 }
 

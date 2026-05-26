@@ -302,7 +302,7 @@ describe("Resumable fixtures", () => {
     }
   });
 
-  it("keeps Nitro middleware, public assets, and routeRules native around page rendering", async () => {
+  it("keeps HTTP middleware, public assets, and routeRules native around page rendering", async () => {
     const nitroFixtureUrl = await createTemporaryNitroPassthroughFixture();
 
     try {
@@ -753,11 +753,11 @@ export default defineConfig({
 });
 `;
 
-const nitroPassthroughMiddlewareCode = `export default function (event) {
-  event.context.requestId = "m7-middleware";
-  event.res.headers.set("x-resumable-middleware", "ran");
+const nitroPassthroughMiddlewareCode = `export default function (http) {
+  http.locals.requestId = "m7-middleware";
+  http.response.headers.set("x-resumable-middleware", "ran");
 
-  if (event.url.pathname === "/blocked-by-middleware") {
+  if (http.url.pathname === "/blocked-by-middleware") {
     return new Response("blocked by middleware", {
       status: 418,
       headers: {
@@ -768,9 +768,9 @@ const nitroPassthroughMiddlewareCode = `export default function (event) {
 }
 `;
 
-const nitroPassthroughApiCode = `export default function (event) {
+const nitroPassthroughApiCode = `export default function (http) {
   return {
-    requestId: event.context.requestId
+    requestId: http.locals.requestId
   };
 }
 `;

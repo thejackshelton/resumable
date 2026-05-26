@@ -40,7 +40,7 @@ export default component$(() => {
         <label>
           Message
           <textarea name="message" rows={3}>
-            Hello from a Nitro form route.
+            Hello from a Resumable form route.
           </textarea>
         </label>
         <button type="submit">Send</button>

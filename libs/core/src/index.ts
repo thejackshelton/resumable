@@ -39,30 +39,43 @@ export interface PageProps<Params extends object = Readonly<Record<string, strin
   readonly status: number;
 }
 
-export interface AppContext {}
+export interface AppLocals {}
 
-type RequestEventContext<Context extends object> = H3Event["context"] & Context;
-
-type EndpointEventContext<
-  Params extends object,
-  Context extends object
-> = RequestEventContext<Context> & {
-  readonly params: Readonly<Params>;
-};
-
-export interface RequestEvent<Context extends object = AppContext> extends H3Event {
-  readonly context: RequestEventContext<Context>;
+export interface HttpResponse {
+  readonly headers: Headers;
+  status?: number;
+  statusText?: string;
 }
 
-export interface EndpointEvent<
+export interface HttpContext<Locals extends object = AppLocals> {
+  readonly locals: Locals;
+  readonly request: Request;
+  readonly response: HttpResponse;
+  readonly url: URL;
+}
+
+export interface EndpointHttpContext<
   Params extends object = Readonly<Record<string, string>>,
-  Context extends object = AppContext
-> extends RequestEvent<Context> {
-  readonly context: EndpointEventContext<Params, Context>;
+  Locals extends object = AppLocals
+> extends HttpContext<Locals> {
+  readonly params: Readonly<Params>;
 }
 
-export interface MiddlewareEvent<Context extends object = AppContext>
-  extends RequestEvent<Context> {}
+export interface MiddlewareHttpContext<Locals extends object = AppLocals>
+  extends HttpContext<Locals> {}
+
+export function __resumableCreateHttpContext<
+  Params extends object = Readonly<Record<string, string>>,
+  Locals extends object = AppLocals
+>(event: H3Event): EndpointHttpContext<Params, Locals> {
+  return {
+    locals: event.context as Locals,
+    params: (event.context.params ?? {}) as Params,
+    request: event.req as unknown as Request,
+    response: event.res,
+    url: event.url
+  };
+}
 
 export function Html(props: PropsOf<"html">): JSXOutput {
   return props.children as JSXOutput;

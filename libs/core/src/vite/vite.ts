@@ -1,14 +1,16 @@
 import { nitro } from "nitro/vite";
-import { dirname, join } from "pathe";
+import { dirname, isAbsolute, join, normalize, relative } from "pathe";
 import {
   mergeConfig,
   sortUserPlugins,
   type EnvironmentOptions,
   type Plugin,
   type PluginOption,
+  type ResolvedConfig,
   type UserConfig
 } from "vite";
-import { decodePath, parseURL } from "ufo";
+import { decodePath, parseURL, withoutLeadingSlash } from "ufo";
+import { transformRequestFileSource } from "../request-files.ts";
 import { anchorTransformPlugin } from "./anchor-transform.ts";
 import { htmlTransformPlugin } from "./html-transform.ts";
 import { routeTypegenPlugin } from "./route-typegen.ts";
@@ -40,6 +42,7 @@ export function resumable(_options: ResumableOptions = {}): PluginOption[] {
 
   return [
     configPlugin(nitroPlugins),
+    requestFileTransformPlugin(),
     routeTypegenPlugin(),
     anchorTransformPlugin(),
     htmlTransformPlugin(),
@@ -58,7 +61,7 @@ function configPlugin(nitroPluginsFromResumable: readonly Plugin[]): Plugin {
       config.environments.ssr ??= {};
 
       return {
-        nitro: createNitroConfig(config.nitro)
+        nitro: createNitroConfig(config.nitro, config.root)
       };
     },
     configEnvironment(_name, config) {
@@ -97,6 +100,27 @@ function configureQwikRuntimeResolution(config: EnvironmentOptions) {
   Object.assign(config, mergeConfig(config, qwikConfig) as EnvironmentOptions);
 }
 
+function requestFileTransformPlugin(): Plugin {
+  let config: ResolvedConfig;
+
+  return {
+    name: "resumable:request-files",
+    enforce: "pre",
+    configResolved(resolvedConfig) {
+      config = resolvedConfig;
+    },
+    transform(code, id) {
+      const fileId = relativeRequestFileId(config, id);
+      if (!fileId) {
+        return;
+      }
+
+      const transform = transformRequestFileSource(fileId, code);
+      return transform ? { code: transform.code, map: null } : undefined;
+    }
+  };
+}
+
 function virtualModulesPlugin(): Plugin {
   return {
     name: "resumable:routes",
@@ -114,6 +138,73 @@ function virtualModulesPlugin(): Plugin {
       }
     }
   };
+}
+
+function relativeRequestFileId(config: ResolvedConfig, id: string) {
+  if (id.startsWith("\0")) {
+    return undefined;
+  }
+
+  const pathname = decodePath(parseURL(id).pathname);
+  if (!isAbsolute(pathname)) {
+    return undefined;
+  }
+
+  return withoutLeadingSlash(relative(config.root, pathname));
+}
+
+function nitroRequestFileTransformPlugin(root: string) {
+  return {
+    name: "resumable:request-files",
+    transform(code: string, id: string) {
+      const fileId = requestFileIdForBuild(root, id);
+      if (!fileId) {
+        return;
+      }
+
+      const transform = transformRequestFileSource(fileId, code);
+      return transform ? { code: transform.code, map: null } : undefined;
+    }
+  };
+}
+
+function requestFileIdForBuild(root: string, id: string) {
+  if (id.startsWith("\0")) {
+    return undefined;
+  }
+
+  const pathname = decodePath(parseURL(id).pathname);
+  if (!isAbsolute(pathname)) {
+    return undefined;
+  }
+
+  const relativeFileId = withoutLeadingSlash(normalize(relative(root, pathname)));
+  if (relativeFileId.startsWith("api/") || relativeFileId.startsWith("middleware/")) {
+    return relativeFileId;
+  }
+
+  const nestedRequestFile = relativeFileId.match(
+    /(?:^|\/)((?:api|middleware)\/.+\.ts)$/
+  )?.[1];
+  return nestedRequestFile;
+}
+
+function withRequestFileBuildPlugin(config: unknown, root: string) {
+  const configObject = isRecord(config) ? config : {};
+  const plugins = Array.isArray(configObject.plugins)
+    ? configObject.plugins
+    : configObject.plugins
+      ? [configObject.plugins]
+      : [];
+
+  return {
+    ...configObject,
+    plugins: [nitroRequestFileTransformPlugin(root), ...plugins]
+  };
+}
+
+function isRecord(input: unknown): input is Record<string, unknown> {
+  return typeof input === "object" && input !== null;
 }
 
 function throwIfUserAddedNitro(
@@ -141,7 +232,8 @@ function throwIfUserAddedNitro(
 }
 
 function createNitroConfig(
-  nitroConfig: UserConfig["nitro"] | undefined
+  nitroConfig: UserConfig["nitro"] | undefined,
+  root = process.cwd()
 ): NonNullable<UserConfig["nitro"]> {
   const scanDirs = Array.isArray(nitroConfig?.scanDirs)
     ? nitroConfig.scanDirs.filter((dir): dir is string => typeof dir === "string")
@@ -151,6 +243,8 @@ function createNitroConfig(
     ...nitroConfig,
     apiDir: nitroConfig?.apiDir ?? "api",
     routesDir: nitroConfig?.routesDir ?? ".resumable/nitro-routes",
+    rolldownConfig: withRequestFileBuildPlugin(nitroConfig?.rolldownConfig, root),
+    rollupConfig: withRequestFileBuildPlugin(nitroConfig?.rollupConfig, root),
     scanDirs: [...new Set([".", ...scanDirs])]
   } as NonNullable<UserConfig["nitro"]>;
 }

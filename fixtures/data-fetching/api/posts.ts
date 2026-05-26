@@ -1,6 +1,4 @@
-import { defineCachedHandler } from "nitro/cache";
 import { useRuntimeConfig } from "nitro/runtime-config";
-import { getQuery, setServerTiming } from "nitro/h3";
 import { listPosts } from "../data/posts";
 
 interface DataFetchingRuntimeConfig {
@@ -12,33 +10,34 @@ interface DataFetchingRuntimeConfig {
 const first = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
 
-export default defineCachedHandler(
-  async (event) => {
-    const query = getQuery(event) as Record<string, string | string[] | undefined>;
-    const runtimeConfig = useRuntimeConfig() as DataFetchingRuntimeConfig;
-    const queryLimit = Number.parseInt(first(query.limit) ?? "", 10);
-    const limit = Number.isFinite(queryLimit)
-      ? queryLimit
-      : runtimeConfig.dataFetching?.defaultLimit;
-    const tag = first(query.tag);
+export const cache = {
+  maxAge: 60
+};
 
-    setServerTiming(event, "posts");
-    event.res.headers.set("x-data-fetching-source", "cached-handler");
+export default async function (http) {
+  const query = Object.fromEntries(http.url.searchParams) as Record<
+    string,
+    string | string[] | undefined
+  >;
+  const runtimeConfig = useRuntimeConfig() as DataFetchingRuntimeConfig;
+  const queryLimit = Number.parseInt(first(query.limit) ?? "", 10);
+  const limit = Number.isFinite(queryLimit)
+    ? queryLimit
+    : runtimeConfig.dataFetching?.defaultLimit;
+  const tag = first(query.tag);
 
-    const posts = await listPosts({ tag, limit });
+  http.response.headers.set("server-timing", "posts");
+  http.response.headers.set("x-data-fetching-source", "cached-handler");
 
-    return {
-      count: posts.length,
-      filter: {
-        limit: limit ?? null,
-        tag: tag ?? null
-      },
-      posts,
-      requestId: event.context.requestId ?? null
-    };
-  },
-  {
-    maxAge: 60,
-    name: "data-fetching-posts"
-  }
-);
+  const posts = await listPosts({ tag, limit });
+
+  return {
+    count: posts.length,
+    filter: {
+      limit: limit ?? null,
+      tag: tag ?? null
+    },
+    posts,
+    requestId: http.locals.requestId ?? null
+  };
+}

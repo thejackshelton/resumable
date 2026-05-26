@@ -144,64 +144,76 @@ const defaultPageStatusQuickInfo = quickInfoAtText(
   "status"
 );
 
-const endpointDiagnosticSource = `export default async function (event) {
-  const id = event.context.params.id;
-  const href = event.url.href;
-  event.
-  event.context.params.
-  event.url.
+const endpointDiagnosticSource = `export default async function (http) {
+  const id = http.params.id;
+  const href = http.url.href;
+  http.
+  http.params.
+  http.url.
   return { id, href };
 }
 `;
 
 openDocument(apiUserPath, endpointDiagnosticSource);
-const endpointEventCompletion = completionAtText(
+const endpointHttpCompletion = completionAtText(
   apiUserPath,
   endpointDiagnosticSource,
-  "  event."
+  "  http."
 );
 const endpointParamsCompletion = completionAtText(
   apiUserPath,
   endpointDiagnosticSource,
-  "event.context.params."
+  "http.params."
 );
 const endpointUrlCompletion = completionAtText(
   apiUserPath,
   endpointDiagnosticSource,
-  "event.url."
+  "http.url."
 );
 const endpointDiagnostic = plugin.getSemanticDiagnostics(apiUserPath);
+const endpointHttpQuickInfo = quickInfoAtText(
+  apiUserPath,
+  endpointDiagnosticSource,
+  "function (http)",
+  "http"
+);
 const endpointIdQuickInfo = quickInfoAtText(
   apiUserPath,
   endpointDiagnosticSource,
-  "event.context.params.id",
+  "http.params.id",
   "id"
 );
 
-const middlewareDiagnosticSource = `export default function (event) {
-  const href = event.url.href;
-  event.
-  event.url.
+const middlewareDiagnosticSource = `export default function (http) {
+  const href = http.url.href;
+  http.
+  http.url.
   return href;
 }
 `;
 
 openDocument(middlewarePath, middlewareDiagnosticSource);
-const middlewareEventCompletion = completionAtText(
+const middlewareHttpCompletion = completionAtText(
   middlewarePath,
   middlewareDiagnosticSource,
-  "  event."
+  "  http."
 );
 const middlewareUrlCompletion = completionAtText(
   middlewarePath,
   middlewareDiagnosticSource,
-  "event.url."
+  "http.url."
 );
 const middlewareDiagnostic = plugin.getSemanticDiagnostics(middlewarePath);
+const middlewareHttpQuickInfo = quickInfoAtText(
+  middlewarePath,
+  middlewareDiagnosticSource,
+  "function (http)",
+  "http"
+);
 const middlewareHrefQuickInfo = quickInfoAtText(
   middlewarePath,
   middlewareDiagnosticSource,
-  "event.url.href",
+  "http.url.href",
   "href"
 );
 
@@ -383,14 +395,16 @@ const result = {
   defaultPageUrlQuickInfo: summarizeQuickInfo(defaultPageUrlQuickInfo),
   defaultPageHrefQuickInfo: summarizeQuickInfo(defaultPageHrefQuickInfo),
   defaultPageStatusQuickInfo: summarizeQuickInfo(defaultPageStatusQuickInfo),
-  endpointEventCompletion: summarizeCompletion(endpointEventCompletion),
+  endpointHttpCompletion: summarizeCompletion(endpointHttpCompletion),
   endpointParamsCompletion: summarizeCompletion(endpointParamsCompletion),
   endpointUrlCompletion: summarizeCompletion(endpointUrlCompletion),
   endpointDiagnostic: summarizeDiagnostic(endpointDiagnostic),
+  endpointHttpQuickInfo: summarizeQuickInfo(endpointHttpQuickInfo),
   endpointIdQuickInfo: summarizeQuickInfo(endpointIdQuickInfo),
-  middlewareEventCompletion: summarizeCompletion(middlewareEventCompletion),
+  middlewareHttpCompletion: summarizeCompletion(middlewareHttpCompletion),
   middlewareUrlCompletion: summarizeCompletion(middlewareUrlCompletion),
   middlewareDiagnostic: summarizeDiagnostic(middlewareDiagnostic),
+  middlewareHttpQuickInfo: summarizeQuickInfo(middlewareHttpQuickInfo),
   middlewareHrefQuickInfo: summarizeQuickInfo(middlewareHrefQuickInfo),
   defaultPageSyntaxDiagnostic: summarizeDiagnostic(defaultPageSyntaxDiagnostic),
   nativeTypeScriptCompletion: summarizeCompletion(nativeMathCompletion),
@@ -465,9 +479,9 @@ function summarizeCompletion(response) {
     hasNew: labels.includes("new"),
     hasSection: labels.includes("section"),
     hasParams: labels.includes("params"),
-    hasContext: labels.includes("context"),
-    hasReq: labels.includes("req"),
-    hasRes: labels.includes("res"),
+    hasLocals: labels.includes("locals"),
+    hasRequest: labels.includes("request"),
+    hasResponse: labels.includes("response"),
     hasUrl: labels.includes("url"),
     hasStatus: labels.includes("status"),
     hasId: labels.includes("id"),
@@ -510,10 +524,10 @@ function summarizeDiagnostic(items) {
         item.code === 18046 &&
         ts.flattenDiagnosticMessageText(item.messageText, "\n").includes("props")
     ),
-    hasImplicitAnyEvent: items.some(
+    hasImplicitAnyHttp: items.some(
       (item) =>
         item.code === 7006 &&
-        ts.flattenDiagnosticMessageText(item.messageText, "\n").includes("event")
+        ts.flattenDiagnosticMessageText(item.messageText, "\n").includes("http")
     ),
     items: items.map((item) => ({
       code: item.code,
@@ -577,12 +591,13 @@ function assertProof(proofResult) {
   }
 
   if (
-    !proofResult.endpointEventCompletion.hasContext ||
-    !proofResult.endpointEventCompletion.hasReq ||
-    !proofResult.endpointEventCompletion.hasRes ||
-    !proofResult.endpointEventCompletion.hasUrl
+    !proofResult.endpointHttpCompletion.hasLocals ||
+    !proofResult.endpointHttpCompletion.hasParams ||
+    !proofResult.endpointHttpCompletion.hasRequest ||
+    !proofResult.endpointHttpCompletion.hasResponse ||
+    !proofResult.endpointHttpCompletion.hasUrl
   ) {
-    throw new Error("TS plugin did not provide endpoint event completions.");
+    throw new Error("TS plugin did not provide endpoint HTTP context completions.");
   }
 
   if (!proofResult.endpointParamsCompletion.hasId) {
@@ -596,8 +611,12 @@ function assertProof(proofResult) {
     throw new Error("TS plugin did not provide endpoint URL completions.");
   }
 
-  if (proofResult.endpointDiagnostic.hasImplicitAnyEvent) {
-    throw new Error("Endpoint event parameter should not report implicit any.");
+  if (proofResult.endpointDiagnostic.hasImplicitAnyHttp) {
+    throw new Error("Endpoint HTTP context parameter should not report implicit any.");
+  }
+
+  if (!proofResult.endpointHttpQuickInfo.text.includes("EndpointHttpContext")) {
+    throw new Error("TS plugin did not expose endpoint http as EndpointHttpContext.");
   }
 
   if (!proofResult.endpointIdQuickInfo.text.includes("id: string")) {
@@ -605,12 +624,12 @@ function assertProof(proofResult) {
   }
 
   if (
-    !proofResult.middlewareEventCompletion.hasContext ||
-    !proofResult.middlewareEventCompletion.hasReq ||
-    !proofResult.middlewareEventCompletion.hasRes ||
-    !proofResult.middlewareEventCompletion.hasUrl
+    !proofResult.middlewareHttpCompletion.hasLocals ||
+    !proofResult.middlewareHttpCompletion.hasRequest ||
+    !proofResult.middlewareHttpCompletion.hasResponse ||
+    !proofResult.middlewareHttpCompletion.hasUrl
   ) {
-    throw new Error("TS plugin did not provide middleware event completions.");
+    throw new Error("TS plugin did not provide middleware HTTP context completions.");
   }
 
   if (
@@ -620,8 +639,12 @@ function assertProof(proofResult) {
     throw new Error("TS plugin did not provide middleware URL completions.");
   }
 
-  if (proofResult.middlewareDiagnostic.hasImplicitAnyEvent) {
-    throw new Error("Middleware event parameter should not report implicit any.");
+  if (proofResult.middlewareDiagnostic.hasImplicitAnyHttp) {
+    throw new Error("Middleware HTTP context parameter should not report implicit any.");
+  }
+
+  if (!proofResult.middlewareHttpQuickInfo.text.includes("MiddlewareHttpContext")) {
+    throw new Error("TS plugin did not expose middleware http as MiddlewareHttpContext.");
   }
 
   if (!proofResult.middlewareHrefQuickInfo.text.includes("href: string")) {
