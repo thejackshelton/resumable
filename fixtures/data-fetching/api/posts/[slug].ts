@@ -5,7 +5,7 @@ export default async function (http) {
   if (!slug) {
     http.response.status = 400;
     return {
-      message: "Missing post slug"
+      message: "Missing post slug",
     };
   }
 
@@ -16,7 +16,7 @@ export default async function (http) {
     http.response.status = 404;
     return {
       data: { slug },
-      message: "Post not found"
+      message: "Post not found",
     };
   }
 
@@ -27,6 +27,6 @@ export default async function (http) {
     related: relatedPosts
       .filter((relatedPost) => relatedPost.slug !== post.slug)
       .map((relatedPost) => relatedPost.slug),
-    requestId: http.locals.requestId ?? null
+    requestId: http.locals.requestId ?? null,
   };
 }

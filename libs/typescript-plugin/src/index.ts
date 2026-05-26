@@ -1,4 +1,4 @@
-import { extname, isAbsolute, normalize, relative, resolve } from "pathe";
+import { dirname, extname, isAbsolute, normalize, relative, resolve } from "pathe";
 import { joinURL, withLeadingSlash, withoutLeadingSlash } from "ufo";
 import type * as ts from "typescript";
 
@@ -68,7 +68,8 @@ function init(modules: { typescript: TypeScript }): ts.server.PluginModule {
 
       const pluginConfig = (info.config ?? {}) as ResumablePluginConfig;
       const projectRoot = getProjectRoot(typeScript, info);
-      const pagesDir = resolvePagesDir(projectRoot, pluginConfig);
+      const appRoot = getConfiguredProjectRoot(info) ?? projectRoot;
+      const pagesDir = resolvePagesDir(appRoot, pluginConfig);
       const typedSourceCache = new Map<string, TypedSourceCacheEntry>();
       const originalGetScriptSnapshot = info.languageServiceHost.getScriptSnapshot?.bind(
         info.languageServiceHost
@@ -86,7 +87,7 @@ function init(modules: { typescript: TypeScript }): ts.server.PluginModule {
             info,
             typedSourceCache,
             originalGetScriptSnapshot,
-            projectRoot,
+            appRoot,
             pagesDir,
             fileName
           );
@@ -104,7 +105,7 @@ function init(modules: { typescript: TypeScript }): ts.server.PluginModule {
               info,
               typedSourceCache,
               originalGetScriptSnapshot,
-              projectRoot,
+              appRoot,
               pagesDir,
               fileName
             )
@@ -202,7 +203,7 @@ function typedSourceTransform(
   info: ts.server.PluginCreateInfo,
   cache: Map<string, TypedSourceCacheEntry>,
   getScriptSnapshot: (fileName: string) => ts.IScriptSnapshot | undefined,
-  projectRoot: string,
+  appRoot: string,
   pagesDir: string,
   fileName: string
 ) {
@@ -214,7 +215,7 @@ function typedSourceTransform(
 
   const sourceText = snapshot.getText(0, snapshot.getLength());
   const scriptVersion = info.languageServiceHost.getScriptVersion?.(fileName);
-  const documentFilesVersion = isTopLevelDocumentFile(projectRoot, fileName)
+  const documentFilesVersion = isTopLevelDocumentFile(appRoot, fileName)
     ? projectFileNames(info).join("\0")
     : "";
   const version = `${scriptVersion ?? sourceText}\0${documentFilesVersion}`;
@@ -226,7 +227,7 @@ function typedSourceTransform(
   const transform = createTypedSourceTransform(
     typeScript,
     info,
-    projectRoot,
+    appRoot,
     pagesDir,
     fileName,
     sourceText
@@ -238,7 +239,7 @@ function typedSourceTransform(
 function createTypedSourceTransform(
   typeScript: TypeScript,
   info: ts.server.PluginCreateInfo,
-  projectRoot: string,
+  appRoot: string,
   pagesDir: string,
   fileName: string,
   sourceText: string
@@ -246,7 +247,7 @@ function createTypedSourceTransform(
   const pageTransform = createPageTypedSourceTransform(
     typeScript,
     info,
-    projectRoot,
+    appRoot,
     pagesDir,
     fileName,
     sourceText
@@ -254,7 +255,7 @@ function createTypedSourceTransform(
 
   return (
     pageTransform ??
-    createRequestFileTypedSourceTransform(typeScript, projectRoot, fileName, sourceText)
+    createRequestFileTypedSourceTransform(typeScript, appRoot, fileName, sourceText)
   );
 }
 
@@ -845,6 +846,19 @@ function getProjectRoot(typeScript: TypeScript, info: ts.server.PluginCreateInfo
     info.languageServiceHost.getCurrentDirectory?.() ??
     typeScript.sys.getCurrentDirectory()
   );
+}
+
+function getConfiguredProjectRoot(info: ts.server.PluginCreateInfo) {
+  const project = info.project as ts.server.Project & {
+    getConfigFilePath?: () => string;
+  };
+
+  try {
+    const configFilePath = project.getConfigFilePath?.();
+    return configFilePath ? dirname(configFilePath) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function resolvePagesDir(projectRoot: string, config: ResumablePluginConfig) {

@@ -16,6 +16,7 @@ const srcDocumentPath = resolve(fixtureRoot, "src/document.tsx");
 const srcPagesBlogPagePath = resolve(fixtureRoot, "src/pages/blog/[slug].tsx");
 const apiUserPath = resolve(fixtureRoot, "api/users/[id].get.ts");
 const middlewarePath = resolve(fixtureRoot, "middleware/00.request.ts");
+const fixtureTsconfigPath = resolve(fixtureRoot, "tsconfig.json");
 
 const files = new Map();
 const versions = new Map();
@@ -64,25 +65,44 @@ const host = {
   realpath: ts.sys.realpath
 };
 
-const languageService = ts.createLanguageService(host);
-const plugin = init({ typescript: ts }).create({
-  project: {
+const plugin = createPlugin(fixtureRoot);
+const nestedProjectPlugin = createPlugin(repoRoot, fixtureTsconfigPath);
+
+function createPlugin(projectRoot, configFilePath) {
+  const projectHost = {
+    ...host,
     getCurrentDirectory() {
-      return fixtureRoot;
-    },
-    projectService: {
-      logger: {
-        info() {}
-      }
+      return projectRoot;
     }
-  },
-  languageService,
-  languageServiceHost: host,
-  serverHost: ts.sys,
-  config: {
-    pagesDir: "./pages"
-  }
-});
+  };
+  const languageService = ts.createLanguageService(projectHost);
+
+  return init({ typescript: ts }).create({
+    project: {
+      getCurrentDirectory() {
+        return projectRoot;
+      },
+      ...(configFilePath
+        ? {
+            getConfigFilePath() {
+              return configFilePath;
+            }
+          }
+        : {}),
+      projectService: {
+        logger: {
+          info() {}
+        }
+      }
+    },
+    languageService,
+    languageServiceHost: projectHost,
+    serverHost: ts.sys,
+    config: {
+      pagesDir: "./pages"
+    }
+  });
+}
 
 const defaultPageDiagnosticSource = `import { component$ } from "@qwik.dev/core";
 
@@ -182,6 +202,15 @@ const endpointIdQuickInfo = quickInfoAtText(
   endpointDiagnosticSource,
   "http.params.id",
   "id"
+);
+const nestedProjectEndpointDiagnostic =
+  nestedProjectPlugin.getSemanticDiagnostics(apiUserPath);
+const nestedProjectEndpointHttpQuickInfo = quickInfoAtText(
+  apiUserPath,
+  endpointDiagnosticSource,
+  "function (http)",
+  "http",
+  nestedProjectPlugin
 );
 
 const middlewareDiagnosticSource = `export default function (http) {
@@ -401,6 +430,10 @@ const result = {
   endpointDiagnostic: summarizeDiagnostic(endpointDiagnostic),
   endpointHttpQuickInfo: summarizeQuickInfo(endpointHttpQuickInfo),
   endpointIdQuickInfo: summarizeQuickInfo(endpointIdQuickInfo),
+  nestedProjectEndpointDiagnostic: summarizeDiagnostic(nestedProjectEndpointDiagnostic),
+  nestedProjectEndpointHttpQuickInfo: summarizeQuickInfo(
+    nestedProjectEndpointHttpQuickInfo
+  ),
   middlewareHttpCompletion: summarizeCompletion(middlewareHttpCompletion),
   middlewareUrlCompletion: summarizeCompletion(middlewareUrlCompletion),
   middlewareDiagnostic: summarizeDiagnostic(middlewareDiagnostic),
@@ -454,7 +487,7 @@ function completionAtText(fileName, source, marker) {
   });
 }
 
-function quickInfoAtText(fileName, source, marker, token) {
+function quickInfoAtText(fileName, source, marker, token, service = plugin) {
   const markerOffset = source.indexOf(marker);
   if (markerOffset === -1) {
     throw new Error(`marker not found: ${marker}`);
@@ -465,7 +498,7 @@ function quickInfoAtText(fileName, source, marker, token) {
     throw new Error(`token not found after marker: ${token}`);
   }
 
-  return plugin.getQuickInfoAtPosition(fileName, tokenOffset);
+  return service.getQuickInfoAtPosition(fileName, tokenOffset);
 }
 
 function summarizeCompletion(response) {
@@ -621,6 +654,22 @@ function assertProof(proofResult) {
 
   if (!proofResult.endpointIdQuickInfo.text.includes("id: string")) {
     throw new Error("TS plugin did not provide endpoint route param hover.");
+  }
+
+  if (proofResult.nestedProjectEndpointDiagnostic.hasImplicitAnyHttp) {
+    throw new Error(
+      "Nested configured projects should not report implicit any for endpoint http."
+    );
+  }
+
+  if (
+    !proofResult.nestedProjectEndpointHttpQuickInfo.text.includes(
+      "EndpointHttpContext"
+    )
+  ) {
+    throw new Error(
+      "TS plugin should use the configured tsconfig root for nested endpoint files."
+    );
   }
 
   if (
