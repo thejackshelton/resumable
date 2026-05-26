@@ -51,21 +51,28 @@ leaving SPA navigation, prefetching, MDX, and data APIs out of this slice.
 - [`CLI_SPEC.md`](./CLI_SPEC.md): CLI/create/starter contract.
 - [`TYPED_ROUTING.md`](./TYPED_ROUTING.md): typed navigation contract.
 - [`DATA_FETCHING.md`](./DATA_FETCHING.md): future `query$`/`action$` data
-  layer and plain TypeScript API/middleware convention contract.
+  layer and its relationship to endpoint/middleware lifecycle files.
 
 ## Current Decisions
 
-- Resumable is a minimal Qwik meta-framework for Vite, powered by Nitro.
+- Resumable is a minimal Qwik meta-framework for Vite.
 - Generated apps use Vite+ for scripts and local tooling.
 - User config uses explicit `qwik()` and `resumable()`.
-- `resumable()` wires Nitro internally.
-- App-level Nitro config stays in top-level `nitro: {}`.
+- `resumable()` wires the internal runtime.
 - `pages/` is Resumable UI routing.
-- `api/` and `middleware/` are regular TypeScript convention folders lowered to
-  Nitro.
-- `public/` is Nitro-native.
+- `api/` contains public HTTP endpoints that default export a function.
+- `middleware/` contains request pipeline middleware that default exports a
+  function.
+- Endpoint cache metadata uses named sidecar exports such as
+  `export const cache = { maxAge: 60 }`.
+- API and middleware event typing extends the existing TypeScript plugin
+  typed-source transform model used for page props.
+- The same file classifier/parser should power the TypeScript plugin, Vite
+  runtime wrapping, and `vp check` diagnostics.
+- `public/` contains static assets.
 - Data fetching direction is `schema`, `query$`, and `action$`, with no public
-  `api$` or `middleware$` helpers.
+  `api$`, `middleware$`, `useQuery$`, `useAsync$`, or generic `handler(...)`
+  helpers.
 - `resumable()` exposes lazy page discovery through the internal
   `virtual:resumable/routes` module.
 - `resumable()` wires Vite environment entries in `configEnvironment()` by
@@ -589,20 +596,17 @@ Do not parallelize yet:
 - Spec audit aligned `IMPLEMENTATION_PLAN.md` with the milestone table by
   adding M7 Nitro Passthrough before Typed Routing and renumbering the later
   build-order sections.
-- Nitro API/middleware abstraction research: grep MCP examples from Nitro,
-  Nuxt-adjacent apps, Supabase Nuxt blocks, Vben's Nitro backend mock, and
-  TanStack/Nitro Vite configs show native `defineEventHandler`,
-  `defineHandler`, `defineMiddleware`, `nitro()`, and `routeRules` usage rather
-  than framework-specific server aliases. Official Nitro docs confirm `api/`,
-  `routes/`, and `middleware/` handlers are auto-registered, `routeRules` own
-  route behavior, and `public/` is the asset convention. This research informs
-  the generated Nitro wrappers and the decision not to add public helpers such
-  as `defineApi`, `api$`, or `middleware$`; app-authored `api/` and
-  `middleware/` files are regular TypeScript convention files.
-- Data API direction restored: keep `schema`, `query$`, and `action$` as the
-  future data layer direction. Public API routes and middleware should be
-  regular TypeScript convention files that the bundler lowers to Nitro; do not
-  add public `api$` or `middleware$` helpers.
+- API/middleware naming research: grep MCP examples show handler-shaped API
+  and middleware files are common, but generic `handler(...)` is ambiguous for
+  juniors and agents. After auditing the existing TypeScript plugin's
+  `getScriptSnapshot` typed-source transform, the public direction shifted to
+  plain default exports in `api/` and `middleware/`, with runtime
+  implementation kept internal and advanced runtime details documented
+  separately.
+- API/data DX direction updated: keep `schema`, `query$`, and `action$` as the
+  future data layer direction; use plain default exports for public HTTP and
+  request lifecycle files; do not add public `api$`, `middleware$`,
+  `useQuery$`, `useAsync$`, or generic `handler(...)` helpers.
 - M7 research re-checked Nitro v3 docs and local package docs for middleware,
   lifecycle, public assets, route rules, and Vite/Nitro server behavior. Grep
   MCP examples from Nitro's repo and public Vite/Nitro apps confirmed

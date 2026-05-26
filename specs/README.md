@@ -49,16 +49,16 @@ Resumable examples. Resumable docs and generated code should use
 ## Spec Roles
 
 - [`SPEC.md`](./SPEC.md): main framework contract for positioning, project
-  structure, routing, document shell, MDX, Nitro relationship, rendering, API routes,
-  middleware, public assets, and v0 acceptance.
+  structure, routing, document shell, MDX, runtime relationship, rendering,
+  HTTP endpoints, middleware, public assets, and v0 acceptance.
 - [`CLI_SPEC.md`](./CLI_SPEC.md): create flow, starters, runtime/project format,
   Vite+ command surface, and CLI architecture.
 - [`TYPED_ROUTING.md`](./TYPED_ROUTING.md): typed anchors, `Link`, route type
   generation, generated declarations, JSX lowering, and navigation acceptance.
 - [`DATA_FETCHING.md`](./DATA_FETCHING.md): future data layer direction for
   `schema`, `query$`, `action$`, native typed forms, query records, cache
-  semantics, SPA reuse, and plain TypeScript API/middleware convention files
-  lowered to Nitro.
+  semantics, SPA reuse, and the relationship with `api/` and `middleware/`
+  lifecycle files.
 
 ## Exploratory Drafts
 
@@ -70,20 +70,26 @@ Resumable examples. Resumable docs and generated code should use
 ```txt
 Pages are Resumable.
 Components are Qwik.
-Server behavior is Nitro-backed.
+API and middleware are Resumable request lifecycle files.
 Configuration is Vite.
 Tooling is Vite+.
 ```
 
 - Qwik's Vite plugin stays explicit in user config.
-- `resumable()` wires Nitro internally.
-- `nitro: {}` is native Nitro app config.
-- `api/` and `middleware/` are regular TypeScript convention folders lowered to
-  Nitro.
-- `public/` is Nitro-native.
+- `resumable()` wires the internal runtime.
+- `api/` contains public HTTP endpoints.
+- `middleware/` contains request pipeline middleware.
+- API files default export a function.
+- Middleware files default export a function.
+- Endpoint cache metadata uses named sidecar exports such as
+  `export const cache = { maxAge: 60 }`.
+- A shared file classifier/parser powers the TypeScript plugin, Vite wrapping,
+  and `vp check` diagnostics.
+- `public/` contains static assets.
 - `pages/` is Resumable-owned UI routing.
 - No `resumable.config.ts`.
 - No documented `nitro.config.ts` requirement for generated apps.
+- No public `server/api/` or `server/middleware/` app shape.
 - No `src/pages/` requirement.
 - No `pages/api/`.
 
@@ -96,7 +102,8 @@ The specs were reorganized into this folder together. During the move:
 - CLI wording was aligned on `Starter` instead of `Template`.
 - Project/runtime format and starter choice were kept as separate CLI axes.
 - Data fetching remains design direction and prototype scope, not first
-  milestone implementation scope. Public `api$` and `middleware$` helpers are
-  not part of that direction.
+  milestone implementation scope. Public `api$`, `middleware$`, `useQuery$`,
+  generic `handler(...)`, and required `endpoint(...)`/`middleware(...)`
+  wrappers are not part of that direction.
 - Implementation agents must consult local Qwik `build/v2`, grep MCP research,
   and Nitro v3 docs before changing Qwik/Nitro-facing implementation details.

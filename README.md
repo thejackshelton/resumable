@@ -55,12 +55,14 @@ Generated apps are designed to use Vite+ locally:
 ## App Model
 
 ```txt
-pages/       -> Resumable UI routes
+pages/       -> Qwik render/resume lifecycle
 components/  -> Qwik component tree
-api/         -> HTTP method exports lowered to Nitro
-middleware/  -> request functions lowered to Nitro
-public/      -> Nitro public assets
-vite.config  -> Vite, Qwik, Resumable, and Nitro config
+api/         -> public HTTP endpoint lifecycle
+middleware/  -> request pipeline lifecycle
+query$       -> resumable read lifecycle
+action$      -> resumable mutation lifecycle
+public/      -> static assets
+vite.config  -> Vite, Qwik, and Resumable config
 ```
 
 Routes are file-based:
@@ -84,16 +86,12 @@ import { qwik } from "qwik-bundler/vite";
 import { resumable } from "@resumable.dev/core/vite";
 
 export default defineConfig({
-  plugins: [qwik(), resumable()],
-  nitro: {
-    // Native Nitro config.
-  }
+  plugins: [qwik(), resumable()]
 });
 ```
 
-Resumable owns the Qwik page routing and Nitro wiring. Nitro remains the server
-runtime for API routes, middleware, route rules, runtime config, storage,
-caching, and deployment presets.
+Resumable owns page routing, HTTP endpoints, request middleware, and the
+runtime wiring needed to build the app.
 
 ## Specs
 

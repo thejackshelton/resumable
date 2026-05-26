@@ -97,7 +97,7 @@ browser-level prerender.
 
 The two lanes should not be mixed casually. A `Link` prefetch should not
 secretly full-prerender a document, and a browser speculation rule should not
-pretend it has populated application data fetched through Nitro endpoints.
+pretend it has populated application data fetched through HTTP endpoints.
 
 ## Why Not Use A Library In Core?
 
@@ -331,10 +331,10 @@ Prefetching should not depend on a Resumable-owned data cache.
 Draft behavior:
 
 - Resumable may prefetch route modules and page payloads for SPA navigation.
-- Data fetched through Nitro API routes follows normal HTTP, Nitro, and browser
+- Data fetched through public HTTP endpoints follows normal HTTP and browser
   cache semantics.
 - Resumable should not attach framework data records to prefetch payloads.
-- Mutations posted to Nitro endpoints do not trigger a framework-owned refresh
+- Mutations posted to public HTTP endpoints do not trigger a framework-owned refresh
   protocol.
 
 This file does not define a public data prefetch API. The first path should be

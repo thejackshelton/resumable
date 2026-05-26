@@ -66,10 +66,10 @@ Nitro v3 docs are the primary server/runtime reference:
 https://nitro.build/docs
 ```
 
-When Nitro behavior is unclear, consult the Nitro docs instead of creating a
-Resumable-specific abstraction or alias. API and middleware user files are the
-exception to direct Nitro authoring: users write regular TypeScript convention
-files, and Resumable generates the Nitro wrapper modules.
+When internal runtime behavior is unclear, consult the Nitro docs instead of
+guessing. Happy-path API and middleware files default-export plain functions;
+Resumable's compiler/check/runtime layers provide typing, diagnostics, and
+wrapping.
 
 ## Shared Path And URL Helpers
 
@@ -241,7 +241,7 @@ Naming rules for future implementation:
 ```txt
 Pages are Resumable.
 Components are Qwik.
-Server behavior is Nitro.
+API and middleware are Resumable request lifecycle files.
 Configuration is Vite.
 Tooling is Vite+.
 ```
@@ -251,12 +251,17 @@ Framework boundary:
 - User config imports `qwik()` explicitly.
 - User config imports `resumable()` from `@resumable.dev/core/vite`.
 - Generated apps import `defineConfig` from `vite-plus`.
-- `resumable()` wires Nitro internally.
-- Users do not add `nitro()` in standard Resumable apps.
-- Users configure Nitro with top-level `nitro: {}` in `vite.config.ts`.
-- `api/` and `middleware/` are regular TypeScript convention folders lowered to
-  Nitro behavior.
-- `public/` uses Nitro-native behavior.
+- `resumable()` wires the internal runtime.
+- Users do not add runtime plugins in standard Resumable apps.
+- `api/` contains public HTTP endpoints.
+- `middleware/` contains request pipeline middleware.
+- API files default export a function.
+- Middleware files default export a function.
+- Endpoint cache metadata uses named sidecar exports such as
+  `export const cache = { maxAge: 60 }`.
+- A shared file classifier/parser powers Vite wrapping, `vp check`
+  diagnostics, and TypeScript plugin typed-source transforms.
+- `public/` contains static assets.
 - `pages/` uses Resumable UI routing.
 
 ## Initial Implementation Scope
@@ -278,8 +283,8 @@ Build in the first core implementation pass:
 - Qwik SSR for matched pages.
 - Optional top-level `document.tsx` with `Html`.
 - Root `pages/404.tsx` and `pages/500.tsx` status pages.
-- Plain TypeScript `api/` and `middleware/` files lowered to Nitro, plus
-  Nitro-native `public/` passthrough.
+- Public `api/` endpoints, request `middleware/`, and static `public/`
+  passthrough.
 - Typed route generation.
 - Native anchor JSX type augmentation.
 - `Link` component for SPA navigation.
@@ -417,10 +422,13 @@ Research before coding:
 Build:
 
 - Public export `@resumable.dev/core/vite`.
+- Public event types `EndpointEvent` and `MiddlewareEvent` from
+  `@resumable.dev/core` as explicit escape hatches; normal app files rely on
+  contextual typing.
 - Vite plugin skeleton.
 - Nitro plugin wiring inside `resumable()`.
 - Internal defaults for top-level `api/`, `middleware/`, and `public/`.
-- Generated Nitro wrapper modules for top-level `api/` and `middleware/`.
+- Runtime adapter modules for top-level `api/` and `middleware/`.
 - Direct error if user duplicates Nitro plugin wiring in a standard app.
 - No wrapper over Qwik plugin options.
 
@@ -428,9 +436,10 @@ Exit criteria:
 
 - A fixture can use `plugins: [qwik(), resumable()]`.
 - Top-level `nitro: {}` config still reaches Nitro.
-- User-authored `api/` and `middleware/` are plain TypeScript while preserving
-  Nitro runtime behavior through generated wrappers.
-- User-authored `public/` uses Nitro behavior.
+- User-authored `api/` files default export a function.
+- User-authored `middleware/` files default export a function.
+- `api/` cache metadata works through named sidecar exports.
+- User-authored `public/` uses static asset behavior.
 
 ### 3. Route Manifest
 
@@ -562,10 +571,10 @@ Exit criteria:
 - Missing API route does not accidentally render page 404 if Nitro owns the
   request.
 
-### 7. Nitro Passthrough
+### 7. Runtime Passthrough
 
-Goal: top-level API, middleware, public assets, and Nitro config keep Nitro
-runtime behavior while Resumable owns page rendering and generated wrappers.
+Goal: top-level API, middleware, public assets, and advanced runtime config keep
+runtime behavior while Resumable owns page rendering and public lifecycle APIs.
 
 Research before coding:
 
@@ -576,12 +585,11 @@ Research before coding:
 
 Build:
 
-- Top-level `middleware/` runs through Nitro before page rendering.
-- Top-level `middleware/` runs through Nitro before API routes.
-- Top-level `public/` assets are served directly by Nitro.
-- Native `nitro.routeRules` still apply.
-- Existing top-level `api/` evidence remains Nitro-compatible through generated
-  wrappers.
+- Top-level `middleware/` runs before page rendering.
+- Top-level `middleware/` runs before API routes.
+- Top-level `public/` assets are served directly.
+- Advanced runtime route rules still apply.
+- Top-level `api/` evidence uses plain default-exported functions.
 
 Exit criteria:
 
@@ -692,10 +700,13 @@ Prototype after SSR and SPA payloads exist:
 - `schema`.
 - `query$`.
 - `action$`.
-- plain TypeScript `api/` convention files lowered to Nitro handlers.
-- plain TypeScript `middleware/` convention files lowered to Nitro middleware.
-- TypeScript language-plugin contextual types for API method exports and
-  middleware default exports based on folder location.
+- Plain default-exported functions in top-level `api/` and `middleware/`.
+- Optional endpoint cache metadata through `export const cache`.
+- TypeScript language-plugin contextual types for endpoint and middleware
+  events based on folder location, using the existing typed-source transform
+  model from page props.
+- Shared classifier/parser reused by the TypeScript plugin, Vite wrapping, and
+  `vp check`.
 - request dedupe.
 - query records.
 - SSR serialization.
@@ -707,9 +718,10 @@ Exit criteria:
 
 - Do not ship public data APIs until the confidence gates in
   [`DATA_FETCHING.md`](./DATA_FETCHING.md) pass.
-- Do not add public `api$` or `middleware$` APIs.
-- Do not require user-authored `defineHandler(...)` or `defineMiddleware(...)`
-  calls in the normal `api/` and `middleware/` path.
+- Do not add public `api$`, `middleware$`, `useQuery$`, or `useAsync$` APIs.
+- Do not document generic public `handler(...)` for endpoints or middleware.
+- Do not require user-authored runtime-specific handler helpers in the normal
+  `api/` and `middleware/` path.
 
 ## Parallel Work
 
@@ -720,8 +732,8 @@ Can happen in parallel:
 - CLI dependency/package refactor and core Vite plugin skeleton.
 - Typed routing generator and route conflict tests, after manifest shape is
   stable.
-- API/middleware wrapper fixtures, Nitro-native public fixtures, and page
-  renderer work.
+- API/middleware lifecycle fixtures, static public fixtures, and page renderer
+  work.
 
 Should wait:
 
@@ -783,11 +795,12 @@ It should not include user-authored `nitro()`, `resumable.config.ts`,
 - Do not create `resumable.config.ts`.
 - Do not require `nitro.config.ts`.
 - Do not wrap Qwik plugin options.
-- Do not rename Nitro concepts.
+- Do not expose runtime implementation names in happy-path docs.
 - Do not implement page-local middleware.
 - Do not implement file-based layouts in v0.
 - Do not implement data fetching before route/SSR/SPAs are proven.
-- Do not expose public `api$` or `middleware$` helpers.
+- Do not expose public `api$`, `middleware$`, or generic `handler(...)`
+  helpers.
 - Do not expose prototype/unstable labels in user prompts.
 - Keep errors direct and file-specific.
 - Check local Qwik `build/v2`, grep MCP examples, and Nitro v3 docs before
@@ -806,8 +819,8 @@ Before claiming v0 core complete:
 - App generated app builds.
 - Full-stack generated app builds.
 - Route conflict fixture fails with the expected direct error.
-- Generated Nitro wrapper behavior for `api/` and `middleware/`, Nitro
-  `public/`, and top-level `nitro: {}` behavior is verified.
+- Runtime adapter behavior for `api/` and `middleware/`, static `public/`, and
+  advanced runtime config passthrough is verified.
 - Qwik SSR output contains expected page HTML.
 - Typed routing fixture catches expected valid and invalid cases.
 - `specs/state.md` is updated with completed milestones and remaining deferred

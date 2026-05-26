@@ -16,7 +16,8 @@ create-resumable     -> create a new app
 resumable            -> project CLI commands
 vp                   -> generated app dev, build, check, fmt, and test
 resumable()          -> framework Vite plugin
-nitro: {}            -> native Nitro app config
+api/                 -> public HTTP endpoint lifecycle
+middleware/          -> request pipeline lifecycle
 ```
 
 The CLI should preserve the framework boundary:
@@ -24,7 +25,7 @@ The CLI should preserve the framework boundary:
 ```txt
 Pages are Resumable.
 Components are Qwik.
-Server behavior is Nitro.
+API and middleware are Resumable request lifecycle files.
 Configuration is Vite.
 Tooling is Vite+.
 ```
@@ -482,7 +483,7 @@ Qwik optimizer work together.
 
 ### Full-stack
 
-The App starter plus plain TypeScript server convention files.
+The App starter plus public endpoint and middleware files.
 
 ```txt
 my-app/
@@ -493,9 +494,9 @@ my-app/
     404.tsx
     500.tsx
   api/
-    health.ts
+    health.get.ts
   middleware/
-    00.logger.ts
+    01.request-id.ts
   components/
     layouts/
       RootLayout.tsx
@@ -508,14 +509,14 @@ my-app/
 Use this when the user wants the full framework boundary visible:
 
 ```txt
-pages/      -> Resumable UI routes
-api/        -> HTTP method exports lowered to Nitro
-middleware/ -> request functions lowered to Nitro
+pages/      -> Qwik render/resume lifecycle
+api/        -> public HTTP endpoint lifecycle
+middleware/ -> request pipeline lifecycle
 ```
 
 Do not call this starter `API`. `API` sounds like an API-only project and hides
-the fact that the generated app is still a Resumable UI app with Nitro server
-files.
+the fact that the generated app is still a Resumable UI app with endpoint and
+middleware lifecycle files.
 
 ### Data
 
@@ -531,7 +532,7 @@ default prompt option.
 
 The default generated app should be intentionally small. `Minimal` is the
 default because it teaches the core Resumable routing model before introducing
-document shell, layouts, status pages, MDX, or Nitro server files.
+document shell, layouts, status pages, MDX, endpoints, or middleware.
 
 `document.tsx` should not be required in the default starter. It should be added by
 larger starters or by users when they need document-shell customization.
@@ -548,8 +549,8 @@ export default defineConfig({
 });
 ```
 
-The CLI must not add `nitro()` to the generated Vite plugin list. Nitro's Vite
-plugin wiring belongs inside `resumable()`.
+The CLI must not add runtime plugins to the generated Vite plugin list. Runtime
+wiring belongs inside `resumable()`.
 
 Every starter should include Vite+. Generated scripts should use the local
 `vp` command:
@@ -599,7 +600,7 @@ pnpm create resumable deno-app --format deno --starter minimal
 
 The default create flow should not ask for a deployment target.
 
-Deployment and runtime output belong in native Nitro config:
+Deployment and advanced runtime output belong in Vite config:
 
 ```ts
 import { defineConfig } from "vite-plus";
@@ -626,7 +627,7 @@ The generated app:
 - Uses `@qwik.dev/core`, not `@builder.io/qwik`.
 - Uses explicit `qwik()` in `vite.config.ts`.
 - Uses `resumable()` in `vite.config.ts`.
-- Does not call `nitro()` in `vite.config.ts`.
+- Does not add runtime plugins manually in `vite.config.ts`.
 - Can run `pnpm dev`.
 - Can run `pnpm build`.
 - Has a visible `pages/index.tsx`.

@@ -18,9 +18,9 @@ action$  -> mutation or side effect that can refresh queries
 ```
 
 The data layer is optional. A Resumable app can still use plain async functions,
-direct `fetch`, or native Nitro routes. `schema`, `query$`, and `action$` exist
-for shared typed server functions where validation, request dedupe, caching,
-serialization, SPA reuse, or post-mutation refresh are worth the extra
+direct `fetch`, or public HTTP endpoints. `schema`, `query$`, and `action$`
+exist for shared typed data boundaries where validation, request dedupe,
+caching, serialization, SPA reuse, or post-mutation refresh are worth the extra
 structure.
 
 `query$` is not a route loader and not a general server function. It is a read
@@ -29,6 +29,9 @@ reuse it across SSR and SPA navigation.
 
 `action$` is for writes and side effects. Actions are not cached by default.
 They may request query refreshes after successful mutations.
+
+`query$` and `action$` are resumable data boundaries for SSR and SPA navigation,
+not server-only functions.
 
 The handler signature is:
 
@@ -110,17 +113,17 @@ Grep MCP research did not find a better fit for Resumable's data API:
 
 Do not rename the primitives to `defineQuery$` or `defineAction$` in v0.
 `define*` reads like route or server infrastructure and makes the data API feel
-closer to Nitro/H3 handler registration. The useful boundary is:
+closer to HTTP endpoint registration. The useful boundary is:
 
 ```txt
 Need UI data with cache/reuse semantics? Use query$.
 Need a mutation or side effect? Use action$.
-Need public HTTP or middleware? Use regular TypeScript in api/ and middleware/.
+Need public HTTP? Default-export a function from api/.
+Need request pipeline behavior? Default-export a function from middleware/.
 ```
 
-`api$` and `middleware$` should not be public APIs. API routes and middleware
-are already marked by their folders. Resumable can still generate Nitro/H3
-wrapper modules for those files behind the scenes.
+`api$`, `middleware$`, `useQuery$`, and `useAsync$` should not be public data
+APIs. HTTP endpoints and middleware are already marked by their folders.
 
 ## Research Baseline
 
@@ -143,10 +146,10 @@ Grep MCP research found these relevant patterns:
   updates.
 - Nuxt uses `refreshNuxtData(...)` and `clearNuxtData(...)` around async data
   keys.
-- Nitro exposes cached functions and storage primitives that Resumable can use
-  instead of inventing a parallel server cache.
-- H3 has Standard Schema validation utilities, which makes schema-backed query
-  and action handler argument validation a good fit for the Nitro stack.
+- The internal runtime exposes cached functions and storage primitives that
+  Resumable can use instead of inventing a parallel server cache.
+- Runtime validation research shows Standard Schema is a good fit for query and
+  action handler argument validation.
 - Standard Schema exposes a small shared validator interface plus input and
   output inference helpers, which makes library-agnostic validation possible.
 - Standard JSON Schema can describe argument and return-value contracts for docs,
@@ -156,7 +159,7 @@ Grep MCP research found these relevant patterns:
   Resumable should keep `schema` library-agnostic and Standard Schema-based.
 - Qwik v2 makes `useAsync$` the async state primitive. `<Suspense>` controls
   fallback UI; it does not fetch data.
-- Qwik City route loaders and Nitro/H3 handlers expose request state through an
+- Qwik City route loaders and runtime handlers expose request state through an
   explicit event argument.
 - Astro actions use an explicit `(input, context)` handler shape.
 - TanStack Start server functions and real-world usage separate validated
@@ -165,8 +168,8 @@ Grep MCP research found these relevant patterns:
   state behind a global helper and has timing and route-context caveats.
 
 Resumable should borrow the query identity and cache semantics people like from
-TanStack Query, but implement them through Qwik resumability and Nitro instead
-of a client query provider and hydration boundary.
+TanStack Query, but implement them through Qwik resumability and the internal
+runtime instead of a client query provider and hydration boundary.
 
 ## Mental Model
 
@@ -184,7 +187,6 @@ Resumable model:
 
 ```txt
 query$ defines a read contract
-Nitro executes and caches it
 calling the query in UI returns Qwik AsyncSignal state
 Qwik serializes the AsyncSignal value/error/loading state
 Resumable resumes and reuses query records during SPA navigation
@@ -202,6 +204,18 @@ The public package entrypoint is:
 
 ```ts
 import { action$, query$, schema } from "@resumable.dev/core";
+```
+
+Request context types and HTTP failure helpers stay Resumable-owned in public
+docs:
+
+```ts
+import type {
+  EndpointEvent,
+  MiddlewareEvent,
+  RequestEvent
+} from "@resumable.dev/core";
+import { HTTPError } from "@resumable.dev/core/http";
 ```
 
 Do not require users to learn a separate `/data` subpath for the primary data
@@ -268,7 +282,7 @@ action$(options, handler);
 ```
 
 The options object should stay small and opinionated. It is not a general
-Nitro-cache configuration surface and should not become a junk drawer.
+runtime-cache configuration surface and should not become a junk drawer.
 
 Initial `query$` options:
 
@@ -300,10 +314,10 @@ Meaning:
 - `schema` validates the handler argument and return value.
 - `cache: "5m"` is shorthand for private browser query freshness.
 - `cache: { private: "5m" }` is explicit private browser query freshness.
-- `cache: { public: "5m" }` enables shared Nitro durable caching for data safe
-  to share across users.
-- `cache: { public: "5m", stale: "1h" }` enables shared Nitro durable caching
-  with stale-while-revalidate behavior.
+- `cache: { public: "5m" }` enables shared durable runtime caching for data
+  safe to share across users.
+- `cache: { public: "5m", stale: "1h" }` enables shared durable runtime
+  caching with stale-while-revalidate behavior.
 
 `private` and `public` cache modes are mutually exclusive. A query cache option
 must not specify both.
@@ -315,8 +329,8 @@ internal id used by the manifest and runtime.
 
 Avoid exposing lower-level fields such as `staleTime`, `maxAge`, `scope`,
 `storage`, `strategy`, or `id` in v0. Those names are useful internally and in
-Nitro configuration, but the Resumable query API should present one small
-`cache` concept.
+advanced runtime configuration, but the Resumable query API should present one
+small `cache` concept.
 
 Do not include tag-based invalidation in v0. Tags are powerful, but they are
 stringly typed and easy for junior developers or AI agents to invent
@@ -515,10 +529,10 @@ parameter should only appear when the handler needs request/runtime state.
 Query and action handlers may receive a second context argument:
 
 ```ts
-import type { H3Event } from "nitro/h3";
+import type { RequestEvent } from "@resumable.dev/core";
 
 type QueryContext = {
-  event: H3Event;
+  event: RequestEvent;
   signal: AbortSignal;
 };
 
@@ -527,8 +541,9 @@ type ActionContext = QueryContext & {
 };
 ```
 
-`ctx.event` is the native Nitro/H3 event. Resumable should not wrap Nitro's
-request model in a parallel abstraction.
+`ctx.event` is Resumable's request event. It exposes the current request URL,
+headers, cookies, and typed middleware context without requiring normal app code
+to import runtime-specific event types.
 
 Applications should be able to augment the event context type through a global
 app type, so middleware-provided values are typed in queries and actions:
@@ -548,7 +563,7 @@ Conceptually:
 
 ```ts
 type QueryContext<Context = AppContext> = {
-  event: H3Event & { context: Context };
+  event: RequestEvent<Context>;
   signal: AbortSignal;
 };
 ```
@@ -583,7 +598,6 @@ Core rule:
 ```txt
 query/action data dependency -> handler argument
 request/runtime state        -> ctx
-Nitro escape hatch           -> ctx.event
 action refresh               -> ctx.refresh(...)
 ```
 
@@ -605,52 +619,41 @@ What goes where:
 | Cookies                      | `ctx.event`                 |
 | Headers                      | `ctx.event`                 |
 | Auth/session from middleware | `ctx.event.context`         |
-| Runtime config               | Nitro helper or `ctx.event` |
+| Runtime config               | runtime helper or `ctx.event` |
 | Abort/cancel                 | `ctx.signal`                |
 | Refresh reads after mutation | `ctx.refresh(...)`          |
 
-Do not add a Resumable `ctx.params` shortcut in v0. Nitro's
-`ctx.event.context.params` remains available as part of the raw Nitro event, but
-page route params that affect a query result should be passed as query input.
-Otherwise, the query cache cannot distinguish `getPost` on `/blog/one` from
-`getPost` on `/blog/two`.
+Do not add a Resumable `ctx.params` shortcut in v0. Endpoint route params may
+exist on request context, but page route params that affect a query result
+should be passed as query input. Otherwise, the query cache cannot distinguish
+`getPost` on `/blog/one` from `getPost` on `/blog/two`.
 
 Future guardrail: development builds should warn when a public cached query
 reads request-specific state such as cookies, auth/session context, or
 `ctx.event.context.params` without an explicit safe partition. This protects
 against accidental cross-user cache leaks while keeping v0's public API small.
 
-### API And Middleware Convention Files
+### API And Middleware Files
 
-Top-level `api/` and `middleware/` are server convention folders authored as
-regular TypeScript.
+Top-level `api/` contains public HTTP endpoints. Top-level `middleware/`
+contains request pipeline middleware.
 
-Users should not need to write Nitro `defineHandler(...)` or
-`defineMiddleware(...)` calls in normal app files. Resumable's bundler should
-generate Nitro wrapper modules that adapt these convention files into Nitro's
-runtime.
+Users should not write method exports, generic `handler(...)`, or
+runtime-specific helpers in normal app files. The public API is the file
+contract: default-export a function from `api/` or `middleware/`, and use named
+sidecar exports for endpoint metadata.
 
-API route example:
+API endpoint example:
 
 ```ts
-// api/posts.ts
+// api/posts.get.ts
 import { listPosts } from "../data/posts";
 
-export async function GET({ context }) {
-  return Response.json({
-    posts: await listPosts({ userId: context.user?.id })
-  });
+export default async function (event) {
+  return {
+    posts: await listPosts({ userId: event.context.user?.id })
+  };
 }
-```
-
-Generated implementation shape:
-
-```ts
-import { defineHandler } from "nitro";
-import * as mod from "../../api/posts";
-import { createApiHandler } from "@resumable.dev/core/runtime";
-
-export default defineHandler(createApiHandler(mod));
 ```
 
 Middleware example:
@@ -659,37 +662,69 @@ Middleware example:
 // middleware/10.auth.ts
 import { getUserFromSession } from "../data/session";
 
-export default async function ({ event, next }) {
+export default async function (event) {
   const user = await getUserFromSession(event);
 
-  return next({
-    context: { user }
-  });
+  event.context.user = user;
 }
 ```
 
-Generated implementation shape:
+Cached endpoint example:
 
 ```ts
-import { defineMiddleware } from "nitro";
-import middleware from "../../middleware/10.auth";
-import { createMiddlewareHandler } from "@resumable.dev/core/runtime";
+// api/posts.get.ts
+import { listPosts } from "../data/posts";
 
-export default defineMiddleware(createMiddlewareHandler(middleware));
+export const cache = { maxAge: 60 };
+
+export default async function () {
+  return { posts: await listPosts() };
+}
 ```
 
 The TypeScript language plugin should provide contextual types based on folder
-location:
+location and the default export:
 
 ```txt
-api/**/*.ts         -> method exports are API handlers
-middleware/**/*.ts  -> default export is middleware
+api/**/*.ts         -> default export first parameter is EndpointEvent<Params>
+middleware/**/*.ts  -> default export first parameter is MiddlewareEvent
 ```
 
-Users should not need to import `ApiHandler`, `MiddlewareHandler`, or manually
-pass handler type parameters for the common path. Explicit type imports may
-exist as an escape hatch, but the framework should make the file convention
-self-typing.
+Users should not need to import `EndpointEvent` or `MiddlewareEvent` for the
+common path. Explicit type imports may exist as an escape hatch, but the
+framework should make the file convention self-typing.
+
+The plugin should reuse the existing typed-source transform approach used for
+page props. It should inject framework event types into the generated TypeScript
+source and map positions and diagnostics back to the original file. The same
+file classifier/parser must also power Vite runtime wrapping and `vp check`
+diagnostics so this is not editor-only behavior.
+
+Colocated page reads can be defined above the component:
+
+```tsx
+import { component$ } from "@qwik.dev/core";
+import { query$ } from "@resumable.dev/core";
+import { listPosts } from "../data/posts";
+
+export const featuredPosts = query$(async () => {
+  return {
+    posts: await listPosts({ tag: "qwik", limit: 2 })
+  };
+});
+
+export default component$(() => {
+  const data = featuredPosts();
+
+  return (
+    <ul>
+      {data.value.posts.map((post) => (
+        <li key={post.slug}>{post.title}</li>
+      ))}
+    </ul>
+  );
+});
+```
 
 In Qwik UI, call the query directly. The return value is an `AsyncSignal<T>`
 backed by Qwik's `createAsync$` semantics:
@@ -792,7 +827,7 @@ the action succeeds. If the action throws, queued refreshes are discarded.
 
 The public word is `refresh`, not `invalidate`. Internally, Resumable may mark
 records stale, refetch active records, clear browser records, and purge matching
-Nitro public cache entries. The public API should describe the developer's
+public runtime cache entries. The public API should describe the developer's
 intent: the reads affected by this successful write should be refreshed.
 
 ## Standard Schema
@@ -900,7 +935,7 @@ interface QueryRecord<T> {
 ```
 
 The exact internal shape can change, but Resumable needs an explicit query
-record model so SSR, Qwik serialization, SPA navigation, and Nitro cache
+record model so SSR, Qwik serialization, SPA navigation, and durable cache
 integration all agree on identity.
 
 ## Cache Layers
@@ -910,7 +945,7 @@ Resumable should use three cache layers:
 ```txt
 Request query cache
 Browser query cache
-Nitro durable cache
+Durable runtime cache
 ```
 
 ### Request Query Cache
@@ -935,9 +970,9 @@ Resumable should reuse fresh records and avoid refetching identical data.
 
 This cache should not require a provider or user-created query client.
 
-### Nitro Durable Cache
+### Durable Runtime Cache
 
-Durable cache uses Nitro storage and cache primitives.
+Durable cache uses the internal runtime's storage and cache primitives.
 
 Durable cache must be explicit. The default query behavior should be request
 dedupe and SPA reuse, not public cross-user persistence.
@@ -949,18 +984,18 @@ omitted                    -> request dedupe and serialized page-state reuse
 false                      -> request dedupe only
 "5m"                       -> private browser freshness for five minutes
 { private: "5m" }          -> explicit private browser freshness
-{ public: "5m" }           -> shared Nitro cache for data safe across users
-{ public: "5m", stale }    -> shared Nitro cache with stale-while-revalidate
+{ public: "5m" }           -> shared runtime cache for data safe across users
+{ public: "5m", stale }    -> shared runtime cache with stale-while-revalidate
 ```
 
 `stale` is the public Resumable term for the additional window where stale data
 may be served while a fresh value is recomputed. Internally, public cache maps
-to Nitro storage/cache primitives, including Nitro's SWR behavior. Resumable
-should keep the query API smaller than Nitro's full cache surface. Users who
-need advanced server behavior can still use Nitro storage, route rules, plugins,
-or runtime config directly.
+to the runtime storage/cache primitives. Resumable should keep the query API
+smaller than the full runtime cache surface. Users who need advanced behavior
+can use advanced runtime storage, route rules, plugins, or runtime config
+directly.
 
-Do not expose raw Nitro cache options on `query$` in v0:
+Do not expose raw runtime cache options on `query$` in v0:
 
 ```txt
 maxAge
@@ -975,9 +1010,9 @@ shouldBypassCache
 shouldInvalidateCache
 ```
 
-Nitro owns durable cache mechanics and storage backends. Resumable owns query
+The runtime owns durable cache mechanics and storage backends. Resumable owns query
 identity, private browser freshness, action refresh behavior, and the decision
-to opt a query into Nitro-backed public caching.
+to opt a query into runtime-backed public caching.
 
 User-scoped and tenant-scoped durable caching can be added later once the cache
 partition API is clear. Do not add them to v0's query options prematurely.
@@ -997,13 +1032,13 @@ handler arguments and return values should follow Qwik serialization semantics.
 Resumable owns query identity, dedupe, freshness, and cache record metadata;
 Qwik owns value serialization.
 
-If a public Nitro durable cache is used, Resumable should cache a
-framework-owned serialized query record or payload, not expose Nitro's JSON cache
-serialization as the public data model.
+If a public durable runtime cache is used, Resumable should cache a
+framework-owned serialized query record or payload, not expose the runtime's
+cache serialization as the public data model.
 
 On SSR:
 
-- Query calls execute directly on the server through Nitro context.
+- Query calls execute directly through the request context.
 - Duplicate query calls share one in-flight promise.
 - Resolved query records are attached to the render context.
 - Qwik serializes the async state needed by the rendered page.
@@ -1031,7 +1066,7 @@ framework detail.
 
 During SSR, query calls should execute directly without an HTTP round trip.
 
-In the browser, query calls should go through an internal Nitro route or RPC
+In the browser, query calls should go through an internal route or RPC
 entrypoint. Resumable may use `GET` when the input is URL-safe and useful for
 HTTP caching. It may use `POST` for complex serialized inputs. Either way, the
 query contract remains read-only.
@@ -1219,15 +1254,15 @@ Core rule:
 ```txt
 return data        -> successful query or action result
 return null        -> valid empty data state
-throw HTTPError    -> HTTP failure handled by Nitro/H3
+throw HTTP failure -> HTTP failure handled by the runtime
 throw unknown      -> unexpected 500
 ```
 
-Use Nitro's H3 exports for HTTP failures:
+Use the framework-supported HTTP failure primitive for request control flow:
 
 ```ts
-import { HTTPError } from "nitro/h3";
 import { query$ } from "@resumable.dev/core";
+import { HTTPError } from "@resumable.dev/core/http";
 
 export const getPost = query$(async ({ slug }) => {
   const post = await db.posts.findBySlug(slug);
@@ -1241,9 +1276,9 @@ export const getPost = query$(async ({ slug }) => {
 ```
 
 Resumable v0 should not add aliases such as `httpError()` or `notFound()` unless
-they add real Qwik/page semantics beyond Nitro. A thrown Nitro/H3 `404` should
-be enough for Resumable's page renderer to use `pages/404.tsx` when rendering a
-page request.
+they add real Qwik/page semantics beyond standard HTTP failure handling. A
+thrown `404` should be enough for Resumable's page renderer to use
+`pages/404.tsx` when rendering a page request.
 
 Validation behavior:
 
@@ -1251,11 +1286,10 @@ Validation behavior:
   client-input error, usually `400 Bad Request` or `422 Unprocessable Entity`.
 - `schema` handler return-value validation failure is a server bug and should
   become a 500, especially loudly in development.
-- Unknown exceptions should become Nitro/H3 500 errors.
+- Unknown exceptions should become runtime 500 errors.
 
 Redirects, rewrites, proxying, route auth, and route-level cache behavior should
-stay in top-level `middleware/` convention files or native `nitro.routeRules`
-for v0:
+stay in top-level `middleware/` files or advanced runtime route rules for v0:
 
 ```ts
 export default defineConfig({
@@ -1269,8 +1303,9 @@ export default defineConfig({
 });
 ```
 
-Do not make `query$` a mini router. Queries can throw Nitro/H3 HTTP errors for
-the resource they are reading, but request routing behavior belongs to Nitro.
+Do not make `query$` a mini router. Queries can throw HTTP failures for the
+resource they are reading, but request routing behavior belongs to endpoints,
+middleware, and advanced runtime rules.
 
 ## Relationship To Qwik
 
@@ -1339,10 +1374,12 @@ Data fetching v0 should not require:
 - A public generated query registry imported by users.
 - A global client cache users must create manually.
 - `api$` or `middleware$` as public helper functions.
-- User-authored Nitro `defineHandler(...)` or `defineMiddleware(...)` calls in
-  the normal `api/` and `middleware/` path.
-- Resumable aliases for Nitro/H3 HTTP primitives such as generic HTTP errors,
-  redirects, rewrites, proxies, or route rules.
+- Generic public `handler(...)` as the documented API or middleware helper.
+- User-authored runtime-specific handler helpers in the normal `api/` and
+  `middleware/` path.
+- HTTP method exports such as `export function GET()` in `api/` files.
+- A broad Resumable router-control API for redirects, rewrites, proxies, or
+  route rules.
 - A global `getRequestEvent()` helper as the primary request context API.
 - Tag-based invalidation as a v0 requirement.
 - Durable cross-user caching by default.
@@ -1367,11 +1404,10 @@ SSR behavior:
 - Query handler argument validation failure produces a direct error.
 - Query handler return-value validation failure produces a direct error in
   development.
-- Query handlers can access the native Nitro/H3 request event through
-  `ctx.event`.
+- Query handlers can access the current request event through `ctx.event`.
 - Query handlers can access cancellation through `ctx.signal`.
-- Thrown Nitro/H3 `HTTPError` values preserve their status and headers.
-- A thrown Nitro/H3 `404` from a page query can render `pages/404.tsx` with a
+- Thrown HTTP failure values preserve their status and headers.
+- A thrown `404` from a page query can render `pages/404.tsx` with a
   404 status for page requests.
 
 SPA behavior:
@@ -1386,14 +1422,14 @@ SPA behavior:
 Cache behavior:
 
 - `cache: "5m"` and `cache: { private: "5m" }` keep browser query records fresh
-  without using Nitro durable cache.
-- `cache: { public: "5m" }` uses Nitro-backed durable cache and is documented
+  without using durable runtime cache.
+- `cache: { public: "5m" }` uses runtime-backed durable cache and is documented
   as safe only for data that can be shared across users.
-- `cache: { public: "5m", stale: "1h" }` maps to Nitro-backed
+- `cache: { public: "5m", stale: "1h" }` maps to runtime-backed
   stale-while-revalidate behavior while keeping `stale` as the public
   Resumable field name.
 - Cache options cannot specify both `private` and `public`.
-- Raw Nitro cache options are not accepted directly by `query$` in v0.
+- Raw runtime cache options are not accepted directly by `query$` in v0.
 
 Action behavior:
 
@@ -1401,13 +1437,13 @@ Action behavior:
 - `action$(handler, options)` works for configured side effects.
 - Actions validate the handler argument before executing.
 - Actions validate the handler return value before returning.
-- Actions can access the native Nitro/H3 request event through `ctx.event`.
+- Actions can access the current request event through `ctx.event`.
 - Actions can access cancellation through `ctx.signal`.
 - Actions can call `ctx.refresh(queryFn, input?)`.
 - Action refreshes are queued while the action runs and applied only after the
   action succeeds.
 - Refreshed queries are treated as stale in the browser query cache, active
-  records may refetch, and matching Nitro public cache entries are purged when
+  records may refetch, and matching public runtime cache entries are purged when
   applicable.
 
 Progressive form behavior:
@@ -1427,10 +1463,21 @@ Build-time behavior:
 - The generated manifest maps query ids to server handlers.
 - `query$` and `action$` work through Qwik's normal first-argument QRL
   optimizer convention.
-- API route and middleware convention files are wrapped by generated Nitro
-  modules.
-- The TypeScript language plugin contextually types `api/` method exports and
-  `middleware/` default exports from folder location.
+- API files fail with: "API files must default export a function."
+- Missing GET endpoint suffixes fail with: "Use `api/users/[id].get.ts` for a
+  GET endpoint."
+- API files with `GET` or `POST` exports fail with: "Do not export `GET`; the
+  HTTP method comes from the filename."
+- Endpoint cache config diagnostics say: "Use `export const cache` for endpoint
+  cache metadata."
+- Middleware files fail with: "Middleware files must default export a
+  function."
+- Middleware return-value diagnostics say: "Middleware runs before requests and
+  should usually not return a value."
+- Query misuse diagnostics say: "Use `query$` for resumable reads."
+- Mutation misuse diagnostics say: "Use `action$` for mutations."
+- The shared file classifier/parser powers the TypeScript plugin, Vite runtime
+  wrapping, and `vp check` diagnostics for endpoint and middleware files.
 
 ## Confidence Gates
 
@@ -1498,7 +1545,7 @@ Route payloads should include query deltas, not a full dehydrated client cache.
 
 The cache API is stable only if each mode can be explained directly:
 
-| Mode                            | Request dedupe | Page-state serialization                                   | Browser query freshness                   | Nitro durable cache                                                  | Shared across users |
+| Mode                            | Request dedupe | Page-state serialization                                   | Browser query freshness                   | Durable runtime cache                                                | Shared across users |
 | ------------------------------- | -------------- | ---------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------- | ------------------- |
 | omitted                         | yes            | yes, when the rendered UI needs it                         | stale immediately after resume/navigation | no                                                                   | no                  |
 | `false`                         | yes            | only normal Qwik component state, no Resumable query reuse | never                                     | no                                                                   | no                  |
@@ -1508,7 +1555,7 @@ The cache API is stable only if each mode can be explained directly:
 | `{ public: "5m", stale: "1h" }` | yes            | yes, when the rendered UI needs it                         | fresh for 5 minutes                       | yes, fresh for 5 minutes and stale for up to 1 hour while refreshing | yes                 |
 
 `cache: "5m"` is intentionally only private/browser freshness. A query must use
-`cache: { public: "5m" }` to opt into cross-user Nitro durable caching.
+`cache: { public: "5m" }` to opt into cross-user durable runtime caching.
 
 ### Fixture Target
 
@@ -1539,10 +1586,10 @@ refresh, and public cache behavior.
   for real applications?
 - Should failed query records be serialized for SPA reuse or always refetched?
 - Should production output validation be strict by default or configurable?
-- Should Resumable ever add a `notFound()` helper, or is Nitro/H3 `HTTPError`
-  enough for v0?
+- Should Resumable ever add a `notFound()` helper, or is `HTTPError` enough for
+  v0?
 - Should redirects from `query$` or `action$` ever be supported directly, or
-  should v0 keep redirects in Nitro middleware and route rules only?
+  should v0 keep redirects in middleware and advanced runtime route rules only?
 - Should `schema` expose Standard JSON Schema metadata in v0, or only preserve
   enough metadata to add it later?
 - Should `query$(handler)` and `action$(handler)` be the only shorthand forms,

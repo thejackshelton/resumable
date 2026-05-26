@@ -6,7 +6,7 @@ Status: Draft
 
 Name: Resumable
 
-Descriptor: A minimal Qwik meta-framework for Vite, powered by Nitro.
+Descriptor: A minimal Qwik meta-framework for Vite.
 
 Domain: `resumable.dev`
 
@@ -20,119 +20,104 @@ but AI is not the category.
 
 Short description:
 
-> Resumable is a minimal Qwik + Nitro framework where `pages/` maps to routes,
-> `api/` and `middleware/` are regular TypeScript convention folders lowered to
-> Nitro, layouts are normal components, configuration lives in `vite.config.ts`,
-> and generated apps use Vite+ for the local command surface.
+> Resumable is a minimal Qwik framework where `pages/` maps to routes, `api/`
+> contains HTTP endpoints, `middleware/` contains request pipeline middleware,
+> layouts are normal components, configuration lives in `vite.config.ts`, and
+> generated apps use Vite+ for the local command surface.
 
 Even shorter mental model:
 
 - Pages are Resumable.
 - Components are Qwik.
-- Server behavior is Nitro.
+- API and middleware are Resumable request lifecycle files.
 - Configuration is Vite.
 - Tooling is Vite+.
 
 ## Framework Boundary
 
-Resumable should hide Nitro wiring, but it should not hide Nitro itself.
+Resumable's happy path should teach Resumable's lifecycle model, not its
+runtime implementation.
 
 `resumable()` owns the framework glue needed to turn Qwik page modules into a
-Nitro-powered app: page scanning, route manifest generation, Qwik rendering,
-top-level middleware wiring, public asset behavior, and the internal Nitro page
-renderer. A standard Resumable app should not require users to install or call
-Nitro's Vite plugin directly.
+complete app: page scanning, route manifest generation, Qwik rendering,
+top-level API and middleware wiring, public asset behavior, and the internal
+page renderer.
 
-When an app needs server behavior, the answer should usually be Nitro-backed:
-use regular TypeScript files in top-level `api/` and `middleware/` for app
-HTTP handlers and request context, and use Nitro route rules, Nitro runtime
-config, Nitro storage, Nitro caching, Nitro deployment presets, and Nitro
-plugins for runtime behavior. Resumable should not create aliases for Nitro
-concepts unless there is a clear Qwik-specific product reason.
+When an app needs HTTP behavior, the normal answer should be Resumable-owned
+API and middleware files. Runtime implementation details should stay out of
+beginner docs and starter code. Advanced runtime configuration can document the
+underlying runtime in a separate section.
 
 Canonical ownership:
 
 ```txt
-pages/       -> Resumable UI routes
+pages/       -> Qwik render/resume lifecycle
 components/  -> Qwik component tree
-api/         -> plain TypeScript HTTP route convention, lowered to Nitro
-middleware/  -> plain TypeScript request pipeline convention, lowered to Nitro
-public/      -> Nitro public assets
-nitro: {}    -> native Nitro app config
+api/         -> public HTTP endpoint lifecycle
+middleware/  -> request pipeline lifecycle
+query$       -> resumable read lifecycle
+action$      -> resumable mutation lifecycle
+public/      -> static assets
 vite.config  -> single app configuration surface
 Vite+        -> generated app command surface
 ```
 
+Public spec wording:
+
+```txt
+api/ contains public HTTP endpoints.
+middleware/ contains request pipeline middleware.
+Resumable owns the public API and middleware file contracts; the runtime implementation is internal.
+```
+
 This keeps the beginner path small while preserving an honest escape hatch for
 real applications. Users should be able to build the first page without
-learning Nitro, but when they search for deployment, rewrites, route rules,
-runtime config, storage, or server middleware, the documented answer should use
-Nitro's real names and link to Nitro's docs.
+learning the runtime implementation. When they search for deployment, advanced
+runtime config, storage, or platform behavior, the docs can move them to the
+advanced runtime appendix.
 
-## Research Baseline
+DX rating for the final public vocabulary:
 
-The existing `fixtures/nitro-app` proves that Qwik and Nitro v3 can work
-together through Vite. The fixture combines:
+- Plain default exports in `api/` and `middleware/`, plus `query$` and
+  `action$`: 9.6/10 if the TypeScript plugin, Vite transform, and `vp check`
+  all enforce the same contract.
+- `endpoint(...)`, `cachedEndpoint(...)`, and `middleware(...)` wrappers:
+  9.4/10 because they are explicit and easy to type, but add visible ceremony
+  that the folder convention can already express.
+- Generic `handler(...)` everywhere: about 8.5/10 because it is too broad and
+  reads like a UI event handler to many junior developers and AI agents.
+- `server/api/` and `server/middleware/`: rejected because they teach a
+  server/client split that does not fit Qwik resumability.
 
-- Nitro's Vite plugin from `nitro/vite`.
-- Qwik's Vite plugin.
-- A server entry that uses Qwik `renderToString`.
-- Nitro asset collection through `?assets=client` and `?assets=ssr`.
+Naming decisions:
 
-Nitro v3 research confirms the framework should lean on Nitro rather than
-inventing parallel server concepts:
-
-- Nitro integrates with Vite through `nitro()` and accepts native Nitro config
-  in the top-level `nitro` key of `vite.config.ts`.
-- Nitro supports filesystem routing for `api/` and `routes/`, plus
-  programmatic route registration through `routes` and `handlers`.
-- Nitro middleware is auto-registered from `middleware/` under the configured
-  server directory, runs before route handlers, and executes in filename sort
-  order.
-- Nitro route rules support route-level behavior such as headers, redirects,
-  proxying, CORS, caching, prerendering, and basic auth.
-- Nitro's renderer and server-entry model are designed for framework SSR and
-  custom HTML responses.
-- Nitro serves `public/` assets and copies them into `.output/public` during
-  production builds.
-- Nitro's top-level `api/` directory maps to `/api/*` server routes.
-
-Grep MCP sampling of public repositories also shows active Vite-based
-frameworks and examples using `nitro()` alongside framework Vite plugins, and
-using top-level `nitro: {}` in `vite.config.ts` for native Nitro config.
-Nitro's Vite plugin also accepts a small plugin-specific config surface for
-Vite integration internals, but ordinary app-level Nitro config belongs in the
-top-level `nitro` key.
-
-Grep MCP sampling also shows Nitro/H3 users writing server handlers and
-middleware directly with native functions such as `defineEventHandler(...)`,
-`defineHandler(...)`, and `defineMiddleware(...)`. Public examples from Nuxt,
-Nitro, Supabase's Nuxt blocks, and Vben's Nitro backend mock keep API routes,
-middleware, and route rules in Nitro/H3 terms instead of framework-specific API
-aliases. Resumable should preserve that Nitro runtime shape in generated
-wrapper modules, while the normal app authoring model remains folder-scoped
-TypeScript.
+- Keep top-level `api/`, not `endpoint/`, because `api/` clearly maps to
+  `/api/*`.
+- Keep top-level `middleware/`, not `server/middleware/`, because middleware is
+  part of the request lifecycle rather than a separate user-facing server app.
+- Use plain default exports in `api/` and `middleware/`. The file location is
+  the lifecycle contract, and the TypeScript plugin injects the framework event
+  type in editor tooling.
+- Do not use generic public `handler(...)`; it is too broad for the public HTTP
+  lifecycle.
 
 ## Goals
 
-Resumable v0 should provide the smallest useful Qwik + Nitro app model:
+Resumable v0 should provide the smallest useful Qwik app model:
 
 - Normal Qwik Vite plugin usage.
 - One Resumable Vite plugin: `resumable()`.
 - A top-level `pages/` directory for UI routes.
-- A top-level `api/` directory for regular TypeScript API routes lowered to
-  Nitro.
+- A top-level `api/` directory for public HTTP endpoints.
 - Optional top-level `document.tsx` for the global document shell.
 - Qwik components as page modules.
 - Explicit layout components imported by pages.
 - Typed native anchors for platform navigation.
 - A typed `Link` component for SPA navigation.
-- Top-level `middleware/` authored as regular TypeScript and lowered to Nitro
-  middleware semantics.
-- TypeScript language-plugin typing for `api/` method exports and
-  `middleware/` default exports based on folder location.
-- Resumable-owned Nitro plugin wiring.
-- Native app-level Nitro configuration under the top-level Vite `nitro` key.
+- Top-level `middleware/` for request pipeline middleware.
+- TypeScript language-plugin typing for plain default exports in `api/` and
+  `middleware/`, based on folder location and route params.
+- Resumable-owned runtime wiring.
 - Hard build errors for ambiguous routing.
 - Root status pages for 404 and 500 UI.
 - No framework config file.
@@ -157,11 +142,13 @@ Resumable v0 should not include:
 - Alternative document shell files. Only top-level `document.tsx` and
   `document.jsx` are document shells.
 - Page-local middleware files such as `pages/blog/middleware.ts`.
-- A new server runtime abstraction over Nitro.
-- Resumable-specific API or middleware wrapper functions such as `defineApi`,
-  `api$`, `defineResumableMiddleware`, or `middleware$`.
-- User-authored Nitro `defineHandler(...)` or `defineMiddleware(...)` calls in
-  the normal `api/` and `middleware/` path.
+- Public `server/` folders such as `server/api/` or `server/middleware/`.
+- Required API or middleware wrapper functions such as `endpoint(...)`,
+  `cachedEndpoint(...)`, `middleware(...)`, `defineApi`, `api$`,
+  `defineResumableMiddleware`, or `middleware$` in the happy path.
+- Generic public `handler(...)` as the documented API endpoint helper.
+- User-authored runtime-specific handler helpers in the normal `api/` and
+  `middleware/` path.
 - A wrapper over Qwik's Vite plugin or Qwik compiler options.
 - AI-specific framework primitives.
 - Route-loader exports that inject data into page props.
@@ -186,12 +173,12 @@ my-app/
       [...slug].mdx
 
   api/
-    health.ts
+    health.get.ts
     users/
       [id].get.ts
 
   middleware/
-    00.logger.ts
+    01.request-id.ts
     10.auth.ts
 
   components/
@@ -228,11 +215,23 @@ import { resumable } from "@resumable.dev/core/vite";
 ```
 
 The public core entrypoint exposes the framework-aware document component and
-shared runtime types:
+shared runtime APIs:
 
 ```ts
-import { Html, Link } from "@resumable.dev/core";
-import type { PageProps } from "@resumable.dev/core";
+import {
+  Html,
+  Link,
+  action$,
+  query$
+} from "@resumable.dev/core";
+import type {
+  EndpointEvent,
+  MiddlewareEvent,
+  PageProps,
+  RequestEvent
+} from "@resumable.dev/core";
+
+import { HTTPError } from "@resumable.dev/core/http";
 ```
 
 The canonical Vite config is:
@@ -243,11 +242,7 @@ import { qwik } from "qwik-bundler/vite";
 import { resumable } from "@resumable.dev/core/vite";
 
 export default defineConfig({
-  plugins: [qwik(), resumable()],
-
-  nitro: {
-    // Native Nitro v3 config.
-  }
+  plugins: [qwik(), resumable()]
 });
 ```
 
@@ -255,36 +250,29 @@ API boundary:
 
 ```txt
 qwik()       -> Qwik compiler, optimizer, and resumability transforms
-resumable()  -> pages/, route manifest, Nitro renderer, and middleware glue
-api/         -> plain TypeScript HTTP routes lowered to Nitro
-middleware/  -> plain TypeScript request pipeline lowered to Nitro
-nitro: {}    -> native app-level Nitro config
+resumable()  -> pages/, route manifest, API, and middleware glue
+api/         -> public HTTP endpoint lifecycle
+middleware/  -> request pipeline lifecycle
 ```
 
-Do not nest Nitro config inside the Resumable plugin:
+Do not put runtime config inside the Resumable plugin:
 
 ```ts
 export default defineConfig({
   plugins: [
     resumable({
-      nitro: {}
+      runtime: {}
     })
   ]
 });
 ```
 
-Use the top-level Vite config instead:
-
-```ts
-export default defineConfig({
-  plugins: [qwik(), resumable()],
-  nitro: {}
-});
-```
+Advanced runtime config, when needed, belongs in top-level Vite config and is
+documented separately from the beginner path.
 
 `resumable()` is responsible for Resumable's framework wiring and should install
-Nitro's Vite plugin internally. A user should not need to add Nitro's Vite
-plugin separately in a standard Resumable app.
+the internal runtime integration. A user should not need to add runtime plugins
+separately in a standard Resumable app.
 
 Qwik remains explicit. Users should configure Qwik through Qwik's own Vite
 plugin rather than through Resumable.
@@ -560,6 +548,26 @@ export interface PageProps<Params extends object = Readonly<Record<string, strin
   };
   readonly status: number;
 }
+
+export interface AppContext {}
+
+export interface RequestEvent<Context extends object = AppContext> {
+  readonly context: Context;
+  readonly url: URL;
+  readonly request: Request;
+}
+
+export interface EndpointEvent<
+  Params extends object = Readonly<Record<string, string>>,
+  Context extends object = AppContext
+> extends RequestEvent<Context> {
+  readonly context: Context & {
+    readonly params: Readonly<Params>;
+  };
+}
+
+export interface MiddlewareEvent<Context extends object = AppContext>
+  extends RequestEvent<Context> {}
 ```
 
 The Resumable TypeScript language service plugin should provide route-specific
@@ -568,6 +576,19 @@ The Resumable TypeScript language service plugin should provide route-specific
 editor. Top-level `document.tsx` receives a document-wide `PageProps` shape with
 params collected from every page route, marked optional because the document can
 render any route.
+
+The same typed-source transform model should type unannotated default exports in
+`api/` and `middleware/`. The current TypeScript plugin already overrides
+`getScriptSnapshot`, creates generated source text, injects framework parameter
+types, and maps positions and diagnostics back to the original file for page
+props. Endpoint and middleware typing should extend that same mechanism instead
+of requiring public helper wrappers.
+
+This must not be editor-only magic. A shared file classifier/parser should power:
+
+- TypeScript plugin typed-source transforms.
+- Vite runtime wrapping/lowering.
+- `vp check` diagnostics.
 
 `url` must be serializable page data, not a live `URL` instance. For normal
 matched pages, `props.status` is `200`. For `pages/404.tsx` or `pages/404.mdx`,
@@ -726,8 +747,8 @@ Why `Html` exists:
 - `Html` gives users the document-shaped API they expect while making the
   framework boundary visible in code.
 
-`Html` is not the function that calls Qwik SSR. The internal Nitro renderer
-still calls Qwik `renderToStream()` or `renderToString()`. `Html` is the public
+`Html` is not the function that calls Qwik SSR. The internal renderer still
+calls Qwik `renderToStream()` or `renderToString()`. `Html` is the public
 document component that lets Resumable translate user-authored `<html>`
 attributes into Qwik's container model and preserve framework-required Qwik
 attributes.
@@ -886,7 +907,7 @@ pages/docs/[...slug].mdx -> /docs/**
 ```
 
 Catch-all params are exposed through `PageProps.params` as slash-joined strings,
-matching Nitro and SolidStart behavior:
+matching common file-router behavior:
 
 ```txt
 GET /docs/guides/getting-started
@@ -1001,7 +1022,7 @@ Choose one.
 ```
 
 The error must name the URL and the exact files. It should not be a generic Vite
-or Nitro error.
+or runtime error.
 
 ### Status Pages
 
@@ -1036,8 +1057,8 @@ built-in 404 page. If `pages/500.tsx` and `pages/500.mdx` are missing,
 Resumable renders a minimal built-in 500 page.
 
 If the user-defined 500 page itself fails to render, Resumable must fall back to
-Nitro's native error response rather than recursively attempting to render the
-500 page.
+the runtime's native error response rather than recursively attempting to render
+the 500 page.
 
 Status page props use the same `PageProps` type. For unmatched page requests,
 `props.params` is empty and `props.url` describes the original requested URL.
@@ -1066,9 +1087,8 @@ pages/global-error.tsx
 ```
 
 Those patterns come from other frameworks' nested error boundary systems and
-would weaken Resumable's v0 mental model. Nitro's native `errorHandler` remains
-available through top-level `nitro` config for advanced runtime/server error
-handling.
+would weaken Resumable's v0 mental model. The runtime's native `errorHandler`
+remains available through advanced runtime config for server error handling.
 
 ### Route Scope For v0
 
@@ -1101,63 +1121,93 @@ Deferred unless explicitly added:
 - File-based layouts.
 - API route conventions inside `pages/`.
 
-Nitro already supports catch-all routes, route groups, HTTP method suffixes, and
-programmatic handlers for server routes. Resumable adopts Nitro-compatible
-catch-all naming for UI pages, but should not copy the rest of Nitro's server
-routing surface into the page convention until there is a clear product reason.
+Resumable keeps UI routing and HTTP endpoint routing separate. UI pages use
+`pages/`; public HTTP endpoints use `api/`.
 
 ## API Routes
 
-Resumable v0 supports top-level `api/` as regular TypeScript API routes lowered
-to Nitro:
+Resumable v0 supports top-level `api/` as public HTTP endpoints:
 
 ```txt
-api/health.ts          -> /api/health
-api/users/[id].get.ts  -> GET /api/users/:id
-api/proxy/[...path].ts -> /api/proxy/**
+api/health.ts           -> /api/health, all methods
+api/posts.get.ts        -> GET /api/posts
+api/posts.post.ts       -> POST /api/posts
+api/posts.ts            -> all methods /api/posts
+api/users/[id].get.ts   -> GET /api/users/:id
+api/users/[id].post.ts  -> POST /api/users/:id
+api/proxy/[...path].ts  -> /api/proxy/**, all methods
 ```
 
-API route files export HTTP method functions directly:
+API route files default-export a function. The file path establishes the URL,
+and the filename suffix establishes the HTTP method:
 
 ```ts
-export function GET() {
+// api/health.get.ts
+export default function () {
   return Response.json({ ok: true });
 }
 ```
 
-Do not add public `api$`, `defineApi`, or similar Resumable API handler helpers
-in v0. The file path establishes the server route, the method export
-establishes the HTTP method, and Resumable generates the Nitro wrapper module.
-
-Conceptual generated code:
+Supported default export shapes:
 
 ```ts
-import { defineHandler } from "nitro";
-import * as mod from "../../api/health";
-import { createApiHandler } from "@resumable.dev/core/runtime";
+export default async function (event) {}
+export default async (event) => {};
 
-export default defineHandler(createApiHandler(mod));
+const route = async (event) => {};
+export default route;
 ```
 
-Dynamic params are passed through the framework handler context:
+Cached HTTP endpoints use a sidecar `cache` export:
 
 ```ts
-export function GET({ params }) {
+// api/posts.get.ts
+export const cache = { maxAge: 60 };
+
+export default async function (event) {
+  return { posts: await listPosts() };
+}
+```
+
+Dynamic params are available through the endpoint event:
+
+```ts
+// api/users/[id].get.ts
+export default function (event) {
   return {
-    id: params.id
+    id: event.context.params.id
   };
 }
 ```
 
-The TypeScript language plugin should provide contextual types for method
-exports in `api/` based on file location. Users should not need to import an
-`ApiHandler` type for the normal path.
+Do not export HTTP method functions from `api/` files:
+
+```txt
+export function GET() {}
+export async function POST() {}
+```
+
+The method comes from the filename. API files must default export a function.
+
+The TypeScript language plugin should provide contextual types for unannotated
+default export function parameters based on file location. For example,
+`api/users/[id].get.ts` should be typed as if the user wrote:
+
+```ts
+export default function (
+  event: import("@resumable.dev/core").EndpointEvent<{ readonly id: string }>
+) {
+  return { id: event.context.params.id };
+}
+```
+
+Users should not need to import an endpoint event type for the normal path.
 
 Core rule:
 
 ```txt
 pages/ defines Qwik UI routes.
-api/ defines public HTTP routes under /api.
+api/ defines public HTTP endpoints under /api.
 middleware/ defines request pipeline behavior.
 ```
 
@@ -1165,15 +1215,15 @@ Do not put API routes inside `pages/`:
 
 ```txt
 pages/api/health.ts
-pages/about.tsx with GET()
+pages/about.tsx with a default endpoint function
 ```
 
 Those patterns make `pages/` ambiguous. In Resumable v0, every route module in
-`pages/` must default export a Qwik component. Public HTTP handlers belong in
-`api/` or explicit Nitro config.
+`pages/` must default export a Qwik component. Public HTTP endpoints belong in
+`api/` or advanced runtime config.
 
 Top-level `routes/` is not part of the canonical Resumable app shape in v0. For
-advanced non-`/api` server endpoints, use Nitro's native `handlers` config:
+advanced non-`/api` HTTP endpoints, use advanced runtime config:
 
 ```ts
 import { defineConfig } from "vite-plus";
@@ -1183,19 +1233,17 @@ import { resumable } from "@resumable.dev/core/vite";
 export default defineConfig({
   plugins: [qwik(), resumable()],
   nitro: {
-    handlers: [
-      {
-        route: "/webhook",
-        handler: "./server/webhook.post.ts",
+    routes: {
+      "/webhook": {
+        handler: "./advanced/webhook.post.ts",
         method: "post"
       }
-    ]
+    }
   }
 });
 ```
 
-Nitro's broader server routing surface remains available through Nitro config,
-but Resumable documentation should keep the normal app structure focused on
+The public documentation should keep the normal app structure focused on
 `pages/`, `api/`, and `middleware/`.
 
 ## Layouts
@@ -1259,40 +1307,48 @@ pages/ defines UI routes.
 middleware/ defines request pipeline behavior.
 ```
 
-Middleware should map as directly as possible to Nitro middleware while keeping
-the authoring model plain TypeScript. Resumable should wire Nitro so that
-top-level `middleware/` is registered with Nitro's request pipeline without
-requiring users to create a `server/` directory or write Nitro wrapper calls.
+Middleware files run before requests and can attach request context, set
+headers, throw errors, redirect, or short-circuit a request with a response.
+They are top-level lifecycle files, not Qwik components and not page-local
+hooks.
 
-Middleware files default-export a request middleware function:
+Middleware files default-export a function:
 
 ```ts
-export default async function ({ event, next }) {
+// middleware/01.request-id.ts
+export default function (event) {
   event.context.requestId = crypto.randomUUID();
-
-  return next();
 }
 ```
 
-Do not add public `middleware$` or similar Resumable middleware helpers in v0.
-Resumable owns where middleware is discovered and how the user function is
-wrapped; Nitro owns the runtime request pipeline.
-
-Conceptual generated code:
+Supported default export shapes match API files:
 
 ```ts
-import { defineMiddleware } from "nitro";
-import middleware from "../../middleware/10.auth";
-import { createMiddlewareHandler } from "@resumable.dev/core/runtime";
+export default async function (event) {}
+export default async (event) => {};
 
-export default defineMiddleware(createMiddlewareHandler(middleware));
+const auth = async (event) => {};
+export default auth;
 ```
+
+Do not add public `middleware$` or use generic `handler(...)` as the documented
+middleware helper in v0. The folder and default export are the lifecycle
+contract.
 
 The TypeScript language plugin should provide contextual types for the default
 export in `middleware/` based on file location. Users should not need to import
-a `MiddlewareHandler` type for the normal path.
+a `MiddlewareEvent` type for the normal path. A middleware file should be typed
+as if the user wrote:
 
-Execution order follows Nitro's filename sort order. Use numeric prefixes for
+```ts
+export default function (
+  event: import("@resumable.dev/core").MiddlewareEvent
+) {
+  event.context.requestId = crypto.randomUUID();
+}
+```
+
+Execution order follows filename sort order. Use numeric prefixes for
 predictable ordering:
 
 ```txt
@@ -1309,21 +1365,21 @@ pages/blog/_middleware.ts
 ```
 
 For route-specific behavior, use pathname checks in top-level middleware or
-native Nitro config rather than inventing a page-local middleware convention.
+advanced runtime config rather than inventing a page-local middleware
+convention.
 
 Examples:
 
 ```ts
-export default async function ({ event, next }) {
+// middleware/10.admin.ts
+export default function (event) {
   if (event.url.pathname.startsWith("/admin")) {
     event.context.requiresAuth = true;
   }
-
-  return next();
 }
 ```
 
-Or use native Nitro `handlers`:
+Or use advanced runtime config:
 
 ```ts
 import { defineConfig } from "vite-plus";
@@ -1336,7 +1392,7 @@ export default defineConfig({
     handlers: [
       {
         route: "/admin/**",
-        handler: "./middleware/10.auth.ts",
+        handler: "./advanced/admin-auth.ts",
         middleware: true
       }
     ]
@@ -1344,8 +1400,9 @@ export default defineConfig({
 });
 ```
 
-Returning a response from middleware short-circuits the request. That behavior
-comes from Nitro and should not be wrapped in a Resumable-specific abstraction.
+Returning a response from middleware short-circuits the request. Middleware
+should usually not return a value unless it intentionally completes the
+request.
 
 ## Configuration
 
@@ -1358,6 +1415,17 @@ import { defineConfig } from "vite-plus";
 import { qwik } from "qwik-bundler/vite";
 import { resumable } from "@resumable.dev/core/vite";
 
+export default defineConfig({
+  plugins: [qwik(), resumable()]
+});
+```
+
+Resumable should not forward, mirror, or rename Qwik Vite plugin options. If a
+user needs Qwik plugin options, they pass them directly to `qwik()`.
+
+Advanced runtime configuration can use the top-level `nitro` key:
+
+```ts
 export default defineConfig({
   plugins: [qwik(), resumable()],
 
@@ -1372,10 +1440,7 @@ export default defineConfig({
 
 The `nitro` key is native app-level Nitro config. Resumable should pass it
 through and merge only the internal defaults required for Qwik rendering, page
-routing, and top-level middleware.
-
-Resumable should not forward, mirror, or rename Qwik Vite plugin options. If a
-user needs Qwik plugin options, they pass them directly to `qwik()`.
+routing, endpoints, and middleware.
 
 Resumable should not expose normal Nitro config through a `nitro` option on
 `resumable()`. If a future escape hatch is needed for rare Nitro Vite plugin
@@ -1402,21 +1467,21 @@ entire Nitro surface area.
 
 ## Rendering Architecture
 
-The fixture proves the viable shape:
+The internal runtime integration proves the viable shape:
 
 - A server entry renders Qwik to HTML.
-- Client and server assets are collected through Nitro/Vite asset queries.
-- Nitro returns a standard `Response`.
+- Client and server assets are collected through runtime/Vite asset queries.
+- The runtime returns a standard `Response`.
 
 Resumable v0 should hide this ceremony. A user writes page components; the
 framework supplies the renderer.
 
-Decision: Resumable v0 uses Nitro's renderer as the page rendering entrypoint.
+Decision: Resumable v0 uses the internal runtime renderer as the page rendering
+entrypoint.
 
-Nitro's renderer is a lowest-priority catch-all handler for unmatched requests.
-Nitro still owns middleware, public assets, route rules, API/server routes, and
-deployment behavior. When no more specific Nitro route matches, Nitro calls the
-Resumable renderer.
+The renderer is a lowest-priority catch-all handler for unmatched requests. The
+runtime still owns low-level request ordering, static assets, route rules,
+deployment behavior, and the final call into the Resumable renderer.
 
 Inside that renderer, Resumable owns the page framework work:
 
@@ -1445,22 +1510,22 @@ only applies after the route manifest has no match.
 If page matching or Qwik page rendering throws an unhandled error, the renderer
 renders `pages/500.tsx` or `pages/500.mdx` when present, or a built-in minimal
 500 page when absent, with HTTP status 500. If the user-defined 500 page itself
-fails, Nitro's native error response is used.
+fails, the runtime's native error response is used.
 
 The document shell receives `PageProps` for normal pages, status pages, and built-in
 fallback pages. This is the primary v0 mechanism for route-specific `<html>`
 and `<body>` attributes through the `Html` component.
 
-This means Resumable should not generate one Nitro handler per page route in v0.
-There is one internal Nitro renderer/dispatcher backed by a generated or virtual
+This means Resumable should not generate one runtime handler per page route in
+v0. There is one internal renderer/dispatcher backed by a generated or virtual
 route manifest.
 
 The public contract is that:
 
-- Nitro middleware runs before page rendering.
-- More specific Nitro API/server routes run before page rendering.
-- Nitro route rules apply to page requests.
-- Nitro public assets are served before page rendering.
+- Top-level middleware runs before page rendering.
+- More specific HTTP endpoints run before page rendering.
+- Advanced runtime route rules apply to page requests.
+- Public assets are served before page rendering.
 - Route conflicts fail before production output is emitted.
 - Unmatched page requests render the Resumable 404 surface after static,
   dynamic, and user-defined catch-all routes have failed to match.
@@ -1482,7 +1547,7 @@ public/
   images/logo.png
 ```
 
-Public assets should follow Nitro behavior:
+Public assets should follow standard static asset behavior:
 
 ```txt
 public/favicon.ico      -> /favicon.ico
@@ -1492,10 +1557,11 @@ public/images/logo.png  -> /images/logo.png
 
 Resumable should not create a separate public asset convention.
 
-## Nitro Relationship
+## Advanced Runtime Relationship
 
-Resumable is a thin Qwik-oriented meta-framework over Nitro. It should preserve
-Nitro's native concepts instead of renaming them.
+The happy path should not require users to know the runtime implementation.
+`pages/`, `api/`, `middleware/`, `query$`, and `action$` are Resumable concepts
+with Resumable-owned docs and diagnostics.
 
 Use Resumable terms for:
 
@@ -1503,30 +1569,71 @@ Use Resumable terms for:
 - Page route manifest.
 - Qwik rendering.
 - Layout guidance.
+- HTTP endpoints.
+- Request middleware.
+- Query and action data boundaries.
 
-Use Nitro terms for:
+Advanced docs may mention Nitro for:
 
-- API routes.
-- Middleware.
 - Route rules.
 - Runtime config.
 - Storage.
 - Caching.
 - Deployment presets.
 - Server assets.
-- Public assets.
 - Programmatic handlers.
 - Plugins.
 
-When in doubt, preserve Nitro behavior rather than creating a Resumable alias.
+Decision for v0: public docs should use plain default exports for app-authored
+HTTP lifecycle files in `api/` and `middleware/`. Endpoint cache metadata uses
+sidecar named exports such as `export const cache = { maxAge: 60 }`. The
+implementation may use Nitro internally, and advanced docs can link to Nitro
+for route rules, runtime config, storage, caching, deployment behavior,
+programmatic handlers, and plugins.
 
-Decision for v0: Resumable should let users author API routes and middleware as
-regular TypeScript convention files while generating Nitro wrappers internally.
-Users should still use Nitro directly for route rules, runtime config, storage,
-caching, deployment behavior, programmatic handlers, and plugins. Resumable
-should only add abstractions when the behavior is genuinely Qwik/page-specific,
-such as page routing, document shell handling, typed navigation, or query/action
-APIs that integrate with Qwik resumability.
+### Internal Runtime Baseline
+
+The existing `fixtures/nitro-app` proves that Qwik and Nitro v3 can work
+together through Vite. This section is implementer-facing and should not be
+copied into beginner docs or starter code.
+
+The fixture combines:
+
+- Nitro's Vite plugin from `nitro/vite`.
+- Qwik's Vite plugin.
+- A server entry that uses Qwik `renderToString`.
+- Nitro asset collection through `?assets=client` and `?assets=ssr`.
+
+Nitro v3 research confirms the internal runtime can provide the lower-level
+server behavior Resumable needs:
+
+- Nitro integrates with Vite through `nitro()` and accepts native Nitro config
+  in the top-level `nitro` key of `vite.config.ts`.
+- Nitro supports filesystem routing for `api/` and `routes/`, plus
+  programmatic route registration through `routes` and `handlers`.
+- Nitro middleware is auto-registered from `middleware/` under the configured
+  server directory, runs before route handlers, and executes in filename sort
+  order.
+- Nitro route rules support route-level behavior such as headers, redirects,
+  proxying, CORS, caching, prerendering, and basic auth.
+- Nitro's renderer and server-entry model are designed for framework SSR and
+  custom HTML responses.
+- Nitro serves `public/` assets and copies them into `.output/public` during
+  production builds.
+- Nitro's top-level `api/` directory maps to `/api/*` server routes.
+
+Grep MCP sampling of public repositories also shows active Vite-based
+frameworks and examples using `nitro()` alongside framework Vite plugins, and
+using top-level `nitro: {}` in `vite.config.ts` for native Nitro config.
+Nitro's Vite plugin also accepts a small plugin-specific config surface for
+Vite integration internals, but ordinary app-level Nitro config belongs in the
+top-level `nitro` key.
+
+Grep MCP sampling also shows Nitro/H3 users writing handler-shaped API and
+middleware files. Resumable should preserve that runtime capability internally,
+but the public happy path should use Resumable's file contracts: a default
+exported function in `api/`, a default exported function in `middleware/`, and
+named sidecar metadata exports when needed.
 
 ## Docs Site Direction
 
@@ -1537,9 +1644,9 @@ Primary docs pages should start with the working mental model:
 ```txt
 document.tsx customizes the document shell.
 pages/ maps to routes.
-api/ exports HTTP methods.
+api/ contains endpoint files.
 layouts are components.
-middleware exports request functions.
+middleware/ contains request pipeline files.
 query$ defines resumable page data.
 config lives in vite.config.ts.
 ```
@@ -1556,7 +1663,8 @@ Suggested initial docs:
 - API Routes
 - Layouts
 - Middleware
-- Vite and Nitro Config
+- Vite Config
+- Advanced Runtime Config
 - Deploying
 - Examples
 
@@ -1614,8 +1722,33 @@ Build-time checks:
   should produce a direct unsupported feature error.
 - API routes inside `pages/api/` should produce a direct unsupported feature
   error.
-- Page files that default export a Nitro handler instead of a Qwik component
-  should produce a direct error.
+- Page files that default export a plain request function or export API
+  metadata instead of a Qwik component should produce a direct error.
+- API files must produce the diagnostic: "API files must default export a
+  function."
+- Missing GET endpoint suffixes should produce the diagnostic: "Use
+  `api/users/[id].get.ts` for a GET endpoint."
+- API files that export `GET` or `POST` should produce the diagnostic: "Do not
+  export `GET`; the HTTP method comes from the filename."
+- Endpoint cache config diagnostics should say: "Use `export const cache` for
+  endpoint cache metadata."
+- Middleware files must produce the diagnostic: "Middleware files must default
+  export a function."
+- Middleware return-value diagnostics should say: "Middleware runs before
+  requests and should usually not return a value."
+- Query misuse diagnostics should say: "Use `query$` for resumable reads."
+- Mutation misuse diagnostics should say: "Use `action$` for mutations."
+
+Required diagnostic strings:
+
+- "API files must default export a function."
+- "Use `api/users/[id].get.ts` for a GET endpoint."
+- "Do not export `GET`; the HTTP method comes from the filename."
+- "Use `export const cache` for endpoint cache metadata."
+- "Middleware files must default export a function."
+- "Middleware runs before requests and should usually not return a value."
+- "Use `query$` for resumable reads."
+- "Use `action$` for mutations."
 - `document.tsx`, when present, must default export a Qwik component.
 - `document.tsx`, when present, should render `Html` from `@resumable.dev/core` as
   the document boundary.
@@ -1659,12 +1792,13 @@ Runtime checks:
   404 when present.
 - Unhandled page rendering errors render `pages/500.tsx` or `pages/500.mdx`
   with status 500 when present.
-- If the user-defined 500 page fails, Nitro's native error response is used.
-- `GET /api/health` renders `api/health.ts` through Nitro.
+- If the user-defined 500 page fails, the runtime's native error response is
+  used.
+- `GET /api/health` renders `api/health.get.ts` through its default export.
 - Top-level middleware runs before page rendering.
 - Top-level middleware runs before API routes.
 - `public/` assets are served directly.
-- Native Nitro `routeRules` still apply.
+- Advanced runtime route rules still apply.
 
 ## Open Questions
 

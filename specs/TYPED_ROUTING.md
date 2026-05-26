@@ -104,7 +104,7 @@ Typed routing v0 should not require:
 - A generated route tree that users import manually.
 - A Resumable config file.
 - Type-safe form actions in this navigation spec. Progressive form mutations
-  submit to Nitro API routes with normal form URLs.
+  submit to public HTTP endpoints with normal form URLs.
 - Type-safe API route URLs.
 - Type-safe arbitrary public asset URLs.
 - Client-side data loaders.
