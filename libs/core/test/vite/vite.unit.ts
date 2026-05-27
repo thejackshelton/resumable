@@ -84,7 +84,6 @@ describe("resumable Vite plugin", () => {
     expect(routesPlugin).not.toHaveProperty("configureServer");
     expect(routesPlugin).not.toHaveProperty("handleHotUpdate");
     expect(routesPlugin).not.toHaveProperty("hotUpdate");
-    expect(routesPlugin).not.toHaveProperty("load");
 
     expect(resolveId?.("virtual:resumable/routes")).toBe(
       expectedEntryPath("route-discovery.ts")
@@ -129,6 +128,9 @@ describe("resumable Vite plugin", () => {
     expect(resolveId?.("virtual:resumable/client-entry")).toBe(
       expectedEntryPath("client-entry.ts")
     );
+    expect(resolveId?.("virtual:resumable/client-entry-path")).toBe(
+      "virtual:resumable/client-entry-path"
+    );
     expect(resolveId?.("virtual:resumable/server-entry")).toBe(
       expectedEntryPath("server-entry.ts")
     );
@@ -151,14 +153,17 @@ describe("resumable Vite plugin", () => {
     expect(serverEntrySource).toContain(
       "@resumable.dev/core/vite/runtime/create-server-entry"
     );
+    expect(serverEntrySource).toContain("virtual:resumable/client-entry-path");
     expect(clientEntrySource).toContain(
       'export const documentModules = import.meta.glob(["/document.tsx", "/document.jsx"])'
     );
     expect(clientEntrySource).toContain(
-      'export const pageModules = import.meta.glob("/pages/**/*.tsx")'
+      'const routeDiscovery = createRouteDiscovery(import.meta.glob("/pages/**/*.tsx"))'
     );
+    expect(clientEntrySource).toContain("__resumableStartSpaNavigation");
     expect(serverEntrySource).toContain('from "@qwik.dev/core/jsx-runtime"');
     expect(serverEntrySource).toContain('from "@qwik.dev/core/server"');
+    expect(serverEntrySource).toContain('from "@qwik.dev/core"');
     expect(serverEntrySource).toContain("createServerEntry");
     expect(clientEntrySource).toContain(
       'import.meta.glob(["/document.tsx", "/document.jsx"])'
@@ -181,10 +186,10 @@ describe("resumable Vite plugin", () => {
     expect(serverEntrySource).toContain(
       'import { renderToString } from "@qwik.dev/core/server"'
     );
+    expect(serverEntrySource).toContain("ResumableRouteRoot");
     expect(serverRuntimeSource).toContain("qwik: QwikRenderRuntime");
-    expect(serverRuntimeSource).toContain(
-      "const { Fragment, jsx, jsxs, renderToString }"
-    );
+    expect(serverRuntimeSource).toContain("injectClientEntry(");
+    expect(serverRuntimeSource).toContain('html.indexOf("</head>")');
     expect(serverRuntimeSource).not.toContain(
       'import { Fragment, jsx, jsxs } from "@qwik.dev/core/jsx-runtime"'
     );
@@ -214,6 +219,10 @@ describe("resumable Vite plugin", () => {
       "../../lib/entries/route-href.ts",
       import.meta.url
     );
+    const rawRouteRootEntryUrl = new URL(
+      "../../lib/entries/route-root.tsx",
+      import.meta.url
+    );
     const deletedClientRuntimeOutputUrl = new URL(
       "../../lib/vite/runtime/create-client-entry.mjs",
       import.meta.url
@@ -227,6 +236,7 @@ describe("resumable Vite plugin", () => {
     await expect(access(routeRuntimeOutputUrl)).resolves.toBeUndefined();
     await expect(access(rawServerEntryUrl)).resolves.toBeUndefined();
     await expect(access(rawRouteHrefEntryUrl)).resolves.toBeUndefined();
+    await expect(access(rawRouteRootEntryUrl)).resolves.toBeUndefined();
     await expect(access(deletedClientRuntimeOutputUrl)).rejects.toThrow();
     await expect(access(deletedDocumentModuleLoaderOutputUrl)).rejects.toThrow();
 
@@ -375,6 +385,76 @@ describe("resumable Vite plugin", () => {
         }
       }
     });
+  });
+
+  it("captures the client entry asset through the Vite client environment", () => {
+    const plugins = flattenPlugins([resumable()]);
+    const vitePlugin = plugins.find((plugin) => plugin.name === "resumable:vite");
+    const routesPlugin = plugins.find((plugin) => plugin.name === "resumable:routes");
+    const configEnvironment = hookHandler(vitePlugin?.configEnvironment) as
+      | ((name: string, config: EnvironmentOptions) => EnvironmentOptions | null | void)
+      | undefined;
+    const generateBundle = hookHandler(vitePlugin?.generateBundle) as
+      | ((this: unknown, options: unknown, bundle: Record<string, unknown>) => void)
+      | undefined;
+    const load = hookHandler(routesPlugin?.load) as
+      | ((id: string) => string | undefined)
+      | undefined;
+
+    (vitePlugin?.configResolved as ((config: { base: string }) => void) | undefined)?.({
+      base: "/app/"
+    });
+
+    const clientConfig: EnvironmentOptions = {
+      consumer: "client",
+      build: {
+        rolldownOptions: {
+          input: "custom-client-entry.ts"
+        }
+      }
+    };
+    configEnvironment?.("client", clientConfig);
+    expect(clientConfig.build?.rolldownOptions?.input).toEqual([
+      "virtual:resumable/client-entry",
+      "custom-client-entry.ts"
+    ]);
+
+    generateBundle?.call(
+      {
+        environment: { config: { consumer: "client" } }
+      },
+      {},
+      {
+        "build/q-client.js": {
+          type: "chunk",
+          fileName: "build/q-client.js",
+          facadeModuleId:
+            "/project/node_modules/@resumable.dev/core/lib/entries/client-entry.ts",
+          moduleIds: []
+        }
+      }
+    );
+
+    expect(load?.("virtual:resumable/client-entry-path")).toBe(
+      'export const clientEntryPath = "/app/build/q-client.js";'
+    );
+  });
+
+  it("falls back to Vite's virtual client entry URL before a client build", () => {
+    const plugins = flattenPlugins([resumable()]);
+    const vitePlugin = plugins.find((plugin) => plugin.name === "resumable:vite");
+    const routesPlugin = plugins.find((plugin) => plugin.name === "resumable:routes");
+    const load = hookHandler(routesPlugin?.load) as
+      | ((id: string) => string | undefined)
+      | undefined;
+
+    (vitePlugin?.configResolved as ((config: { base: string }) => void) | undefined)?.({
+      base: "/"
+    });
+
+    expect(load?.("virtual:resumable/client-entry-path")).toBe(
+      'export const clientEntryPath = "/@id/virtual:resumable/client-entry";'
+    );
   });
 
   it("throws when users add nitro() directly alongside resumable()", () => {

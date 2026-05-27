@@ -217,7 +217,7 @@ describe("route type declarations", () => {
         [
           'import type { Component, PropsOf } from "@qwik.dev/core";',
           "export interface ResumableGeneratedRoutes {}",
-          "export type LinkProps = ResumableGeneratedRoutes extends { readonly link: infer Props } ? Props : PropsOf<\"a\">;",
+          'export type LinkProps = ResumableGeneratedRoutes extends { readonly link: infer Props } ? Props : PropsOf<"a">;',
           "export declare const Link: Component<LinkProps>;"
         ].join("\n")
       ],
@@ -228,7 +228,7 @@ describe("route type declarations", () => {
           "",
           'const slug = "hello";',
           "",
-          'const validAbout = <Link href="/about" prefetch="intent" replace scroll={false} reload>About</Link>;',
+          'const validAbout = <Link href="/about" prefetch="intent" replace scroll={false}>About</Link>;',
           'const validBlog = <Link href="/blog/[slug]" params={{ slug }} class="post">Blog</Link>;',
           'const validDocs = <Link href="/docs/[...slug]" params={{ slug: ["guides", "intro"] }} />;',
           "",

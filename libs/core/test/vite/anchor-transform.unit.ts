@@ -61,7 +61,7 @@ export default () => {
   const slug = "hello";
 
   return (
-    <Link class="post" href="/blog/[slug]" params={{ slug }} prefetch="intent" replace scroll={false} reload>
+    <Link class="post" href="/blog/[slug]" params={{ slug }} prefetch="intent" replace scroll={false}>
       Blog
     </Link>
   );
@@ -74,7 +74,7 @@ export default () => {
       'import { __resumableHref } from "virtual:resumable/route-href";'
     );
     expect(transformed).toContain(
-      '<Link class="post" href={__resumableHref("/blog/[slug]", { slug })} prefetch="intent" replace scroll={false} reload>'
+      '<Link class="post" href={__resumableHref("/blog/[slug]", { slug })} prefetch="intent" replace scroll={false}>'
     );
     expect(transformed).not.toContain("params=");
   });

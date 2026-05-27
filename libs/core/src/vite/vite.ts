@@ -9,7 +9,8 @@ import {
   type ResolvedConfig,
   type UserConfig
 } from "vite";
-import { decodePath, parseURL, withoutLeadingSlash } from "ufo";
+import type { InputOption, OutputChunk } from "rolldown";
+import { decodePath, joinURL, parseURL, withoutLeadingSlash } from "ufo";
 import { transformRequestFileSource } from "../request-files.ts";
 import { anchorTransformPlugin } from "./anchor-transform.ts";
 import { htmlTransformPlugin } from "./html-transform.ts";
@@ -19,10 +20,12 @@ const QWIK_CORE_PACKAGE_ID = "@qwik.dev/core";
 const QWIK_CORE_IMPORT_RE = /^@qwik\.dev\/core(?:\/.*)?$/;
 const ROUTE_DISCOVERY_ID = "virtual:resumable/routes";
 const CLIENT_ENTRY_ID = "virtual:resumable/client-entry";
+const CLIENT_ENTRY_ORIGIN = "/entries/client-entry.ts";
+const CLIENT_ENTRY_PATH_ID = "virtual:resumable/client-entry-path";
 const SERVER_ENTRY_ID = "virtual:resumable/server-entry";
 const ROUTE_HREF_ID = "virtual:resumable/route-href";
 const PUBLIC_VIRTUAL_MODULE_ID_RE =
-  /^virtual:resumable\/(?:routes|client-entry|server-entry|route-href)$/;
+  /^virtual:resumable\/(?:routes|client-entry|client-entry-path|server-entry|route-href)$/;
 const VITE_PLUGIN_FILE = decodePath(parseURL(import.meta.url).pathname);
 const VIRTUAL_ENTRY_DIR = VITE_PLUGIN_FILE.endsWith(".ts")
   ? join(dirname(VITE_PLUGIN_FILE), "entries")
@@ -39,19 +42,23 @@ export interface ResumableOptions {}
 
 export function resumable(_options: ResumableOptions = {}): PluginOption[] {
   const nitroPlugins = nitro();
+  const clientEntry = clientEntryState();
 
   return [
-    configPlugin(nitroPlugins),
+    configPlugin(nitroPlugins, clientEntry),
     requestFileTransformPlugin(),
     routeTypegenPlugin(),
     anchorTransformPlugin(),
     htmlTransformPlugin(),
-    virtualModulesPlugin(),
+    virtualModulesPlugin(clientEntry),
     nitroPlugins
   ];
 }
 
-function configPlugin(nitroPluginsFromResumable: readonly Plugin[]): Plugin {
+function configPlugin(
+  nitroPluginsFromResumable: readonly Plugin[],
+  clientEntry: ClientEntryState
+): Plugin {
   return {
     name: "resumable:vite",
     enforce: "pre",
@@ -64,15 +71,33 @@ function configPlugin(nitroPluginsFromResumable: readonly Plugin[]): Plugin {
         nitro: createNitroConfig(config.nitro, config.root)
       };
     },
+    configResolved(config) {
+      clientEntry.base = config.base;
+    },
     configEnvironment(_name, config) {
-      const defaultInput =
-        config.consumer === "client" ? CLIENT_ENTRY_ID : SERVER_ENTRY_ID;
-
       configureQwikRuntimeResolution(config);
 
       config.build ??= {};
       config.build.rolldownOptions ??= {};
-      config.build.rolldownOptions.input ??= defaultInput;
+      if (config.consumer === "client") {
+        config.build.rolldownOptions.input = clientInput(
+          config.build.rolldownOptions.input
+        );
+      } else {
+        config.build.rolldownOptions.input ??= SERVER_ENTRY_ID;
+      }
+    },
+    generateBundle(_options, bundle) {
+      if (this.environment?.config.consumer !== "client") {
+        return;
+      }
+
+      const chunk = Object.values(bundle).find(
+        (item): item is OutputChunk => item.type === "chunk" && isClientEntryChunk(item)
+      );
+      if (chunk) {
+        clientEntry.fileName = chunk.fileName;
+      }
     }
   };
 }
@@ -121,7 +146,7 @@ function requestFileTransformPlugin(): Plugin {
   };
 }
 
-function virtualModulesPlugin(): Plugin {
+function virtualModulesPlugin(clientEntry: ClientEntryState): Plugin {
   return {
     name: "resumable:routes",
     resolveId: {
@@ -129,15 +154,59 @@ function virtualModulesPlugin(): Plugin {
         id: PUBLIC_VIRTUAL_MODULE_ID_RE
       },
       handler(id) {
+        if (id === CLIENT_ENTRY_PATH_ID) {
+          return id;
+        }
+
         const entryFile = virtualEntryFiles[id as keyof typeof virtualEntryFiles];
         if (!entryFile) {
           return;
         }
-
         return join(VIRTUAL_ENTRY_DIR, entryFile);
       }
+    },
+    load(id) {
+      if (id !== CLIENT_ENTRY_PATH_ID) {
+        return;
+      }
+
+      const path = clientEntry.fileName
+        ? joinURL(clientEntry.base, clientEntry.fileName)
+        : joinURL(clientEntry.base, "@id", CLIENT_ENTRY_ID);
+      return `export const clientEntryPath = ${JSON.stringify(path)};`;
     }
   };
+}
+
+interface ClientEntryState {
+  base: string;
+  fileName: string | undefined;
+}
+
+function clientEntryState(): ClientEntryState {
+  return { base: "/", fileName: undefined };
+}
+
+function clientInput(input: InputOption | undefined): InputOption | undefined {
+  if (input === undefined) {
+    return CLIENT_ENTRY_ID;
+  }
+
+  if (typeof input === "string" || Array.isArray(input)) {
+    return [CLIENT_ENTRY_ID, ...(Array.isArray(input) ? input : [input])];
+  }
+
+  if (isRecord(input)) {
+    return { ...input, "resumable-client": CLIENT_ENTRY_ID };
+  }
+
+  return input;
+}
+
+function isClientEntryChunk(chunk: OutputChunk) {
+  return [chunk.facadeModuleId, ...chunk.moduleIds].some((id) =>
+    id?.endsWith(CLIENT_ENTRY_ORIGIN)
+  );
 }
 
 function relativeRequestFileId(config: ResolvedConfig, id: string) {

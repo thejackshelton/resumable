@@ -20,7 +20,6 @@ describe("server entry document attributes", () => {
           "data-status": String(props.status)
         })
       }),
-      isDev: false,
       pageModuleLoaders: {
         "pages/index.tsx": async () => ({ default: component("page") })
       },
@@ -44,7 +43,6 @@ describe("server entry document attributes", () => {
       documentModuleLoader: async () => ({
         default: component("document")
       }),
-      isDev: false,
       pageModuleLoaders: {
         "pages/index.tsx": async () => ({ default: component("page") })
       },
@@ -56,6 +54,50 @@ describe("server entry document attributes", () => {
 
     expect(response.status).toBe(200);
     expect(renderOptions[0]?.containerAttributes).toEqual({ lang: "en" });
+  });
+
+  it("injects the client entry script into the rendered head", async () => {
+    const renderOptions: Array<Parameters<QwikRuntime["renderToString"]>[1]> = [];
+    const entry = createServerEntry({
+      clientEntryPath: "/build/q-client.js",
+      documentModuleLoader: undefined,
+      pageModuleLoaders: {
+        "pages/index.tsx": async () => ({ default: component("page") })
+      },
+      qwik: qwikRuntime(renderOptions),
+      routeFileIds: ["/pages/index.tsx"]
+    });
+
+    const response = await entry.fetch(new Request("http://resumable.test/"));
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(renderOptions[0]?.manifest).toBeUndefined();
+    expect(html).toBe(
+      '<html><head><script type="module" src="/build/q-client.js"></script></head><body></body></html>'
+    );
+  });
+
+  it("uses the same rendered-head injection path for dev client entries", async () => {
+    const renderOptions: Array<Parameters<QwikRuntime["renderToString"]>[1]> = [];
+    const entry = createServerEntry({
+      clientEntryPath: "/@id/virtual:resumable/client-entry",
+      documentModuleLoader: undefined,
+      pageModuleLoaders: {
+        "pages/index.tsx": async () => ({ default: component("page") })
+      },
+      qwik: qwikRuntime(renderOptions),
+      routeFileIds: ["/pages/index.tsx"]
+    });
+
+    const response = await entry.fetch(new Request("http://resumable.test/"));
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(renderOptions[0]?.manifest).toBeUndefined();
+    expect(html).toBe(
+      '<html><head><script type="module" src="/@id/virtual:resumable/client-entry"></script></head><body></body></html>'
+    );
   });
 });
 
@@ -71,7 +113,7 @@ function qwikRuntime(
     async renderToString(_root, options) {
       renderOptions.push(options);
 
-      return { html: "<html></html>" };
+      return { html: "<html><head></head><body></body></html>" };
     }
   } satisfies QwikRuntime;
 }

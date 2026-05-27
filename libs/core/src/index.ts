@@ -7,6 +7,17 @@ import {
   type PropsOf
 } from "@qwik.dev/core";
 import type { H3Event } from "nitro";
+import { __resumableStartSpaNavigation } from "./spa-navigation.ts";
+import {
+  RESUMABLE_ROUTE_EVENT,
+  routePageProps as __resumableRoutePageProps
+} from "./route-state.ts";
+import type {
+  RouteDocumentModule as __ResumableRouteDocumentModule,
+  RoutePageModule as __ResumableRoutePageModule,
+  RouteState as __ResumableRouteState,
+  RouteUpdate as __ResumableRouteUpdate
+} from "./route-state.ts";
 
 export {
   buildRouteManifestFromFileIds,
@@ -21,10 +32,15 @@ export type {
   RouteManifestRoute,
   RouteManifestStatusPages
 } from "./route-manifest.ts";
-export {
-  normalizeRequestFileId,
-  parseRequestFile
-} from "./request-files.ts";
+export { normalizeRequestFileId, parseRequestFile } from "./request-files.ts";
+export { __resumableStartSpaNavigation, RESUMABLE_ROUTE_EVENT };
+export { __resumableRoutePageProps };
+export type {
+  __ResumableRouteDocumentModule,
+  __ResumableRoutePageModule,
+  __ResumableRouteState,
+  __ResumableRouteUpdate
+};
 export type {
   ApiRequestFileCache,
   ApiRequestFileMethod,
@@ -52,7 +68,6 @@ export interface LinkNavigationProps {
   readonly prefetch?: boolean | "intent" | "viewport";
   readonly replace?: boolean;
   readonly scroll?: boolean;
-  readonly reload?: boolean;
 }
 
 export type LinkProps = ResumableGeneratedRoutes extends { readonly link: infer Props }
@@ -81,8 +96,9 @@ export interface EndpointHttpContext<
   readonly params: Readonly<Params>;
 }
 
-export interface MiddlewareHttpContext<Locals extends object = AppLocals>
-  extends HttpContext<Locals> {}
+export interface MiddlewareHttpContext<
+  Locals extends object = AppLocals
+> extends HttpContext<Locals> {}
 
 export function __resumableCreateHttpContext<
   Params extends object = Readonly<Record<string, string>>,
@@ -108,7 +124,6 @@ export const Link: Component<LinkProps> = component$((props) => {
     prefetch: _prefetch,
     replace: _replace,
     scroll: _scroll,
-    reload: _reload,
     ...anchorProps
   } = props as LinkProps &
     LinkNavigationProps & {
@@ -117,6 +132,9 @@ export const Link: Component<LinkProps> = component$((props) => {
 
   return jsx("a", {
     ...(anchorProps as Record<string, unknown>),
+    "data-resumable-link": "",
+    ...(_replace ? { "data-resumable-replace": "" } : undefined),
+    ...(_scroll === false ? { "data-resumable-scroll": "manual" } : undefined),
     children: jsx(Slot, {})
   });
 });

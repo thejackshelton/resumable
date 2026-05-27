@@ -1,5 +1,5 @@
 import { HTTPError } from "nitro";
-import type { FunctionComponent, JSXOutput } from "@qwik.dev/core";
+import type { FunctionComponent, JSXOutput, NoSerialize } from "@qwik.dev/core";
 import type * as QwikJsxRuntime from "@qwik.dev/core/jsx-runtime";
 import type * as QwikServer from "@qwik.dev/core/server";
 import type { PageProps } from "../../index.ts";
@@ -7,12 +7,19 @@ import {
   buildRouteManifestFromFileIds,
   matchRouteManifest
 } from "../../route-manifest.ts";
+import type {
+  RouteDocumentModule,
+  RoutePageModule,
+  RouteState
+} from "../../route-state.ts";
 
 export interface ServerEntryOptions {
+  readonly clientEntryPath?: string;
   readonly documentModuleLoader: (() => Promise<unknown>) | undefined;
-  readonly isDev: boolean;
   readonly pageModuleLoaders: Record<string, () => Promise<unknown>>;
   readonly qwik: QwikRenderRuntime;
+  readonly qwikAssetBase?: string;
+  readonly routeRoot?: FunctionComponent<RouteRootProps>;
   readonly routeFileIds: readonly string[];
 }
 
@@ -20,11 +27,8 @@ interface QwikRenderRuntime {
   readonly Fragment: typeof QwikJsxRuntime.Fragment;
   readonly jsx: typeof QwikJsxRuntime.jsx;
   readonly jsxs: typeof QwikJsxRuntime.jsxs;
+  readonly noSerialize?: typeof import("@qwik.dev/core").noSerialize;
   readonly renderToString: typeof QwikServer.renderToString;
-}
-
-interface PageModule {
-  readonly default?: FunctionComponent<PageComponentProps>;
 }
 
 interface DocumentModule {
@@ -34,12 +38,18 @@ interface DocumentModule {
   ) => Record<string, unknown>;
 }
 
+interface RouteRootProps {
+  readonly document?: RouteDocumentModule | NoSerialize<RouteDocumentModule>;
+  readonly page: RoutePageModule | NoSerialize<RoutePageModule>;
+  readonly route: RouteState;
+}
+
 type PageComponentProps = PageProps & Record<string, unknown>;
 type DocumentComponentProps = PageComponentProps & { children: unknown };
 
 export function createServerEntry(options: ServerEntryOptions) {
   const manifest = buildRouteManifestFromFileIds(options.routeFileIds);
-  const { Fragment, jsx, jsxs, renderToString } = options.qwik;
+  const { Fragment, jsx, jsxs, noSerialize, renderToString } = options.qwik;
 
   async function fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -88,7 +98,7 @@ export function createServerEntry(options: ServerEntryOptions) {
       return new Response(`Page module not found: ${file}`, { status: 500 });
     }
 
-    const pageModule = (await loadPageModule()) as PageModule;
+    const pageModule = (await loadPageModule()) as RoutePageModule;
     const Page = pageModule.default;
     if (!Page) {
       return new Response(`Page module must default export a Qwik component: ${file}`, {
@@ -115,27 +125,41 @@ export function createServerEntry(options: ServerEntryOptions) {
       },
       status
     };
-    const page = jsx(Page, pageProps);
-    const root = Document
-      ? renderDocumentShell(Document, pageProps, page)
-      : renderDefaultDocument(page);
+    const route: RouteState = {
+      file,
+      params,
+      status,
+      url: url.href
+    };
+    const root =
+      options.routeRoot && noSerialize
+        ? jsx(options.routeRoot, {
+            document: documentModule && noSerialize(documentModule),
+            page: noSerialize(pageModule),
+            route
+          })
+        : renderPageRoot(Document, Page, pageProps);
     const result = await renderToString(root, {
-      base: options.isDev ? "/" : undefined,
+      base: options.qwikAssetBase,
       containerAttributes: htmlAttributes(documentModule, pageProps)
     });
+    const html = injectClientEntry(result.html, options.clientEntryPath);
 
-    return new Response(result.html, {
+    return new Response(html, {
       status,
       headers: { "content-type": "text/html;charset=utf-8" }
     });
   }
 
-  function renderDocumentShell(
-    Document: FunctionComponent<DocumentComponentProps>,
-    pageProps: PageComponentProps,
-    page: JSXOutput
+  function renderPageRoot(
+    Document: FunctionComponent<DocumentComponentProps> | undefined,
+    Page: FunctionComponent<PageComponentProps>,
+    pageProps: PageComponentProps
   ) {
-    return jsx(Document, { ...pageProps, children: page }) as JSXOutput;
+    const page = jsx(Page, pageProps);
+    return Document
+      ? (jsx(Document, { ...pageProps, children: page }) as JSXOutput)
+      : renderDefaultDocument(page);
   }
 
   function renderDefaultDocument(page: JSXOutput) {
@@ -181,4 +205,22 @@ function htmlAttributes(
 
 function isNitroApiPathname(pathname: string) {
   return pathname === "/api" || pathname.startsWith("/api/");
+}
+
+function injectClientEntry(html: string, src: string | undefined) {
+  if (!src) {
+    return html;
+  }
+
+  const headEnd = html.indexOf("</head>");
+  if (headEnd === -1) {
+    return html;
+  }
+
+  const script = `<script type="module" src="${escapeHtmlAttribute(src)}"></script>`;
+  return `${html.slice(0, headEnd)}${script}${html.slice(headEnd)}`;
+}
+
+function escapeHtmlAttribute(value: string) {
+  return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
 }

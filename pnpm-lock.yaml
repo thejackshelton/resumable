@@ -166,6 +166,9 @@ importers:
 
   libs/core:
     dependencies:
+      '@virtualstate/navigation':
+        specifier: 1.0.1-alpha.212
+        version: 1.0.1-alpha.212
       nitro:
         specifier: 3.0.260429-beta
         version: 3.0.260429-beta(rollup@4.60.4)(vite@8.0.14(@types/node@24.10.1))
@@ -830,6 +833,12 @@ packages:
 
   '@types/node@24.12.4':
     resolution: {integrity: sha512-GUUEShf+PBCGW2KaXwcIt3Yk+e3pkKwWKb9GSyM9WQVE+ep2jzmHdGsHzu4wgcZy5fN9FBdVzjpBQsYlpfpgLA==}
+
+  '@virtualstate/composite-key@1.0.0':
+    resolution: {integrity: sha512-5G3RT87X1w39UQyBvqQpTfsxK9FjoKlXfonvIY9esAHe9d0vOWVGtbElJppwJKWzh508Ja6gWn7W7dWHwj50Jw==}
+
+  '@virtualstate/navigation@1.0.1-alpha.212':
+    resolution: {integrity: sha512-eJOaPBMMysztiuEQzvazsKlMCK+AE+f84XtCG36+jbHWKVqO3Ie7ZVATiaUECGOz7U67TRUdGS1jn6H4c9nsgA==}
 
   '@voidzero-dev/vite-plus-core@0.1.16':
     resolution: {integrity: sha512-fOyf14CXjcXqANFs2fCXEX+0Tn9ZjmqfFV+qTnARwIF1Kzl8WquO4XtvlDgs/fTQ91H4AyoNUgkvWdKS+C4xYA==}
@@ -1889,6 +1898,12 @@ snapshots:
   '@types/node@24.12.4':
     dependencies:
       undici-types: 7.16.0
+
+  '@virtualstate/composite-key@1.0.0': {}
+
+  '@virtualstate/navigation@1.0.1-alpha.212':
+    dependencies:
+      '@virtualstate/composite-key': 1.0.0
 
   '@voidzero-dev/vite-plus-core@0.1.16(@types/node@24.10.1)(typescript@6.0.2)':
     dependencies:

@@ -134,7 +134,6 @@ function createAnchorTypes() {
     '  readonly prefetch?: boolean | "intent" | "viewport";',
     "  readonly replace?: boolean;",
     "  readonly scroll?: boolean;",
-    "  readonly reload?: boolean;",
     "};",
     "",
     'declare module "@qwik.dev/core" {',

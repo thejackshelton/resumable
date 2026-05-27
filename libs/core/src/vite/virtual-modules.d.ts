@@ -4,8 +4,14 @@ declare module "virtual:resumable/routes" {
 }
 
 declare module "virtual:resumable/client-entry" {
+  export const __resumableSpaNavigation: Promise<void>;
   export const documentModules: Record<string, () => Promise<unknown>>;
   export const pageModules: Record<string, () => Promise<unknown>>;
+  export const routeFileIds: string[];
+}
+
+declare module "virtual:resumable/client-entry-path" {
+  export const clientEntryPath: string;
 }
 
 declare module "virtual:resumable/server-entry" {

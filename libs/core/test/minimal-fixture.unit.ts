@@ -96,6 +96,7 @@ describe("Resumable fixtures", () => {
     ).resolves.toContain("Docs catch-all slug: guides/getting-started");
     const linksHtml = await renderPage(serverEntry, "/links");
     expect(linksHtml).toContain("Link fixture");
+    expect(linksHtml).toMatch(/<script[^>]+type="module"[^>]+src="\/build\/q-[^"]+\.js"/);
     expect(linksHtml).toContain("Static Link");
     expect(linksHtml).toContain("Dynamic Link");
     expect(linksHtml).toContain("Catch-all Link");
@@ -107,6 +108,9 @@ describe("Resumable fixtures", () => {
     expect(linksHtml).toContain('class="link-catch-all"');
     expect(linksHtml).toContain('data-kind="dynamic-link"');
     expect(linksHtml).not.toContain("params=");
+
+    const clientOutput = await readBuiltClientOutput(fixtureUrl);
+    expect(clientOutput).toContain("__resumableStartSpaNavigation");
 
     const notFoundResponse = await fetchPage(serverEntry, "/ccc?hello=test");
     expect(notFoundResponse.status).toBe(404);
@@ -826,7 +830,7 @@ import { Link } from "@resumable.dev/core";
 export default component$(() => {
   const validAbout = <a href="/about" />;
   const validBlog = <a href="/blog/[slug]" params={{ slug: "hello" }} />;
-  const validLinkAbout = <Link href="/about" prefetch="intent" replace scroll={false} reload />;
+  const validLinkAbout = <Link href="/about" prefetch="intent" replace scroll={false} />;
   const validLinkBlog = <Link href="/blog/[slug]" params={{ slug: "hello" }} class="post" />;
 
   // @ts-expect-error unknown route
@@ -925,7 +929,6 @@ export default component$(() => {
         prefetch="intent"
         replace
         scroll={false}
-        reload
       >
         Link
       </Link>
