@@ -102,6 +102,15 @@ describe("Resumable fixtures", () => {
     expect(linksHtml).toContain("Static Link");
     expect(linksHtml).toContain("Dynamic Link");
     expect(linksHtml).toContain("Catch-all Link");
+    expect(linksHtml).toMatch(
+      /<a(?=[^>]*\bdata-resumable-link)(?=[^>]*\bhref="\/about")[^>]*>/
+    );
+    expect(linksHtml).toMatch(
+      /<a(?=[^>]*\bdata-resumable-link)(?=[^>]*\bhref="\/blog\/fixture-link-post")[^>]*>/
+    );
+    expect(linksHtml).toMatch(
+      /<a(?=[^>]*\bdata-resumable-link)(?=[^>]*\bhref="\/docs\/guides\/fixture")[^>]*>/
+    );
     expect(linksHtml).toContain('href="/about"');
     expect(linksHtml).toContain('href="/blog/fixture-link-post"');
     expect(linksHtml).toContain('href="/docs/guides/fixture"');

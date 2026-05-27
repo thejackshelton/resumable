@@ -651,7 +651,8 @@ Build:
 - External links are not intercepted.
 - Download and ineligible-link behavior is preserved.
 - Route module transition.
-- Future page payload endpoint or renderer mode.
+- Page payload endpoint or alternate renderer mode is deferred until data
+  fetching or prefetching proves it is needed.
 - Status page behavior during SPA navigation.
 - Native anchors are not globally intercepted.
 
@@ -741,11 +742,11 @@ Can happen in parallel:
 
 Should wait:
 
-- Remaining `Link` SPA navigation hardening waits for the first Navigation
-  API slice and route preload graph evidence.
+- Data fetching and prefetching wait for the completed Navigation API route
+  module transition before deciding whether a page payload protocol is needed.
 - MDX waits for route manifest and Qwik SSR skeleton.
 - Docs starter waits for MDX fixture.
-- Data fetching waits for SSR render context and SPA payload protocol.
+- Data fetching waits for SSR render context and query/action confidence gates.
 - Deno waits for a complete dev/build/runtime fixture.
 
 ## Fixture Matrix

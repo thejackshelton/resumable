@@ -36,26 +36,25 @@ and catch-all param encoding. M8 typed routing slice 5 now adds the typed
 `Link` surface, generated `ResumableLinkProps` and
 `ResumableGeneratedRoutes["link"]`, and route-pattern `Link` lowering that
 reuses the native anchor route model and href helper. M9 SPA navigation is now
-in progress: the public `Link` component renders a real anchor marked for
-Resumable navigation, the client entry starts a Navigation API runtime with a
-conditional `@virtualstate/navigation` polyfill, same-origin page `Link` clicks
-transition through client route modules, native anchors stay platform-native,
-and qwik-bundler route preload graph entries let Qwik preload route and QRL
-chunks for SPA destinations. The latest M9 hardening keeps scroll, focus,
-traversal, success/error events, and history entry state delegated to the
-Navigation API, while Resumable now guards its own async route-module commits
-with `NavigateEvent.signal`.
+complete for v0 foundation scope: the public `Link` component renders a real
+anchor marked for Resumable navigation, the client entry starts a Navigation API
+runtime with a conditional `@virtualstate/navigation` polyfill, same-origin page
+`Link` clicks transition through client route modules, native anchors stay
+platform-native, and qwik-bundler route preload graph entries let Qwik preload
+route and QRL chunks for SPA destinations. Scroll, focus, traversal,
+success/error events, and history entry state stay delegated to the Navigation
+API, while Resumable guards its own async route-module commits with
+`NavigateEvent.signal`. A separate page payload endpoint or alternate SPA
+renderer mode is deferred until data fetching or prefetching proves it is
+needed.
 
 ## Current Objective
 
-M8 typed routing is complete for v0 foundation scope. M9 SPA navigation has a
-working Navigation API slice: `Link` click enhancement, Navigation API/polyfill
-setup, client route-module swapping, route preload graph integration,
-ineligible-link/native-anchor pass-through, back/forward traversal, status-page
-fallback policy, hash-only delegation, platform scroll/focus option delegation,
-and stale async route commit prevention. Before moving to MDX or data fetching,
-the next work should perform a final M9 completion audit against the documented
-exit criteria and add only missing proof, not new navigation machinery.
+M8 typed routing and M9 SPA navigation are complete for v0 foundation scope.
+The next implementation work should start M10 MDX/Composed MDX proof from the
+existing `.tsx` route/SSR/navigation baseline. Do not start `query$`/`action$`,
+prefetch scheduling, a page payload protocol, or alternate SPA renderer mode
+before MDX proof unless new evidence changes the milestone order.
 
 ## Spec Files
 
@@ -174,46 +173,42 @@ exit criteria and add only missing proof, not new navigation machinery.
 
 ## Milestone State
 
-| ID  | Milestone                                 | Status      | Can Run In Parallel With         | Depends On                    |
-| --- | ----------------------------------------- | ----------- | -------------------------------- | ----------------------------- |
-| M0  | Spec organization                         | Complete    | none                             | none                          |
-| M1  | CLI create flow                           | Complete    | M2 package/plugin skeleton       | M0                            |
-| M2  | Core Vite plugin skeleton                 | Complete    | M1 CLI create flow               | M0                            |
-| M3  | Route manifest                            | Complete    | starter file content             | M2                            |
-| M4  | Qwik SSR renderer                         | Complete    | Nitro passthrough fixtures       | M2, M3                        |
-| M5  | Document shell                            | Complete    | status page tests                | M4                            |
-| M6  | Status pages                              | Complete    | M5 document shell                | M4                            |
-| M7  | Nitro passthrough                         | Complete    | M4 renderer work                 | M2                            |
-| M8  | Typed routing                             | Complete    | CLI doctor/routes commands       | M3                            |
-| M9  | Link and SPA navigation                   | In Progress | none                             | M4, M8                        |
-| M10 | MDX/Composed MDX fixture and Docs starter | Pending     | none                             | M3, M4, Satteri/Qwik proof    |
-| M11 | Data fetching prototype                   | Deferred    | none                             | M4, M9, data confidence gates |
-| M12 | Bun fixture                               | Deferred    | CLI/runtime format work after M1 | M1, M2, M4                    |
-| M13 | Deno fixture                              | Deferred    | none                             | M1, M2, M4, Vite+/Deno proof  |
+| ID  | Milestone                                 | Status   | Can Run In Parallel With         | Depends On                    |
+| --- | ----------------------------------------- | -------- | -------------------------------- | ----------------------------- |
+| M0  | Spec organization                         | Complete | none                             | none                          |
+| M1  | CLI create flow                           | Complete | M2 package/plugin skeleton       | M0                            |
+| M2  | Core Vite plugin skeleton                 | Complete | M1 CLI create flow               | M0                            |
+| M3  | Route manifest                            | Complete | starter file content             | M2                            |
+| M4  | Qwik SSR renderer                         | Complete | Nitro passthrough fixtures       | M2, M3                        |
+| M5  | Document shell                            | Complete | status page tests                | M4                            |
+| M6  | Status pages                              | Complete | M5 document shell                | M4                            |
+| M7  | Nitro passthrough                         | Complete | M4 renderer work                 | M2                            |
+| M8  | Typed routing                             | Complete | CLI doctor/routes commands       | M3                            |
+| M9  | Link and SPA navigation                   | Complete | none                             | M4, M8                        |
+| M10 | MDX/Composed MDX fixture and Docs starter | Pending  | none                             | M3, M4, Satteri/Qwik proof    |
+| M11 | Data fetching prototype                   | Deferred | none                             | M4, M9, data confidence gates |
+| M12 | Bun fixture                               | Deferred | CLI/runtime format work after M1 | M1, M2, M4                    |
+| M13 | Deno fixture                              | Deferred | none                             | M1, M2, M4, Vite+/Deno proof  |
 
 ## Next Recommended Goal
 
-Perform the final M9 SPA navigation completion audit from the proven `Link`
-surface:
+Start M10 MDX/Composed MDX proof from the completed `.tsx` route, SSR, document
+shell, status page, typed routing, and SPA navigation baseline:
 
-1. Keep [`TYPED_ROUTING.md`](./TYPED_ROUTING.md), especially `Link And SPA
-Navigation`, as the source for platform-navigation boundaries.
-2. Preserve the current first slice: native anchors stay document navigation,
-   `Link` owns SPA navigation, and route preload graph entries come from
-   qwik-bundler.
-3. Treat scroll, focus, traversal, success/error events, and history entry state
-   as Navigation API responsibilities. Do not add custom Resumable machinery for
-   them.
-4. Confirm whether existing evidence is sufficient to mark M9 complete,
-   especially no-JavaScript fallback through real anchors and whether the
-   current route-module transition is the accepted v0 SPA renderer mode. If any
-   proof is missing, add focused evidence before runtime changes.
+1. Keep [`SPEC.md`](./SPEC.md) MDX and Composed MDX sections plus
+   [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) M10 as the source of
+   truth.
+2. Prove `.mdx` route module compilation first, then Composed MDX
+   `--- content` normalization and exactly one visible `<Content />` slot.
+3. Use Satteri/Qwik v2 research before implementation and keep the slice
+   TDD-first.
+4. Keep Docs starter, data fetching, prefetch scheduling, and SPA page payloads
+   out of scope until the MDX fixture passes.
 
-Do not add MDX, `query$`/`action$`, a prefetch scheduler, global native-anchor
-interception, or a custom History API router in the final M9 audit slice.
-Before changing SPA implementation, inspect local Qwik `build/v2`, use grep MCP
-for current Navigation API/polyfill/router patterns, and keep the implementation
-TDD-first.
+Do not revisit M9 SPA internals unless the MDX fixture exposes a direct
+navigation or Qwik resume regression. Before changing MDX implementation,
+inspect local Qwik `build/v2`, use grep MCP for Satteri/Qwik MDX patterns where
+needed, and keep implementation TDD-first.
 
 ## Parallel Work Notes
 
@@ -848,9 +843,13 @@ libs/core/test/vite/anchor-transform.unit.ts` failed because imported
   requests; a native anchor from `/` to `/links` still made a document request;
   and a temporary hash link reached `/links#hash-target` without a document
   request or browser errors.
-- M9 remaining completion audit: the previous abort/stale, hash/focus
-  delegation, and status-page policy gaps now have direct evidence. Before
-  marking M9 complete, confirm whether the current route-module transition is
-  the accepted v0 SPA renderer mode and whether existing real-anchor SSR
-  evidence is sufficient for the no-JavaScript fallback exit criterion.
-  Prefetch scheduling, MDX, and data fetching remain out of M9.
+- M9 final completion audit: the current client route-module transition is the
+  accepted v0 SPA renderer mode. A separate page payload endpoint or alternate
+  SPA renderer mode is deferred until data fetching or prefetching proves it is
+  needed. The no-JavaScript fallback criterion is proven by SSR fixture output
+  that renders `Link` as real `<a>` elements with concrete `href` values and
+  `data-resumable-link` enhancement markers, and by no-JavaScript browser QA
+  where clicking a `Link` from `/about` to `/links` made a document request.
+  Browser QA also separately proves native anchors still perform document
+  navigation. M9 is complete; prefetch scheduling, MDX, and data fetching remain
+  out of M9.
