@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { access, readFile } from "node:fs/promises";
 import { dirname, join } from "pathe";
 import { decodePath, parseURL } from "ufo";
@@ -188,8 +188,9 @@ describe("resumable Vite plugin", () => {
     );
     expect(serverEntrySource).toContain("ResumableRouteRoot");
     expect(serverRuntimeSource).toContain("qwik: QwikRenderRuntime");
-    expect(serverRuntimeSource).toContain("injectClientEntry(");
-    expect(serverRuntimeSource).toContain('html.indexOf("</head>")');
+    expect(serverRuntimeSource).toContain("renderBodyContent(");
+    expect(serverRuntimeSource).not.toContain("escapeHtmlAttribute");
+    expect(serverRuntimeSource).not.toContain('html.indexOf("</head>")');
     expect(serverRuntimeSource).not.toContain(
       'import { Fragment, jsx, jsxs } from "@qwik.dev/core/jsx-runtime"'
     );
@@ -438,6 +439,48 @@ describe("resumable Vite plugin", () => {
     expect(load?.("virtual:resumable/client-entry-path")).toBe(
       'export const clientEntryPath = "/app/build/q-client.js";'
     );
+  });
+
+  it("registers page route preload graph entries with Qwik", () => {
+    const plugins = flattenPlugins([resumable()]);
+    const vitePlugin = plugins.find((plugin) => plugin.name === "resumable:vite");
+    const registerPreloadGraphEntries = vi.fn();
+
+    (vitePlugin?.configResolved as ((config: unknown) => void) | undefined)?.({
+      base: "/",
+      plugins: [
+        {
+          name: "vite-plugin-qwik",
+          api: { registerPreloadGraphEntries }
+        }
+      ]
+    });
+
+    expect(registerPreloadGraphEntries).toHaveBeenCalledTimes(1);
+
+    const addRoutePreloadGraph = registerPreloadGraphEntries.mock.calls[0]?.[0];
+    const bundlesForOrigins = vi.fn(() => ["q-route-entry.js"]);
+    const graph = addRoutePreloadGraph({
+      bundlesForOrigins,
+      manifest: {
+        bundles: {
+          "q-route-entry.js": {
+            size: 100,
+            total: 100,
+            origins: ["pages/links.tsx"]
+          }
+        },
+        mapping: {},
+        symbols: {},
+        manifestHash: "",
+        version: "1"
+      }
+    });
+
+    expect(bundlesForOrigins).toHaveBeenCalledWith(["pages/links.tsx"]);
+    expect(graph).toEqual({
+      "/links": { dynamicImports: ["q-route-entry.js"] }
+    });
   });
 
   it("falls back to Vite's virtual client entry URL before a client build", () => {

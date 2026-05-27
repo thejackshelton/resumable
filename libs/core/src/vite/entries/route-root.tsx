@@ -18,6 +18,7 @@ import {
 } from "@resumable.dev/core";
 
 interface RouteRootState {
+  readonly clientEntryPath?: string;
   readonly document?:
     | __ResumableRouteDocumentModule
     | NoSerialize<__ResumableRouteDocumentModule>;
@@ -43,12 +44,26 @@ export const ResumableRouteRoot = component$((props: RouteRootState) => {
   const page = Page
     ? (jsx(Page, pageProps as never, current.route.url) as JSXOutput)
     : undefined;
+  const bodyContent = route.value
+    ? page
+    : renderBodyContent(page, props.clientEntryPath);
   const Document = current.document?.default;
 
   return Document
-    ? (jsx(Document, { ...pageProps, children: page } as never) as JSXOutput)
-    : renderDefaultDocument(page);
+    ? (jsx(Document, { ...pageProps, children: bodyContent } as never) as JSXOutput)
+    : renderDefaultDocument(bodyContent);
 });
+
+function renderBodyContent(page: JSXOutput | undefined, clientEntryPath: string | undefined) {
+  return clientEntryPath
+    ? (jsxs(Fragment, {
+        children: [
+          page,
+          jsx("script", { type: "module", src: clientEntryPath })
+        ]
+      }) as JSXOutput)
+    : page;
+}
 
 function renderDefaultDocument(page: JSXOutput | undefined) {
   return jsxs(Fragment, {

@@ -1,10 +1,22 @@
-import { describe, expect, it } from "vite-plus/test";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   __resumableStartSpaNavigation,
   handleNavigateEvent,
   type ResumableNavigationWindow
 } from "../src/spa-navigation.ts";
 import { RESUMABLE_ROUTE_EVENT } from "../src/route-state.ts";
+
+const preloaderMock = vi.hoisted(() => ({
+  preload: vi.fn()
+}));
+
+vi.mock("@qwik.dev/core/preloader", () => ({
+  p: preloaderMock.preload
+}));
+
+beforeEach(() => {
+  preloaderMock.preload.mockClear();
+});
 
 describe("SPA navigation", () => {
   it("renders the next route from the client page module graph", async () => {
@@ -41,6 +53,7 @@ describe("SPA navigation", () => {
     expect(handleNavigateEvent(event, context as never)).toBe(true);
     await event.intercepted?.handler();
 
+    expect(preloaderMock.preload).toHaveBeenCalledWith("/about", 1);
     expect(update?.route).toEqual({
       file: "pages/about.tsx",
       params: {},
@@ -171,6 +184,7 @@ describe("SPA navigation", () => {
     clickListener?.(event as never);
 
     expect(event.prevented).toBe(true);
+    expect(preloaderMock.preload).toHaveBeenCalledWith("/about", 1);
     expect(navigated).toEqual({
       url: "http://resumable.test/about",
       options: {
@@ -216,6 +230,7 @@ describe("SPA navigation", () => {
 
     expect(event.prevented).toBe(false);
     expect(navigatedUrl).toBeUndefined();
+    expect(preloaderMock.preload).not.toHaveBeenCalled();
   });
 
   it("finds anchors when the click target is nested inside the link", async () => {

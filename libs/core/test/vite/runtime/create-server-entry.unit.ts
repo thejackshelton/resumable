@@ -56,15 +56,16 @@ describe("server entry document attributes", () => {
     expect(renderOptions[0]?.containerAttributes).toEqual({ lang: "en" });
   });
 
-  it("injects the client entry script into the rendered head", async () => {
+  it("renders the client entry script with the page body content", async () => {
     const renderOptions: Array<Parameters<QwikRuntime["renderToString"]>[1]> = [];
+    const renderRoots: unknown[] = [];
     const entry = createServerEntry({
       clientEntryPath: "/build/q-client.js",
       documentModuleLoader: undefined,
       pageModuleLoaders: {
         "pages/index.tsx": async () => ({ default: component("page") })
       },
-      qwik: qwikRuntime(renderOptions),
+      qwik: qwikRuntime(renderOptions, renderRoots),
       routeFileIds: ["/pages/index.tsx"]
     });
 
@@ -73,20 +74,23 @@ describe("server entry document attributes", () => {
 
     expect(response.status).toBe(200);
     expect(renderOptions[0]?.manifest).toBeUndefined();
-    expect(html).toBe(
-      '<html><head><script type="module" src="/build/q-client.js"></script></head><body></body></html>'
-    );
+    expect(html).toBe("<html><head></head><body></body></html>");
+    expect(scriptFromDefaultDocumentRoot(renderRoots[0])).toMatchObject({
+      type: "script",
+      props: { type: "module", src: "/build/q-client.js" }
+    });
   });
 
-  it("uses the same rendered-head injection path for dev client entries", async () => {
+  it("uses the same rendered body content path for dev client entries", async () => {
     const renderOptions: Array<Parameters<QwikRuntime["renderToString"]>[1]> = [];
+    const renderRoots: unknown[] = [];
     const entry = createServerEntry({
       clientEntryPath: "/@id/virtual:resumable/client-entry",
       documentModuleLoader: undefined,
       pageModuleLoaders: {
         "pages/index.tsx": async () => ({ default: component("page") })
       },
-      qwik: qwikRuntime(renderOptions),
+      qwik: qwikRuntime(renderOptions, renderRoots),
       routeFileIds: ["/pages/index.tsx"]
     });
 
@@ -95,22 +99,26 @@ describe("server entry document attributes", () => {
 
     expect(response.status).toBe(200);
     expect(renderOptions[0]?.manifest).toBeUndefined();
-    expect(html).toBe(
-      '<html><head><script type="module" src="/@id/virtual:resumable/client-entry"></script></head><body></body></html>'
-    );
+    expect(html).toBe("<html><head></head><body></body></html>");
+    expect(scriptFromDefaultDocumentRoot(renderRoots[0])).toMatchObject({
+      type: "script",
+      props: { type: "module", src: "/@id/virtual:resumable/client-entry" }
+    });
   });
 });
 
 type QwikRuntime = ServerEntryOptions["qwik"];
 
 function qwikRuntime(
-  renderOptions: Array<Parameters<QwikRuntime["renderToString"]>[1]>
+  renderOptions: Array<Parameters<QwikRuntime["renderToString"]>[1]>,
+  renderRoots: unknown[] = []
 ): QwikRuntime {
   return {
     Fragment: Symbol("Fragment"),
     jsx: (type, props) => ({ type, props }) as JSXOutput,
     jsxs: (type, props) => ({ type, props }) as JSXOutput,
-    async renderToString(_root, options) {
+    async renderToString(root, options) {
+      renderRoots.push(root);
       renderOptions.push(options);
 
       return { html: "<html><head></head><body></body></html>" };
@@ -120,4 +128,11 @@ function qwikRuntime(
 
 function component(name: string) {
   return (() => name) as never;
+}
+
+function scriptFromDefaultDocumentRoot(root: unknown) {
+  const documentChildren = (root as { props: { children: unknown[] } }).props.children;
+  const body = documentChildren[1] as { props: { children: unknown } };
+  const bodyChildren = body.props.children as { props: { children: unknown[] } };
+  return bodyChildren.props.children[1];
 }

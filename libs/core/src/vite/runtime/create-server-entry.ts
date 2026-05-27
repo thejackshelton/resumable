@@ -39,6 +39,7 @@ interface DocumentModule {
 }
 
 interface RouteRootProps {
+  readonly clientEntryPath?: string;
   readonly document?: RouteDocumentModule | NoSerialize<RouteDocumentModule>;
   readonly page: RoutePageModule | NoSerialize<RoutePageModule>;
   readonly route: RouteState;
@@ -134,6 +135,7 @@ export function createServerEntry(options: ServerEntryOptions) {
     const root =
       options.routeRoot && noSerialize
         ? jsx(options.routeRoot, {
+            clientEntryPath: options.clientEntryPath,
             document: documentModule && noSerialize(documentModule),
             page: noSerialize(pageModule),
             route
@@ -143,9 +145,8 @@ export function createServerEntry(options: ServerEntryOptions) {
       base: options.qwikAssetBase,
       containerAttributes: htmlAttributes(documentModule, pageProps)
     });
-    const html = injectClientEntry(result.html, options.clientEntryPath);
 
-    return new Response(html, {
+    return new Response(result.html, {
       status,
       headers: { "content-type": "text/html;charset=utf-8" }
     });
@@ -156,10 +157,21 @@ export function createServerEntry(options: ServerEntryOptions) {
     Page: FunctionComponent<PageComponentProps>,
     pageProps: PageComponentProps
   ) {
-    const page = jsx(Page, pageProps);
+    const page = renderBodyContent(jsx(Page, pageProps), options.clientEntryPath);
     return Document
       ? (jsx(Document, { ...pageProps, children: page }) as JSXOutput)
       : renderDefaultDocument(page);
+  }
+
+  function renderBodyContent(page: JSXOutput, clientEntryPath: string | undefined) {
+    return clientEntryPath
+      ? (jsxs(Fragment, {
+          children: [
+            page,
+            jsx("script", { type: "module", src: clientEntryPath })
+          ]
+        }) as JSXOutput)
+      : page;
   }
 
   function renderDefaultDocument(page: JSXOutput) {
@@ -205,22 +217,4 @@ function htmlAttributes(
 
 function isNitroApiPathname(pathname: string) {
   return pathname === "/api" || pathname.startsWith("/api/");
-}
-
-function injectClientEntry(html: string, src: string | undefined) {
-  if (!src) {
-    return html;
-  }
-
-  const headEnd = html.indexOf("</head>");
-  if (headEnd === -1) {
-    return html;
-  }
-
-  const script = `<script type="module" src="${escapeHtmlAttribute(src)}"></script>`;
-  return `${html.slice(0, headEnd)}${script}${html.slice(headEnd)}`;
-}
-
-function escapeHtmlAttribute(value: string) {
-  return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
 }

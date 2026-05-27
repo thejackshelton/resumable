@@ -4,6 +4,8 @@ import {
   type RouteManifest
 } from "./route-manifest.ts";
 import { dispatchRouteUpdate, type RouteDocumentModule } from "./route-state.ts";
+// @ts-expect-error Qwik exposes the browser preloader without public types.
+import { p as preload } from "@qwik.dev/core/preloader";
 
 const STARTED = "__resumableSpaNavigationStarted";
 const LINK_ATTRIBUTE = "data-resumable-link";
@@ -113,6 +115,8 @@ async function renderRoute(url: URL, context: NavigationContext) {
     return;
   }
 
+  preloadRouteBundles(match.route.pathname);
+
   const [page, document] = await Promise.all([
     loadPageModule(),
     context.documentModuleLoader?.()
@@ -151,11 +155,13 @@ function handleLinkClick(
   }
 
   const url = parseSameOriginUrl(anchor.href, context.window.location.href);
-  if (!url || !matchRouteManifest(url.pathname, context.manifest)) {
+  const match = url && matchRouteManifest(url.pathname, context.manifest);
+  if (!match) {
     return;
   }
 
   event.preventDefault();
+  preloadRouteBundles(match.route.pathname);
   navigation.navigate(url.href, {
     history: anchor.hasAttribute(REPLACE_ATTRIBUTE) ? "replace" : "push",
     info: {
@@ -163,6 +169,10 @@ function handleLinkClick(
       scroll: anchor.getAttribute(SCROLL_ATTRIBUTE) === "manual" ? "manual" : undefined
     }
   });
+}
+
+function preloadRouteBundles(routePathname: string) {
+  preload(routePathname, 1);
 }
 
 function routeUrl(event: NavigateEvent, context: NavigationContext) {

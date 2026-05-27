@@ -38,7 +38,7 @@
     "@virtualstate/navigation": "1.0.1-alpha.212",
     "nitro": "3.0.260429-beta",
     "pathe": "2.0.3",
-    "qwik-bundler": "0.1",
+    "qwik-bundler": "link:../../../qwik-bundler",
     "ufo": "1.6.4"
   },
   "devDependencies": {

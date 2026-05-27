@@ -12,9 +12,11 @@ import {
 import type { InputOption, OutputChunk } from "rolldown";
 import { decodePath, joinURL, parseURL, withoutLeadingSlash } from "ufo";
 import { transformRequestFileSource } from "../request-files.ts";
+import { buildRouteManifestFromFileIds } from "../route-manifest.ts";
 import { anchorTransformPlugin } from "./anchor-transform.ts";
 import { htmlTransformPlugin } from "./html-transform.ts";
 import { routeTypegenPlugin } from "./route-typegen.ts";
+import type { PreloadGraphEntries, PreloadGraphEntriesAdder } from "qwik-bundler/vite";
 
 const QWIK_CORE_PACKAGE_ID = "@qwik.dev/core";
 const QWIK_CORE_IMPORT_RE = /^@qwik\.dev\/core(?:\/.*)?$/;
@@ -73,6 +75,7 @@ function configPlugin(
     },
     configResolved(config) {
       clientEntry.base = config.base;
+      registerRoutePreloadGraphEntries(config);
     },
     configEnvironment(_name, config) {
       configureQwikRuntimeResolution(config);
@@ -207,6 +210,43 @@ function isClientEntryChunk(chunk: OutputChunk) {
   return [chunk.facadeModuleId, ...chunk.moduleIds].some((id) =>
     id?.endsWith(CLIENT_ENTRY_ORIGIN)
   );
+}
+
+type QwikVitePlugin = Plugin & {
+  readonly api?: {
+    readonly registerPreloadGraphEntries?: (adder: PreloadGraphEntriesAdder) => void;
+  };
+};
+
+function registerRoutePreloadGraphEntries(config: ResolvedConfig) {
+  const qwikPlugin = config.plugins?.find(
+    (plugin): plugin is QwikVitePlugin => plugin.name === "vite-plugin-qwik"
+  );
+  const registerPreloadGraphEntries = qwikPlugin?.api?.registerPreloadGraphEntries;
+  if (!registerPreloadGraphEntries) {
+    return;
+  }
+
+  const addRoutePreloadEntries: PreloadGraphEntriesAdder = ({
+    manifest,
+    bundlesForOrigins
+  }) => {
+    const routeManifest = buildRouteManifestFromFileIds(
+      Object.values(manifest.bundles).flatMap((bundle) => bundle.origins ?? [])
+    );
+    const graph: PreloadGraphEntries = {};
+
+    for (const route of routeManifest.routes) {
+      const bundles = bundlesForOrigins([route.file]);
+      if (bundles.length > 0) {
+        graph[route.pathname] = { dynamicImports: bundles };
+      }
+    }
+
+    return graph;
+  };
+
+  registerPreloadGraphEntries(addRoutePreloadEntries);
 }
 
 function relativeRequestFileId(config: ResolvedConfig, id: string) {

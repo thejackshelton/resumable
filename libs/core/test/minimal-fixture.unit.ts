@@ -96,7 +96,9 @@ describe("Resumable fixtures", () => {
     ).resolves.toContain("Docs catch-all slug: guides/getting-started");
     const linksHtml = await renderPage(serverEntry, "/links");
     expect(linksHtml).toContain("Link fixture");
-    expect(linksHtml).toMatch(/<script[^>]+type="module"[^>]+src="\/build\/q-[^"]+\.js"/);
+    expect(linksHtml).toMatch(
+      /<script(?=[^>]*\btype="module")(?=[^>]*\bsrc="\/build\/q-[^"]+\.js")[^>]*>/
+    );
     expect(linksHtml).toContain("Static Link");
     expect(linksHtml).toContain("Dynamic Link");
     expect(linksHtml).toContain("Catch-all Link");
