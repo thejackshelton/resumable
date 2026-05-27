@@ -285,7 +285,6 @@ Do not prefetch when:
 
 - the href is external
 - the href does not map to a Resumable page route
-- `reload` is set
 - `download` is set
 - `target` is present and not `_self`
 - `rel="external"` is present

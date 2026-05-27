@@ -527,9 +527,8 @@ Link uses the Navigation API.
 @virtualstate/navigation covers non-native environments.
 Resumable should not own a parallel History API router unless the polyfill
 cannot satisfy a required behavior.
-Resumable should not manage popstate, pushState, replaceState, or scroll
-restoration directly except as a narrow fallback around the Navigation API
-or polyfill.
+Resumable should not manage popstate, pushState, replaceState, scroll
+restoration, or focus reset directly.
 ```
 
 Do not rely on the polyfill's default global anchor/form event interception.
@@ -563,13 +562,20 @@ The click bridge should not call `preventDefault()` until the link is eligible
 for SPA navigation. If the runtime cannot load or the link fails any eligibility
 check, the anchor should continue as normal browser navigation.
 
-The polyfill reduces the need for custom scroll/history machinery, but it does
-not remove the need for acceptance tests. SPA navigation fixtures should verify:
+The Navigation API owns scroll, focus, traversal, success/error events, and
+history entry state. Resumable should pass the appropriate options and abort
+signals through that platform shape instead of recreating browser navigation
+machinery.
+
+SPA navigation fixtures should verify:
 
 - same-origin `Link` navigation commits through `navigation`;
-- back and forward traversal restore the expected route state;
-- hash, scroll, and focus behavior match the public `Link` props;
-- aborted navigations do not commit stale payloads;
+- back and forward traversal restore the expected route state without custom
+  `popstate` handling;
+- hash-only navigations remain native through `event.hashChange`;
+- scroll and focus behavior are delegated through `event.intercept(...)`
+  options;
+- aborted navigations do not commit stale route updates;
 - non-`Link` anchors are not intercepted;
 - `download`, external, modifier-key, and non-`_self` target cases remain
   native.

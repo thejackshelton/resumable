@@ -379,6 +379,93 @@ describe("SPA navigation", () => {
     });
   });
 
+  it("leaves hash-only navigations to the platform", () => {
+    const context = aboutRouteContext();
+    const event = navigateEvent("http://resumable.test/about#section", {
+      hashChange: true,
+      info: { __resumableLink: true }
+    });
+
+    expect(handleNavigateEvent(event, context as never)).toBe(false);
+    expect(event.intercepted).toBeUndefined();
+  });
+
+  it("passes platform scroll and focus behavior to intercepted navigations", () => {
+    const context = aboutRouteContext();
+    const defaultEvent = navigateEvent("http://resumable.test/about", {
+      info: { __resumableLink: true }
+    });
+    const manualScrollEvent = navigateEvent("http://resumable.test/about", {
+      info: { __resumableLink: true, scroll: "manual" }
+    });
+
+    expect(handleNavigateEvent(defaultEvent, context as never)).toBe(true);
+    expect(handleNavigateEvent(manualScrollEvent, context as never)).toBe(true);
+
+    expect(defaultEvent.intercepted).toMatchObject({
+      focusReset: "after-transition",
+      scroll: "after-transition"
+    });
+    expect(manualScrollEvent.intercepted).toMatchObject({
+      focusReset: "after-transition",
+      scroll: "manual"
+    });
+  });
+
+  it("does not commit stale route updates after navigation abort", async () => {
+    const document = new EventTarget() as Document;
+    const updates: CustomEvent["detail"][] = [];
+    document.addEventListener(RESUMABLE_ROUTE_EVENT, (event) => {
+      updates.push((event as CustomEvent).detail);
+    });
+    const slowPage = deferred<{ default: () => string }>();
+    const slowAbort = new AbortController();
+    const context = {
+      manifest: {
+        routes: [
+          {
+            file: "pages/slow.tsx",
+            params: [],
+            pathname: "/slow",
+            pattern: "/slow"
+          },
+          {
+            file: "pages/fast.tsx",
+            params: [],
+            pathname: "/fast",
+            pattern: "/fast"
+          }
+        ],
+        statusPages: {}
+      },
+      pageModuleLoaders: {
+        "pages/fast.tsx": async () => ({ default: component("fast") }),
+        "pages/slow.tsx": () => slowPage.promise
+      },
+      window: {
+        document,
+        location: { href: "http://resumable.test/" }
+      }
+    };
+    const slowEvent = navigateEvent("http://resumable.test/slow", {
+      info: { __resumableLink: true },
+      signal: slowAbort.signal
+    });
+    const fastEvent = navigateEvent("http://resumable.test/fast", {
+      info: { __resumableLink: true }
+    });
+
+    expect(handleNavigateEvent(slowEvent, context as never)).toBe(true);
+    const slowNavigation = slowEvent.intercepted?.handler();
+    slowAbort.abort();
+    expect(handleNavigateEvent(fastEvent, context as never)).toBe(true);
+    await fastEvent.intercepted?.handler();
+    slowPage.resolve({ default: component("slow") });
+    await slowNavigation;
+
+    expect(updates.map((update) => update.route.file)).toEqual(["pages/fast.tsx"]);
+  });
+
   it("leaves status-page fallback paths to document navigation", () => {
     const context = aboutRouteContext({
       statusPages: {
@@ -397,8 +484,10 @@ describe("SPA navigation", () => {
 function navigateEvent(
   url: string,
   options: {
+    readonly hashChange?: boolean;
     readonly info?: Record<string, unknown>;
     readonly navigationType?: NavigationType;
+    readonly signal?: AbortSignal;
   } = {}
 ) {
   return {
@@ -406,15 +495,22 @@ function navigateEvent(
     destination: { url },
     downloadRequest: null,
     formData: null,
-    hashChange: false,
+    hashChange: options.hashChange ?? false,
     info: options.info,
     intercepted: undefined as
       | {
+          readonly focusReset?: string;
           readonly handler: () => Promise<void>;
+          readonly scroll?: string;
         }
       | undefined,
     navigationType: options.navigationType ?? "push",
-    intercept(interceptOptions: { readonly handler: () => Promise<void> }) {
+    signal: options.signal ?? new AbortController().signal,
+    intercept(interceptOptions: {
+      readonly focusReset?: string;
+      readonly handler: () => Promise<void>;
+      readonly scroll?: string;
+    }) {
       this.intercepted = interceptOptions;
     }
   };
@@ -562,4 +658,12 @@ function aboutRouteContext(
 
 function component(name: string) {
   return () => name;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }

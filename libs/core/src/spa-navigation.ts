@@ -102,12 +102,16 @@ export function handleNavigateEvent(event: NavigateEvent, context: NavigationCon
   event.intercept({
     focusReset: "after-transition",
     scroll: navigationScroll(event),
-    handler: () => renderRoute(url, context)
+    handler: () => renderRoute(url, context, event.signal)
   });
   return true;
 }
 
-async function renderRoute(url: URL, context: NavigationContext) {
+async function renderRoute(url: URL, context: NavigationContext, signal: AbortSignal) {
+  if (signal.aborted) {
+    return;
+  }
+
   const match = matchRouteManifest(url.pathname, context.manifest);
   const loadPageModule = match && context.pageModuleLoaders[match.route.file];
   if (!match || !loadPageModule) {
@@ -121,6 +125,10 @@ async function renderRoute(url: URL, context: NavigationContext) {
     loadPageModule(),
     context.documentModuleLoader?.()
   ]);
+  if (signal.aborted) {
+    return;
+  }
+
   dispatchRouteUpdate(context.window.document, {
     document: document as RouteDocumentModule | undefined,
     page: page as never,

@@ -41,15 +41,21 @@ Resumable navigation, the client entry starts a Navigation API runtime with a
 conditional `@virtualstate/navigation` polyfill, same-origin page `Link` clicks
 transition through client route modules, native anchors stay platform-native,
 and qwik-bundler route preload graph entries let Qwik preload route and QRL
-chunks for SPA destinations.
+chunks for SPA destinations. The latest M9 hardening keeps scroll, focus,
+traversal, success/error events, and history entry state delegated to the
+Navigation API, while Resumable now guards its own async route-module commits
+with `NavigateEvent.signal`.
 
 ## Current Objective
 
 M8 typed routing is complete for v0 foundation scope. M9 SPA navigation has a
-working first slice: `Link` click enhancement, Navigation API/polyfill setup,
-client route-module swapping, and route preload graph integration. The next
-implementation work should harden M9 around remaining navigation semantics
-without starting MDX, data fetching, or a prefetch scheduler.
+working Navigation API slice: `Link` click enhancement, Navigation API/polyfill
+setup, client route-module swapping, route preload graph integration,
+ineligible-link/native-anchor pass-through, back/forward traversal, status-page
+fallback policy, hash-only delegation, platform scroll/focus option delegation,
+and stale async route commit prevention. Before moving to MDX or data fetching,
+the next work should perform a final M9 completion audit against the documented
+exit criteria and add only missing proof, not new navigation machinery.
 
 ## Spec Files
 
@@ -187,19 +193,24 @@ without starting MDX, data fetching, or a prefetch scheduler.
 
 ## Next Recommended Goal
 
-Continue M9 SPA navigation hardening from the proven `Link` surface:
+Perform the final M9 SPA navigation completion audit from the proven `Link`
+surface:
 
 1. Keep [`TYPED_ROUTING.md`](./TYPED_ROUTING.md), especially `Link And SPA
 Navigation`, as the source for platform-navigation boundaries.
 2. Preserve the current first slice: native anchors stay document navigation,
    `Link` owns SPA navigation, and route preload graph entries come from
    qwik-bundler.
-3. Add focused evidence before runtime changes for remaining gaps: abort/stale
-   navigation behavior, hash/focus details, and final status-page policy for
-   SPA transitions.
+3. Treat scroll, focus, traversal, success/error events, and history entry state
+   as Navigation API responsibilities. Do not add custom Resumable machinery for
+   them.
+4. Confirm whether existing evidence is sufficient to mark M9 complete,
+   especially no-JavaScript fallback through real anchors and whether the
+   current route-module transition is the accepted v0 SPA renderer mode. If any
+   proof is missing, add focused evidence before runtime changes.
 
 Do not add MDX, `query$`/`action$`, a prefetch scheduler, global native-anchor
-interception, or a custom History API router in the next M9 hardening slice.
+interception, or a custom History API router in the final M9 audit slice.
 Before changing SPA implementation, inspect local Qwik `build/v2`, use grep MCP
 for current Navigation API/polyfill/router patterns, and keep the implementation
 TDD-first.
@@ -809,6 +820,37 @@ libs/core/test/vite/anchor-transform.unit.ts` failed because imported
   and forward traversed between `/about` and `/links` without document
   requests, and a native anchor from `/` to `/links` still made a document
   request.
-- M9 remaining gaps: abort/stale navigation behavior, hash/focus details, and
-  final status-page SPA policy still need direct evidence before M9 is marked
-  complete. Prefetch scheduling, MDX, and data fetching remain out of M9.
+- M9 platform-delegation audit: MDN Navigation API docs confirm that scroll,
+  focus, traversal, success/error events, and history entry state are platform
+  responsibilities for SPA navigation. Resumable should delegate those through
+  `NavigateEvent.intercept(...)`, `event.hashChange`, and `NavigateEvent.signal`
+  instead of adding custom scroll restoration, focus management, `popstate`
+  handling, or a History API router.
+- M9 stale-navigation red evidence: the focused SPA navigation unit test failed
+  because an aborted slow route module still dispatched after a faster later
+  navigation
+  (`["pages/fast.tsx", "pages/slow.tsx"]` instead of only
+  `["pages/fast.tsx"]`).
+- M9 stale-navigation green evidence: route rendering now receives
+  `NavigateEvent.signal` and checks it before starting side effects and again
+  after async page/document module loading. Focused SPA tests now pass and cover
+  hash-only navigation pass-through, platform `focusReset`/`scroll` intercept
+  options, stale async commit prevention, ineligible `Link` clicks, native
+  anchor pass-through, back/forward traverse, and status-page fallback policy.
+- M9 hardening verification passed: focused SPA navigation tests, the combined
+  SPA/route-manifest/Vite/minimal fixture test run,
+  `pnpm --filter @resumable.dev/core build`, and
+  `pnpm --dir fixtures/minimal build`.
+- M9 browser QA evidence after stale-navigation hardening: the built minimal
+  fixture showed SPA `Link` navigation from `/about` to `/links` with no
+  document request and no console/page errors; browser back returned to
+  `/about` without a document request and forward returned to `/links` with no
+  requests; a native anchor from `/` to `/links` still made a document request;
+  and a temporary hash link reached `/links#hash-target` without a document
+  request or browser errors.
+- M9 remaining completion audit: the previous abort/stale, hash/focus
+  delegation, and status-page policy gaps now have direct evidence. Before
+  marking M9 complete, confirm whether the current route-module transition is
+  the accepted v0 SPA renderer mode and whether existing real-anchor SSR
+  evidence is sufficient for the no-JavaScript fallback exit criterion.
+  Prefetch scheduling, MDX, and data fetching remain out of M9.

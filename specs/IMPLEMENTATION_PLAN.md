@@ -644,6 +644,10 @@ Build:
   interception.
 - No custom `popstate`/History API router unless the Navigation API polyfill
   cannot satisfy a required behavior.
+- Scroll, focus, traversal, success/error events, and history entry state are
+  delegated to the Navigation API.
+- Async route transitions respect `NavigateEvent.signal` so canceled
+  navigations cannot commit stale route updates.
 - External links are not intercepted.
 - Download and ineligible-link behavior is preserved.
 - Route module transition.
