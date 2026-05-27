@@ -25,7 +25,7 @@ export type RouteTypegenDirent = {
   isFile(): boolean;
 };
 
-const PAGE_EXTENSIONS = new Set([".tsx"]);
+const PAGE_EXTENSIONS = new Set([".tsx", ".mdx"]);
 
 export function routeTypegenPlugin(): Plugin {
   let root = "";

@@ -37,6 +37,8 @@ describe("Resumable fixtures", () => {
     await expectPath("pages/404.tsx", true);
     await expectPath("pages/500.tsx", true);
     await expectPath("pages/links.tsx", true);
+    await expectPath("pages/mdx-regular.mdx", true);
+    await expectPath("pages/mdx-composed.mdx", true);
     await expectPath("pages/missing-default.tsx", true);
     await expectPath("pages/throws.tsx", true);
     await expectPath("api/health.ts", true);
@@ -119,6 +121,26 @@ describe("Resumable fixtures", () => {
     expect(linksHtml).toContain('class="link-catch-all"');
     expect(linksHtml).toContain('data-kind="dynamic-link"');
     expect(linksHtml).not.toContain("params=");
+
+    const regularMdxHtml = await renderPage(serverEntry, "/mdx-regular");
+    expect(regularMdxHtml).toContain("Regular MDX route");
+    expect(regularMdxHtml).toContain("MDX imported a Qwik component.");
+    expect(regularMdxHtml).toContain('data-tone="plain"');
+    expect(regularMdxHtml).toContain('data-mdx-counter="Regular MDX"');
+    expect(regularMdxHtml).toContain("Regular MDX count: 0");
+
+    const composedMdxHtml = await renderPage(serverEntry, "/mdx-composed");
+    expect(composedMdxHtml).toContain("Composed MDX frame before content");
+    expect(composedMdxHtml).toContain("Composed MDX route");
+    expect(composedMdxHtml).toContain("Composed MDX frame after content");
+    expect(composedMdxHtml).toContain('data-mdx-counter="Composed MDX"');
+    expect(composedMdxHtml).toContain("Composed MDX count: 0");
+    expect(composedMdxHtml.indexOf("Composed MDX frame before content")).toBeLessThan(
+      composedMdxHtml.indexOf("Composed MDX route")
+    );
+    expect(composedMdxHtml.indexOf("Composed MDX route")).toBeLessThan(
+      composedMdxHtml.indexOf("Composed MDX frame after content")
+    );
 
     const clientOutput = await readBuiltClientOutput(fixtureUrl);
     expect(clientOutput).toContain("__resumableStartSpaNavigation");
@@ -265,6 +287,57 @@ describe("Resumable fixtures", () => {
       expect(homeResponse.body).toContain("JSX document shell page");
     } finally {
       await rm(jsxFixtureUrl, { recursive: true, force: true });
+    }
+  });
+
+  it("renders plain MDX page routes", async () => {
+    const mdxFixtureUrl = await createTemporaryMdxFixture();
+
+    try {
+      await buildFixture(mdxFixtureUrl);
+      const responses = await fetchBuiltSsrServer(mdxFixtureUrl, [
+        "/",
+        "/docs/guides/getting-started"
+      ]);
+
+      const homeResponse = responses.get("/")!;
+      expect(homeResponse.status).toBe(200);
+      expect(homeResponse.contentType).toContain("text/html");
+      expect(homeResponse.body).toContain("Plain MDX Home");
+      expect(homeResponse.body).toContain("Imported Qwik component: home");
+
+      const docsResponse = responses.get("/docs/guides/getting-started")!;
+      expect(docsResponse.status).toBe(200);
+      expect(docsResponse.contentType).toContain("text/html");
+      expect(docsResponse.body).toContain("Catch-all MDX Docs");
+    } finally {
+      await rm(mdxFixtureUrl, { recursive: true, force: true });
+    }
+  });
+
+  it("renders Composed MDX content at the visible Content slot", async () => {
+    const mdxFixtureUrl = await createTemporaryComposedMdxFixture();
+
+    try {
+      await buildFixture(mdxFixtureUrl);
+      const responses = await fetchBuiltSsrServer(mdxFixtureUrl, [
+        "/docs/guides/getting-started"
+      ]);
+
+      const docsResponse = responses.get("/docs/guides/getting-started")!;
+      expect(docsResponse.status).toBe(200);
+      expect(docsResponse.contentType).toContain("text/html");
+      expect(docsResponse.body).toContain("Composed shell before body");
+      expect(docsResponse.body).toContain("Composed MDX Body");
+      expect(docsResponse.body).toContain("Composed shell after body");
+      expect(docsResponse.body.indexOf("Composed shell before body")).toBeLessThan(
+        docsResponse.body.indexOf("Composed MDX Body")
+      );
+      expect(docsResponse.body.indexOf("Composed MDX Body")).toBeLessThan(
+        docsResponse.body.indexOf("Composed shell after body")
+      );
+    } finally {
+      await rm(mdxFixtureUrl, { recursive: true, force: true });
     }
   });
 
@@ -577,6 +650,29 @@ async function createTemporaryAnchorLoweringFixture() {
   );
 }
 
+async function createTemporaryMdxFixture() {
+  return createTemporaryFixture(
+    "resumable-mdx-",
+    {
+      "components/Badge.tsx": mdxBadgeCode,
+      "pages/index.mdx": plainMdxHomeCode,
+      "pages/docs/[...slug].mdx": plainMdxDocsCode
+    },
+    minimalViteConfig
+  );
+}
+
+async function createTemporaryComposedMdxFixture() {
+  return createTemporaryFixture(
+    "resumable-composed-mdx-",
+    {
+      "components/DocsLayout.tsx": docsLayoutCode,
+      "pages/docs/[...slug].mdx": composedMdxDocsCode
+    },
+    minimalViteConfig
+  );
+}
+
 async function createTemporaryInvalidAnchorLoweringFixture() {
   return createTemporaryFixture(
     "resumable-invalid-anchor-lowering-",
@@ -833,6 +929,51 @@ const pageCode = (title: string) => `import { component$ } from "@qwik.dev/core"
 export default component$(() => {
   return <main>${title}</main>;
 });
+`;
+
+const mdxBadgeCode = `import { component$ } from "@qwik.dev/core";
+
+export const Badge = component$((props: { label: string }) => {
+  return <strong>Imported Qwik component: {props.label}</strong>;
+});
+`;
+
+const plainMdxHomeCode = `import { Badge } from "../components/Badge";
+
+# Plain MDX Home
+
+<Badge label="home" />
+`;
+
+const plainMdxDocsCode = `# Catch-all MDX Docs
+
+This page is routed by \`pages/docs/[...slug].mdx\`.
+`;
+
+const docsLayoutCode = `import { component$, Slot } from "@qwik.dev/core";
+
+export const DocsLayout = component$((props: { section: string }) => {
+  return (
+    <section data-section={props.section}>
+      <Slot />
+    </section>
+  );
+});
+`;
+
+const composedMdxDocsCode = `import { DocsLayout } from "../../components/DocsLayout";
+
+<DocsLayout section="guides">
+  <header>Composed shell before body</header>
+  <Content />
+  <footer>Composed shell after body</footer>
+</DocsLayout>
+
+--- content
+
+# Composed MDX Body
+
+Rendered from the content body.
 `;
 
 const typedRoutesProofPageCode = `import { component$ } from "@qwik.dev/core";

@@ -15,6 +15,7 @@ import { transformRequestFileSource } from "../request-files.ts";
 import { buildRouteManifestFromFileIds } from "../route-manifest.ts";
 import { anchorTransformPlugin } from "./anchor-transform.ts";
 import { htmlTransformPlugin } from "./html-transform.ts";
+import { mdxTransformPlugin } from "./mdx.ts";
 import { routeTypegenPlugin } from "./route-typegen.ts";
 import type { PreloadGraphEntries, PreloadGraphEntriesAdder } from "qwik-bundler/vite";
 
@@ -48,6 +49,7 @@ export function resumable(_options: ResumableOptions = {}): PluginOption[] {
 
   return [
     configPlugin(nitroPlugins, clientEntry),
+    mdxTransformPlugin(),
     requestFileTransformPlugin(),
     routeTypegenPlugin(),
     anchorTransformPlugin(),

@@ -12,6 +12,8 @@ export default component$(() => {
         Typed blog route
       </a>
       <a href="/links">Link fixture</a>
+      <a href="/mdx-regular">Regular MDX route</a>
+      <a href="/mdx-composed">Composed MDX route</a>
     </main>
   );
 });

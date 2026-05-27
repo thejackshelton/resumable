@@ -3,7 +3,9 @@ import { createRouteDiscovery } from "@resumable.dev/core/vite/runtime/create-ro
 export { ResumableRouteRoot } from "./route-root";
 
 export const documentModules = import.meta.glob(["/document.tsx", "/document.jsx"]);
-const routeDiscovery = createRouteDiscovery(import.meta.glob("/pages/**/*.tsx"));
+const routeDiscovery = createRouteDiscovery(
+  import.meta.glob(["/pages/**/*.tsx", "/pages/**/*.mdx"])
+);
 
 export const pageModules = routeDiscovery.pageModuleLoaders;
 export const routeFileIds = routeDiscovery.routeFileIds;

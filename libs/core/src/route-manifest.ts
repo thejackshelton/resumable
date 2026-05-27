@@ -7,7 +7,7 @@ import {
 } from "ufo";
 
 const PAGES_DIR = "pages";
-const PAGE_EXTENSION = ".tsx";
+const PAGE_EXTENSIONS = new Set([".tsx", ".mdx"]);
 
 export interface RouteManifestRoute {
   readonly pathname: string;
@@ -105,20 +105,21 @@ export function matchRouteManifest(
 
 function isPageModuleFile(file: string) {
   const pageFile = pageRelativeFile(file);
-  return pageFile !== undefined && extname(pageFile) === PAGE_EXTENSION;
+  return pageFile !== undefined && PAGE_EXTENSIONS.has(extname(pageFile));
 }
 
 function normalizePage(file: string): NormalizedPage {
   const relativeFile = file;
   const pageFile = pageRelativeFile(file)!;
+  const extension = extname(pageFile);
+  const withoutExtension = pageFile.slice(0, -extension.length);
 
-  if (pageFile === `api${PAGE_EXTENSION}` || pageFile.startsWith("api/")) {
+  if (withoutExtension === "api" || withoutExtension.startsWith("api/")) {
     throw new Error(
       `API routes inside pages/ are not supported. Use top-level api/: ${relativeFile}`
     );
   }
 
-  const withoutExtension = pageFile.slice(0, -PAGE_EXTENSION.length);
   const routeFile = normalize(join(withoutExtension));
   const rawSegments = routeFile === "." ? [] : routeFile.split("/");
 

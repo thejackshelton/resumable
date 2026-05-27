@@ -64,6 +64,37 @@ describe("route manifest", () => {
     });
   });
 
+  it("normalizes static, dynamic, and catch-all .mdx page routes", () => {
+    expect(
+      buildRouteManifestFromFileIds([
+        "/pages/index.mdx",
+        "/pages/blog/[slug].mdx",
+        "/pages/docs/[...slug].mdx"
+      ])
+    ).toMatchObject({
+      routes: [
+        {
+          pathname: "/",
+          pattern: "/",
+          file: "pages/index.mdx",
+          params: []
+        },
+        {
+          pathname: "/blog/:slug",
+          pattern: "/blog/[slug]",
+          file: "pages/blog/[slug].mdx",
+          params: [{ name: "slug", kind: "dynamic" }]
+        },
+        {
+          pathname: "/docs/**",
+          pattern: "/docs/[...slug]",
+          file: "pages/docs/[...slug].mdx",
+          params: [{ name: "slug", kind: "catch-all" }]
+        }
+      ]
+    });
+  });
+
   it("matches static routes before dynamic routes and extracts dynamic params", () => {
     const manifest = buildRouteManifestFromFileIds([
       "/pages/blog/[slug].tsx",
@@ -137,6 +168,18 @@ describe("route manifest", () => {
         "Route conflict: /blog/:param is defined by both:",
         "- pages/blog/[id].tsx",
         "- pages/blog/[slug].tsx"
+      ].join("\n")
+    );
+  });
+
+  it("fails on .tsx and .mdx route conflicts", () => {
+    expect(() =>
+      buildRouteManifestFromFileIds(["/pages/docs.tsx", "/pages/docs.mdx"])
+    ).toThrow(
+      [
+        "Route conflict: /docs is defined by both:",
+        "- pages/docs.mdx",
+        "- pages/docs.tsx"
       ].join("\n")
     );
   });

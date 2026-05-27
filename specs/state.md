@@ -46,15 +46,23 @@ success/error events, and history entry state stay delegated to the Navigation
 API, while Resumable guards its own async route-module commits with
 `NavigateEvent.signal`. A separate page payload endpoint or alternate SPA
 renderer mode is deferred until data fetching or prefetching proves it is
-needed.
+needed. M10 MDX proof is now in progress: `pages/**/*.mdx` participates in the
+route manifest, route typegen, server/client route discovery, and a private
+Satteri-backed Vite transform. Plain MDX routes render as default-exported
+Qwik-compatible page modules, Qwik components can be imported inside MDX, and
+Composed MDX replaces exactly one visible `<Content />` slot with the content
+body while producing direct errors for invalid delimiter/slot/binding/ESM and
+frontmatter `layout` cases. The Docs starter remains intentionally unstarted.
 
 ## Current Objective
 
 M8 typed routing and M9 SPA navigation are complete for v0 foundation scope.
-The next implementation work should start M10 MDX/Composed MDX proof from the
-existing `.tsx` route/SSR/navigation baseline. Do not start `query$`/`action$`,
-prefetch scheduling, a page payload protocol, or alternate SPA renderer mode
-before MDX proof unless new evidence changes the milestone order.
+M10 MDX/Composed MDX proof has started from the existing `.tsx`
+route/SSR/navigation baseline. Continue M10 by hardening MDX diagnostics/source
+quality and then adding the Docs starter only after the MDX fixture proof stays
+green. Do not start `query$`/`action$`, prefetch scheduling, a page payload
+protocol, or alternate SPA renderer mode before M10 is complete unless new
+evidence changes the milestone order.
 
 ## Spec Files
 
@@ -137,7 +145,7 @@ before MDX proof unless new evidence changes the milestone order.
   hrefs alone.
 - CLI path handling uses `pathe`/`ufo`; Node APIs remain only for actual
   filesystem/process CLI responsibilities.
-- Route files are `.tsx` and, after proof, `.mdx`.
+- Route files are `.tsx` and `.mdx`.
 - Composed MDX is the planned MDX layout story: explicit component tree above
   `--- content`, content body below, and one visible `<Content />` slot.
 - Layouts are explicit Qwik components.
@@ -185,30 +193,26 @@ before MDX proof unless new evidence changes the milestone order.
 | M7  | Nitro passthrough                         | Complete | M4 renderer work                 | M2                            |
 | M8  | Typed routing                             | Complete | CLI doctor/routes commands       | M3                            |
 | M9  | Link and SPA navigation                   | Complete | none                             | M4, M8                        |
-| M10 | MDX/Composed MDX fixture and Docs starter | Pending  | none                             | M3, M4, Satteri/Qwik proof    |
+| M10 | MDX/Composed MDX fixture and Docs starter | In Progress | none                          | M3, M4, Satteri/Qwik proof    |
 | M11 | Data fetching prototype                   | Deferred | none                             | M4, M9, data confidence gates |
 | M12 | Bun fixture                               | Deferred | CLI/runtime format work after M1 | M1, M2, M4                    |
 | M13 | Deno fixture                              | Deferred | none                             | M1, M2, M4, Vite+/Deno proof  |
 
 ## Next Recommended Goal
 
-Start M10 MDX/Composed MDX proof from the completed `.tsx` route, SSR, document
-shell, status page, typed routing, and SPA navigation baseline:
+Continue M10 from the green plain/composed MDX fixture proof:
 
 1. Keep [`SPEC.md`](./SPEC.md) MDX and Composed MDX sections plus
    [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) M10 as the source of
    truth.
-2. Prove `.mdx` route module compilation first, then Composed MDX
-   `--- content` normalization and exactly one visible `<Content />` slot.
-3. Use Satteri/Qwik v2 research before implementation and keep the slice
-   TDD-first.
-4. Keep Docs starter, data fetching, prefetch scheduling, and SPA page payloads
-   out of scope until the MDX fixture passes.
+2. Harden MDX source map/error quality and any missing diagnostic edge cases
+   without adding public MDX API or file-based layouts.
+3. Add the Docs starter only after the MDX proof remains green.
+4. Keep data fetching, prefetch scheduling, and SPA page payloads out of scope
+   until M10 is complete.
 
 Do not revisit M9 SPA internals unless the MDX fixture exposes a direct
-navigation or Qwik resume regression. Before changing MDX implementation,
-inspect local Qwik `build/v2`, use grep MCP for Satteri/Qwik MDX patterns where
-needed, and keep implementation TDD-first.
+navigation or Qwik resume regression.
 
 ## Parallel Work Notes
 
@@ -853,3 +857,38 @@ libs/core/test/vite/anchor-transform.unit.ts` failed because imported
   Browser QA also separately proves native anchors still perform document
   navigation. M9 is complete; prefetch scheduling, MDX, and data fetching remain
   out of M9.
+- M10 research evidence: inspected local Qwik `build/v2` MDX implementation
+  (`packages/qwik-router/src/buildtime/markdown/mdx.ts`,
+  `frontmatter.ts`, and `mdx.unit.ts`). Qwik compiles MDX with
+  `jsxImportSource: "@qwik.dev/core"` and wraps generated MDX content as a
+  default page component. Inspected `https://github.com/bruits/satteri` and
+  Satteri `0.6.3`; its public API provides `mdxToJs()`, `mdxToMdast()`,
+  `defineMdastPlugin()`, mdast/hast plugin hooks, Qwik-compatible
+  `jsxImportSource`, and frontmatter output. grep MCP found no existing public
+  `mdxToJs(` or `from "satteri"` usage patterns, so local source and Satteri
+  docs drove the integration.
+- M10 red evidence: route-manifest tests failed because `.mdx` routes were
+  ignored and `.tsx`/`.mdx` conflicts did not throw; the temporary plain MDX
+  fixture rendered `/` as 404; the Composed MDX unit suite exposed a missing
+  direct error for `import { Content }`.
+- M10 green evidence: `.mdx` page routes now use the same manifest, route
+  typegen, server/client route discovery, and route conflict rules as `.tsx`.
+  The private `resumable:mdx` Vite plugin compiles Satteri MDX to
+  Qwik-compatible default page modules before Qwik's post transform. Plain MDX
+  temporary fixtures prove `pages/index.mdx`, `pages/docs/[...slug].mdx`, and
+  imported Qwik components render through SSR. Composed MDX fixture evidence
+  proves the content body renders between shell content before and after the
+  visible `<Content />` slot.
+- M10 direct-error evidence: focused MDX transform tests cover multiple
+  `--- content` delimiters, zero slots, multiple slots, importing `Content`,
+  defining `Content`, ESM below `--- content`, and frontmatter `layout`.
+- M10 verification passed: `pnpm exec vp test libs/core/test/vite/mdx.unit.ts`,
+  `pnpm exec vp test libs/core/test/route-manifest.unit.ts`,
+  `pnpm exec vp test libs/core/test/vite/route-typegen.unit.ts`,
+  `pnpm exec vp test libs/core/test/vite/vite.unit.ts`,
+  `pnpm exec vp test libs/core/test/route-types.unit.ts`,
+  `pnpm exec vp test libs/core/test/vite/anchor-transform.unit.ts`,
+  `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`,
+  `pnpm --filter @resumable.dev/core build`, and
+  `pnpm --dir fixtures/minimal build`. M10 remains In Progress because the Docs
+  starter and MDX source-map/error-quality polish remain outside this slice.

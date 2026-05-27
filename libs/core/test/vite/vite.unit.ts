@@ -41,6 +41,7 @@ describe("resumable Vite plugin", () => {
     const names = plugins.map((plugin) => plugin.name);
 
     expect(names).toContain("resumable:vite");
+    expect(names).toContain("resumable:mdx");
     expect(names).toContain("resumable:typegen");
     expect(names).toContain("resumable:anchors");
     expect(names).toContain("resumable:html");
@@ -53,7 +54,10 @@ describe("resumable Vite plugin", () => {
     const plugins = flattenPlugins([resumable()]);
     const anchorPlugin = plugins.find((plugin) => plugin.name === "resumable:anchors");
     const htmlPlugin = plugins.find((plugin) => plugin.name === "resumable:html");
+    const mdxPlugin = plugins.find((plugin) => plugin.name === "resumable:mdx");
 
+    expect(mdxPlugin).toBeDefined();
+    expect(mdxPlugin?.enforce).toBe("pre");
     expect(anchorPlugin).toBeDefined();
     expect(anchorPlugin).not.toHaveProperty("enforce");
     expect((anchorPlugin?.transform as { order?: string } | undefined)?.order).toBe(
@@ -97,7 +101,9 @@ describe("resumable Vite plugin", () => {
       "utf-8"
     );
 
-    expect(entrySource).toContain('import.meta.glob("/pages/**/*.tsx")');
+    expect(entrySource).toContain(
+      'import.meta.glob(["/pages/**/*.tsx", "/pages/**/*.mdx"])'
+    );
     expect(entrySource).toContain("createRouteDiscovery");
     expect(entrySource).toContain("pageModuleLoaders");
     expect(entrySource).toContain("routeFileIds");
@@ -158,7 +164,7 @@ describe("resumable Vite plugin", () => {
       'export const documentModules = import.meta.glob(["/document.tsx", "/document.jsx"])'
     );
     expect(clientEntrySource).toContain(
-      'const routeDiscovery = createRouteDiscovery(import.meta.glob("/pages/**/*.tsx"))'
+      'import.meta.glob(["/pages/**/*.tsx", "/pages/**/*.mdx"])'
     );
     expect(clientEntrySource).toContain("__resumableStartSpaNavigation");
     expect(serverEntrySource).toContain('from "@qwik.dev/core/jsx-runtime"');
