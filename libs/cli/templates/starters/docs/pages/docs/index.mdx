@@ -1,0 +1,15 @@
+import { Sidebar } from "../../components/docs/Sidebar";
+import { DocsLayout } from "../../components/layouts/DocsLayout";
+
+<DocsLayout section="overview">
+  <Sidebar active="overview" />
+  <main>
+    <Content />
+  </main>
+</DocsLayout>
+
+--- content
+
+# Docs
+
+Resumable docs pages are MDX routes. Layouts stay explicit Qwik components.

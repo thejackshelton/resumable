@@ -368,12 +368,12 @@ Deno        deno.json
 ```txt
 Minimal     one page
 App         layouts, status pages
-Docs        MDX docs routes
+Docs        configurable docs site
 Full-stack  app plus api/ and middleware/
 ```
 
-Initial visible starters should be `Minimal`, `App`, and `Full-stack`. Show
-`Docs` only after the MDX fixture passes.
+Initial visible starters are `Minimal`, `App`, `Docs`, and `Full-stack`. `Docs`
+became visible after the MDX fixture passed.
 
 Generated scripts should use local `vp`:
 
@@ -745,7 +745,7 @@ Should wait:
 - Data fetching and prefetching wait for the completed Navigation API route
   module transition before deciding whether a page payload protocol is needed.
 - MDX waits for route manifest and Qwik SSR skeleton.
-- Docs starter waits for MDX fixture.
+- Docs starter shipped after the MDX fixture.
 - Data fetching waits for SSR render context and query/action confidence gates.
 - Deno waits for a complete dev/build/runtime fixture.
 

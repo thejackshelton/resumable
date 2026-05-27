@@ -9,7 +9,8 @@
     "resumable": "./lib/index.mjs"
   },
   "files": [
-    "lib"
+    "lib",
+    "templates"
   ],
   "type": "module",
   "main": "./lib/index.mjs",

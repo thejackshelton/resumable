@@ -235,7 +235,7 @@ create-resumable
 ◇ Starter
 │ Minimal     one page
 │ App         layouts, status pages
-│ Docs        MDX docs routes
+│ Docs        configurable docs site
 │ Full-stack  app plus api/ and middleware/
 
 ◇ Install dependencies?
@@ -269,7 +269,7 @@ create-resumable
 ◇ Starter
 │ Minimal     one page
 │ App         layouts, status pages
-│ Docs        MDX docs routes
+│ Docs        configurable docs site
 │ Full-stack  app plus api/ and middleware/
 
 ◇ Install dependencies?
@@ -379,7 +379,7 @@ Recommended starter list:
 ```txt
 Minimal     one page
 App         layouts, status pages
-Docs        MDX docs routes
+Docs        configurable docs site
 Full-stack  app plus api/ and middleware/
 ```
 
@@ -650,6 +650,5 @@ The CLI:
 
 - Should `Bun` be available in v0, or wait for a Bun fixture?
 - Should `Deno` be visible in v0, or hidden until fully proven?
-- Should `Docs` be hidden until ready, or visible as a starter choice?
 - Should the default starter include `document.tsx`, or keep it out until users
   need document customization?

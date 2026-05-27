@@ -34,8 +34,12 @@ describe("CreateProgram", () => {
     expect(STARTER_CHOICES.map((choice) => choice.value)).toEqual([
       "minimal",
       "app",
+      "docs",
       "full-stack"
     ]);
+    expect(STARTER_CHOICES.find((choice) => choice.value === "docs")?.hint).toBe(
+      "configurable docs site"
+    );
   });
 
   it("keeps the official CLI package shape", async () => {
@@ -44,6 +48,7 @@ describe("CreateProgram", () => {
     ) as {
       name: string;
       bin: Record<string, string>;
+      files: string[];
     };
 
     expect(packageJson).toMatchObject({
@@ -53,6 +58,7 @@ describe("CreateProgram", () => {
         resumable: "./lib/index.mjs"
       }
     });
+    expect(packageJson.files).toContain("templates");
   });
 
   it("uses shared path and URL helpers instead of Node path/url imports", async () => {
@@ -61,6 +67,13 @@ describe("CreateProgram", () => {
     expect(source).toContain('from "pathe"');
     expect(source).toContain('from "ufo"');
     expect(source).not.toMatch(/from "node:(path|url)"/);
+    expect(source).not.toContain("function docsHomePage");
+    expect(source).not.toContain("function tsconfig");
+    expect(source).not.toContain("function packageManifest");
+    expect(source).not.toContain("# Resumable Docs");
+    expect(source).not.toContain("@resumable.dev/typescript-plugin");
+    expect(source).not.toContain("plugins: [qwik(), resumable()]");
+    expect(source).not.toContain("x-resumable-started-at");
   });
 
   it("--yes selects the deterministic minimal Node defaults", async () => {
@@ -153,6 +166,47 @@ describe("CreateProgram", () => {
         expect(tsconfigJson).not.toContain('"500.tsx"');
       })
     );
+  });
+
+  it("generates Docs with MDX routes and component layouts only", async () => {
+    const cwd = await makeWorkspace();
+    const program = new CreateProgram();
+
+    await program.run(
+      ["docs-app", "--starter", "docs", "--no-install", "--no-git"],
+      fakeRuntime(cwd)
+    );
+
+    const appDir = join(cwd, "docs-app");
+    const viteConfig = await readFile(join(appDir, "vite.config.ts"), "utf-8");
+    const indexMdx = await readFile(join(appDir, "pages", "index.mdx"), "utf-8");
+    const catchAllMdx = await readFile(
+      join(appDir, "pages", "docs", "[...slug].mdx"),
+      "utf-8"
+    );
+
+    await expect(exists(join(appDir, "document.tsx"))).resolves.toBe(true);
+    await expect(exists(join(appDir, "pages", "index.tsx"))).resolves.toBe(false);
+    await expect(exists(join(appDir, "pages", "docs", "index.mdx"))).resolves.toBe(true);
+    await expect(exists(join(appDir, "components", "docs", "Sidebar.tsx"))).resolves.toBe(
+      true
+    );
+    await expect(
+      exists(join(appDir, "components", "layouts", "DocsLayout.tsx"))
+    ).resolves.toBe(true);
+    expect(indexMdx).toContain("# Resumable Docs");
+    expect(catchAllMdx).toContain("<DocsLayout");
+    expect(catchAllMdx).toContain("<Content />");
+    expect(catchAllMdx).toContain("--- content");
+    expect(catchAllMdx).not.toContain("layout:");
+    expect(viteConfig).not.toContain("mdx");
+
+    await expect(exists(join(appDir, "content"))).resolves.toBe(false);
+    await expect(exists(join(appDir, "collections"))).resolves.toBe(false);
+    await expect(exists(join(appDir, "menu.md"))).resolves.toBe(false);
+    await expect(exists(join(appDir, "pages", "api"))).resolves.toBe(false);
+    await expect(exists(join(appDir, "resumable.config.ts"))).resolves.toBe(false);
+    await expect(exists(join(appDir, "nitro.config.ts"))).resolves.toBe(false);
   });
 
   it("rejects --yes without a positional target", async () => {

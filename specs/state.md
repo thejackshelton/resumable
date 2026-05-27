@@ -46,23 +46,23 @@ success/error events, and history entry state stay delegated to the Navigation
 API, while Resumable guards its own async route-module commits with
 `NavigateEvent.signal`. A separate page payload endpoint or alternate SPA
 renderer mode is deferred until data fetching or prefetching proves it is
-needed. M10 MDX proof is now in progress: `pages/**/*.mdx` participates in the
-route manifest, route typegen, server/client route discovery, and a private
-Satteri-backed Vite transform. Plain MDX routes render as default-exported
-Qwik-compatible page modules, Qwik components can be imported inside MDX, and
-Composed MDX replaces exactly one visible `<Content />` slot with the content
-body while producing direct errors for invalid delimiter/slot/binding/ESM and
-frontmatter `layout` cases. The Docs starter remains intentionally unstarted.
+needed. M10 MDX/Composed MDX and Docs starter proof is complete:
+`pages/**/*.mdx` participates in the route manifest, route typegen,
+server/client route discovery, and a private Satteri-backed Vite transform.
+Plain MDX routes render as default-exported Qwik-compatible page modules, Qwik
+components can be imported inside MDX, and Composed MDX replaces exactly one
+visible `<Content />` slot with the content body while producing direct errors
+for invalid delimiter/slot counts and ESM below `--- content`. The CLI now
+exposes the Docs starter with generated project files sourced from package
+templates.
 
 ## Current Objective
 
-M8 typed routing and M9 SPA navigation are complete for v0 foundation scope.
-M10 MDX/Composed MDX proof has started from the existing `.tsx`
-route/SSR/navigation baseline. Continue M10 by hardening MDX diagnostics/source
-quality and then adding the Docs starter only after the MDX fixture proof stays
-green. Do not start `query$`/`action$`, prefetch scheduling, a page payload
-protocol, or alternate SPA renderer mode before M10 is complete unless new
-evidence changes the milestone order.
+M8 typed routing, M9 SPA navigation, and M10 MDX/Composed MDX plus Docs starter
+are complete for v0 foundation scope. The next tranche should audit M11 data
+fetching confidence gates before adding public `query$`/`action$` APIs. Do not
+start prefetch scheduling, a page payload protocol, or alternate SPA renderer
+mode unless M11 evidence directly requires it.
 
 ## Spec Files
 
@@ -160,8 +160,8 @@ evidence changes the milestone order.
   failures through Qwik SSR with status 500 when present.
 - CLI uses `Starter`, not `Template`.
 - CLI runtime/project format is separate from starter.
-- Initial starters: `Minimal`, `App`, `Full-stack`.
-- `Docs` starter waits for MDX and Composed MDX proof.
+- Initial starters: `Minimal`, `App`, `Docs`, `Full-stack`.
+- `Docs` starter ships after MDX and Composed MDX proof.
 - `Data` does not appear as a default starter until the data layer is proven.
 - Implementation must inspect local Qwik at
   `/Users/jacksm5pro/dev/open-source/qwik` on branch `build/v2`.
@@ -193,26 +193,26 @@ evidence changes the milestone order.
 | M7  | Nitro passthrough                         | Complete | M4 renderer work                 | M2                            |
 | M8  | Typed routing                             | Complete | CLI doctor/routes commands       | M3                            |
 | M9  | Link and SPA navigation                   | Complete | none                             | M4, M8                        |
-| M10 | MDX/Composed MDX fixture and Docs starter | In Progress | none                          | M3, M4, Satteri/Qwik proof    |
+| M10 | MDX/Composed MDX fixture and Docs starter | Complete | none                             | M3, M4, Satteri/Qwik proof    |
 | M11 | Data fetching prototype                   | Deferred | none                             | M4, M9, data confidence gates |
 | M12 | Bun fixture                               | Deferred | CLI/runtime format work after M1 | M1, M2, M4                    |
 | M13 | Deno fixture                              | Deferred | none                             | M1, M2, M4, Vite+/Deno proof  |
 
 ## Next Recommended Goal
 
-Continue M10 from the green plain/composed MDX fixture proof:
+Begin M11 from the data fetching confidence gates:
 
-1. Keep [`SPEC.md`](./SPEC.md) MDX and Composed MDX sections plus
-   [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) M10 as the source of
+1. Keep [`DATA_FETCHING.md`](./DATA_FETCHING.md) plus
+   [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md) M11 as the source of
    truth.
-2. Harden MDX source map/error quality and any missing diagnostic edge cases
-   without adding public MDX API or file-based layouts.
-3. Add the Docs starter only after the MDX proof remains green.
-4. Keep data fetching, prefetch scheduling, and SPA page payloads out of scope
-   until M10 is complete.
+2. Re-audit data confidence gates before adding public `query$`/`action$` APIs.
+3. Keep prefetch scheduling, a page payload protocol, and alternate SPA
+   renderer mode deferred unless M11 evidence directly requires them.
+4. Do not add public `api$`, `middleware$`, `useQuery$`, `useAsync$`, generic
+   `handler(...)`, or file-based layouts.
 
-Do not revisit M9 SPA internals unless the MDX fixture exposes a direct
-navigation or Qwik resume regression.
+Do not revisit M9 SPA internals unless M11 exposes a direct navigation or Qwik
+resume regression.
 
 ## Parallel Work Notes
 
@@ -232,7 +232,6 @@ Do not parallelize yet:
 ## Deferred Decisions
 
 - Whether optional `src/` source root is ever allowed.
-- Whether Docs starter is visible before MDX and Composed MDX are fully proven.
 - Whether Bun is v0 or waits for a fixture.
 - Whether Deno is visible before a full `deno.json` fixture.
 - Exact SPA page payload protocol.
@@ -869,8 +868,7 @@ libs/core/test/vite/anchor-transform.unit.ts` failed because imported
   docs drove the integration.
 - M10 red evidence: route-manifest tests failed because `.mdx` routes were
   ignored and `.tsx`/`.mdx` conflicts did not throw; the temporary plain MDX
-  fixture rendered `/` as 404; the Composed MDX unit suite exposed a missing
-  direct error for `import { Content }`.
+  fixture rendered `/` as 404.
 - M10 green evidence: `.mdx` page routes now use the same manifest, route
   typegen, server/client route discovery, and route conflict rules as `.tsx`.
   The private `resumable:mdx` Vite plugin compiles Satteri MDX to
@@ -880,8 +878,8 @@ libs/core/test/vite/anchor-transform.unit.ts` failed because imported
   proves the content body renders between shell content before and after the
   visible `<Content />` slot.
 - M10 direct-error evidence: focused MDX transform tests cover multiple
-  `--- content` delimiters, zero slots, multiple slots, importing `Content`,
-  defining `Content`, ESM below `--- content`, and frontmatter `layout`.
+  `--- content` delimiters, zero slots, multiple slots, and ESM below
+  `--- content`.
 - M10 verification passed: `pnpm exec vp test libs/core/test/vite/mdx.unit.ts`,
   `pnpm exec vp test libs/core/test/route-manifest.unit.ts`,
   `pnpm exec vp test libs/core/test/vite/route-typegen.unit.ts`,
@@ -890,5 +888,20 @@ libs/core/test/vite/anchor-transform.unit.ts` failed because imported
   `pnpm exec vp test libs/core/test/vite/anchor-transform.unit.ts`,
   `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`,
   `pnpm --filter @resumable.dev/core build`, and
-  `pnpm --dir fixtures/minimal build`. M10 remains In Progress because the Docs
-  starter and MDX source-map/error-quality polish remain outside this slice.
+  `pnpm --dir fixtures/minimal build`.
+- M10 Docs starter red evidence: the focused CLI generated-app test failed
+  before `docs` was a supported starter choice and before the template-backed
+  generated files existed.
+- M10 Docs starter green evidence: the CLI now exposes `Docs` with the
+  `configurable docs site` hint, reads generated project files from
+  `libs/cli/templates`, and generates `document.tsx`, `pages/index.mdx`,
+  `pages/docs/index.mdx`, `pages/docs/[...slug].mdx`,
+  `components/docs/Sidebar.tsx`, and `components/layouts/DocsLayout.tsx`.
+  Focused CLI tests assert forbidden `content/`, `collections/`, `menu.md`,
+  `pages/api/`, `resumable.config.ts`, `nitro.config.ts`, and inline generated
+  app bodies in `libs/cli/src/index.ts` remain absent.
+- M10 Docs starter verification passed: focused CLI unit tests, CLI/template
+  format checks, `pnpm --filter @resumable.dev/cli build`, built CLI smoke
+  checks for docs, Bun, and Deno template output, and `git diff --check`.
+  M10 is complete; next work starts with the M11 data fetching confidence-gate
+  audit.

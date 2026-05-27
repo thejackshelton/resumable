@@ -1,0 +1,16 @@
+{
+  "tasks": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview",
+    "check": "vp check",
+    "format": "vp fmt",
+    "test": "vp test"
+  },
+  "nodeModulesDir": "auto",
+  "imports": {
+    "@qwik.dev/core": "npm:@qwik.dev/core@^2.0.0-beta.0",
+    "@resumable.dev/core/": "npm:@resumable.dev/core/",
+    "qwik-bundler/vite": "npm:qwik-bundler/vite"
+  }
+}

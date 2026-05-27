@@ -1,4 +1,4 @@
-import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { spawnSync, type SpawnSyncOptions } from "node:child_process";
 import { confirm, intro, isCancel, outro, select, text } from "@clack/prompts";
 import { basename, dirname, normalize, resolve } from "pathe";
@@ -7,7 +7,7 @@ import { decodePath, parseURL, withoutTrailingSlash } from "ufo";
 declare const __VERSION__: string | undefined;
 
 export type ProjectFormat = "node" | "bun" | "deno";
-export type Starter = "minimal" | "app" | "full-stack";
+export type Starter = "minimal" | "app" | "docs" | "full-stack";
 export type PackageManager = "npm" | "pnpm" | "yarn" | "bun" | "deno";
 
 type Choice<T extends string> = {
@@ -25,6 +25,7 @@ export const PROJECT_FORMAT_CHOICES = [
 export const STARTER_CHOICES = [
   { value: "minimal", label: "Minimal", hint: "one page" },
   { value: "app", label: "App", hint: "layouts, status pages" },
+  { value: "docs", label: "Docs", hint: "configurable docs site" },
   {
     value: "full-stack",
     label: "Full-stack",
@@ -76,34 +77,12 @@ export interface CreateOptions {
   cwd: string;
 }
 
-type Manifest = {
-  scripts: Record<string, string>;
-  dependencies: Record<string, string>;
-  devDependencies: Record<string, string>;
+type StarterFile = {
+  path: string;
+  contents: string;
 };
 
-const DEFAULT_SCRIPTS = {
-  dev: "vp dev",
-  build: "vp build",
-  preview: "vp preview",
-  check: "vp check",
-  format: "vp fmt",
-  test: "vp test"
-};
-
-const DEFAULT_DEPENDENCIES = {
-  "@qwik.dev/core": "^2.0.0-beta.0"
-};
-
-const DEFAULT_DEV_DEPENDENCIES = {
-  "@resumable.dev/core": "latest",
-  "@resumable.dev/typescript-plugin": "latest",
-  nitro: "3.0.260429-beta",
-  "qwik-bundler": "0.1",
-  typescript: "^6.0.0",
-  vite: "^8.0.0",
-  "vite-plus": "^0.1.16"
-};
+const TEMPLATE_ROOT = new URL("../templates/", import.meta.url);
 
 export class CreateProgram {
   configure(): CreateProgramConfig {
@@ -419,8 +398,10 @@ async function ensureWritableTarget(targetDir: string, force: boolean) {
 }
 
 async function writeStarter(options: CreateOptions, targetDir: string) {
+  const files = await starterFiles(options);
+
   await Promise.all(
-    starterFiles(options).map(async (file) => {
+    files.map(async (file) => {
       const path = resolve(targetDir, file.path);
       await mkdir(dirname(path), { recursive: true });
       await writeFile(path, file.contents);
@@ -428,172 +409,75 @@ async function writeStarter(options: CreateOptions, targetDir: string) {
   );
 }
 
-function starterFiles(options: CreateOptions) {
-  const files = [
-    { path: "README.md", contents: readme(options) },
-    { path: "vite.config.ts", contents: viteConfig() },
-    { path: "tsconfig.json", contents: json(tsconfig()) },
-    { path: "pages/index.tsx", contents: indexPage() },
-    { path: "public/.gitkeep", contents: "" },
-    ...manifestFiles(options)
+async function starterFiles(options: CreateOptions): Promise<StarterFile[]> {
+  const directories = [
+    new URL("common/", TEMPLATE_ROOT),
+    new URL(`formats/${options.format}/`, TEMPLATE_ROOT),
+    ...starterTemplateDirectories(options.starter)
   ];
+  const files = (
+    await Promise.all(directories.map((directory) => readTemplateDirectory(directory)))
+  ).flat();
 
-  if (options.starter === "app" || options.starter === "full-stack") {
-    files.push(
-      { path: "document.tsx", contents: documentShell() },
-      { path: "pages/404.tsx", contents: statusPage("Not found") },
-      { path: "pages/500.tsx", contents: statusPage("Server error") }
-    );
+  return renderTemplateFiles(files, {
+    packageManager: options.packageManager,
+    packageName: packageName(options.target)
+  });
+}
+
+function starterTemplateDirectories(starter: Starter) {
+  if (starter === "docs") {
+    return [new URL("starters/docs/", TEMPLATE_ROOT)];
   }
 
-  if (options.starter === "full-stack") {
-    files.push(
-      { path: "api/health.ts", contents: apiHealth() },
-      { path: "middleware/request.ts", contents: requestMiddleware() }
-    );
+  const directories = [new URL("starters/minimal/", TEMPLATE_ROOT)];
+
+  if (starter === "app" || starter === "full-stack") {
+    directories.push(new URL("starters/app/", TEMPLATE_ROOT));
   }
 
-  return files;
-}
-
-function manifestFiles(options: CreateOptions) {
-  if (options.format === "deno") {
-    return [{ path: "deno.json", contents: json(denoManifest()) }];
+  if (starter === "full-stack") {
+    directories.push(new URL("starters/full-stack/", TEMPLATE_ROOT));
   }
 
-  return [{ path: "package.json", contents: json(packageManifest(options)) }];
+  return directories;
 }
 
-function packageManifest(options: CreateOptions): Manifest & {
-  name: string;
-  private: true;
-  type: "module";
-  packageManager?: string;
-} {
-  return {
-    name: packageName(options.target),
-    private: true,
-    type: "module",
-    ...(options.format === "bun" ? { packageManager: "bun" } : {}),
-    scripts: DEFAULT_SCRIPTS,
-    dependencies: DEFAULT_DEPENDENCIES,
-    devDependencies: DEFAULT_DEV_DEPENDENCIES
-  };
-}
+async function readTemplateDirectory(
+  directory: URL,
+  pathPrefix = ""
+): Promise<StarterFile[]> {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = await Promise.all(
+    entries.map(async (entry) => {
+      const path = `${pathPrefix}${entry.name}`;
+      const url = new URL(entry.isDirectory() ? `${entry.name}/` : entry.name, directory);
 
-function denoManifest() {
-  return {
-    tasks: DEFAULT_SCRIPTS,
-    nodeModulesDir: "auto",
-    imports: {
-      "@qwik.dev/core": "npm:@qwik.dev/core@^2.0.0-beta.0",
-      "@resumable.dev/core/": "npm:@resumable.dev/core/",
-      "qwik-bundler/vite": "npm:qwik-bundler/vite"
-    }
-  };
-}
+      if (entry.isDirectory()) {
+        return readTemplateDirectory(url, `${path}/`);
+      }
 
-function tsconfig() {
-  return {
-    compilerOptions: {
-      target: "ES2023",
-      module: "ESNext",
-      moduleResolution: "Bundler",
-      jsx: "react-jsx",
-      jsxImportSource: "@qwik.dev/core",
-      strict: true,
-      plugins: [
-        {
-          name: "@resumable.dev/typescript-plugin",
-          pagesDir: "./pages"
-        }
-      ],
-      types: ["vite/client"]
-    },
-    include: ["resumable-env.d.ts", "pages", "document.tsx", "vite.config.ts"]
-  };
-}
+      if (!entry.isFile()) {
+        return [];
+      }
 
-function viteConfig() {
-  return `import { defineConfig } from "vite-plus";
-import { qwik } from "qwik-bundler/vite";
-import { resumable } from "@resumable.dev/core/vite";
-
-export default defineConfig({
-  plugins: [qwik(), resumable()]
-});
-`;
-}
-
-function indexPage() {
-  return `import { component$ } from "@qwik.dev/core";
-
-export default component$(() => {
-  return (
-    <main>
-      <h1>Resumable</h1>
-      <p>Edit pages/index.tsx to get started.</p>
-    </main>
+      return [{ path, contents: await readFile(url, "utf-8") }];
+    })
   );
-});
-`;
+
+  return files.flat();
 }
 
-function documentShell() {
-  return `import { component$, Slot } from "@qwik.dev/core";
-import { Html } from "@resumable.dev/core";
-
-export default component$(() => {
-  return (
-    <Html lang="en">
-      <head>
-        <title>Resumable</title>
-      </head>
-      <body>
-        <Slot />
-      </body>
-    </Html>
-  );
-});
-`;
-}
-
-function statusPage(title: string) {
-  return `import { component$ } from "@qwik.dev/core";
-
-export default component$(() => <h1>${title}</h1>);
-`;
-}
-
-function apiHealth() {
-  return `export default function () {
-  return { ok: true };
-}
-`;
-}
-
-function requestMiddleware() {
-  return `export default function (http) {
-  http.response.headers.set("x-resumable-started-at", String(Date.now()));
-}
-`;
-}
-
-function readme(options: CreateOptions) {
-  return `# ${packageName(options.target)}
-
-## Commands
-
-- ${options.packageManager} dev
-- ${options.packageManager} build
-- ${options.packageManager} preview
-- ${options.packageManager} check
-- ${options.packageManager} test
-`;
-}
-
-function json(value: unknown) {
-  return `${JSON.stringify(value, null, 2)}\n`;
+function renderTemplateFiles(
+  files: StarterFile[],
+  context: Record<string, string>
+): StarterFile[] {
+  return files.map((file) => ({
+    ...file,
+    contents: file.contents.replace(/\{\{([A-Za-z][A-Za-z0-9]*)\}\}/g, (match, name) => {
+      return context[name] ?? match;
+    })
+  }));
 }
 
 function packageName(target: string) {
@@ -652,7 +536,7 @@ Usage:
 Options:
   --yes, -y          Use defaults
   --format <name>   node, bun, or deno
-  --starter <name>  minimal, app, or full-stack
+  --starter <name>  minimal, app, docs, or full-stack
   --no-install      Skip dependency installation
   --no-git          Skip git initialization
   --force           Write into a non-empty directory
