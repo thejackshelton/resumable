@@ -1,6 +1,6 @@
 # Resumable Implementation State
 
-Last updated: 2026-05-25
+Last updated: 2026-05-27
 
 Status: M1 CLI create flow, M2 core Vite plugin skeleton, M3 route manifest,
 M4 Qwik SSR renderer, M5 document shell, M6 status pages, and M7 Nitro
@@ -34,18 +34,22 @@ real hrefs for SSR and client builds, preserves normal anchor props, removes
 `params` before DOM output, and uses an internal route href helper for dynamic
 and catch-all param encoding. M8 typed routing slice 5 now adds the typed
 `Link` surface, generated `ResumableLinkProps` and
-`ResumableGeneratedRoutes["link"]`, a minimal public `Link` function component,
-and route-pattern `Link` lowering that reuses the native anchor route model and
-href helper without adding SPA behavior.
+`ResumableGeneratedRoutes["link"]`, and route-pattern `Link` lowering that
+reuses the native anchor route model and href helper. M9 SPA navigation is now
+in progress: the public `Link` component renders a real anchor marked for
+Resumable navigation, the client entry starts a Navigation API runtime with a
+conditional `@virtualstate/navigation` polyfill, same-origin page `Link` clicks
+transition through client route modules, native anchors stay platform-native,
+and qwik-bundler route preload graph entries let Qwik preload route and QRL
+chunks for SPA destinations.
 
 ## Current Objective
 
-M8 typed routing is complete for v0 foundation scope. Generated route
-declarations, Qwik JSX anchor types, real-project declaration discovery,
-TypeScript completion support, native route-pattern anchor lowering, typed
-`Link`, and route-pattern `Link` lowering now exist. The next implementation
-work should start M9 SPA navigation from the proven `Link` surface while
-leaving prefetching, MDX, and data APIs out of the first SPA slice.
+M8 typed routing is complete for v0 foundation scope. M9 SPA navigation has a
+working first slice: `Link` click enhancement, Navigation API/polyfill setup,
+client route-module swapping, and route preload graph integration. The next
+implementation work should harden M9 around remaining navigation semantics
+without starting MDX, data fetching, or a prefetch scheduler.
 
 ## Spec Files
 
@@ -109,9 +113,17 @@ leaving prefetching, MDX, and data APIs out of the first SPA slice.
   asset-like hrefs without params; dynamic and catch-all file-route patterns
   require matching `params`.
 - `Link` is exported from `@resumable.dev/core`, uses the same generated route
-  prop model as native anchors, accepts future SPA props (`prefetch`, `replace`,
-  `scroll`, `reload`), renders a real anchor, and strips `params` plus inactive
-  SPA props from DOM output in the current no-SPA runtime.
+  prop model as native anchors, accepts SPA props (`prefetch`, `replace`,
+  `scroll`), renders a real anchor marked with `data-resumable-link`, strips
+  `params` from DOM output, and preserves native browser behavior for
+  ineligible clicks.
+- `Link` SPA navigation uses the browser Navigation API shape. It uses native
+  `window.navigation` when available, conditionally loads
+  `@virtualstate/navigation` with global interception disabled when needed, and
+  does not install a custom History API router.
+- `resumable()` registers route preload graph entries with qwik-bundler through
+  `registerPreloadGraphEntries`, deriving route keys from manifest origins and
+  leaving bundle-origin lookup/filtering to qwik-bundler.
 - The `resumable:anchors` Vite transform lowers lowercase native `<a>` elements
   and imported Resumable `Link` components whose `href` is a string literal
   route pattern. It rewrites `href` to the internal
@@ -167,7 +179,7 @@ leaving prefetching, MDX, and data APIs out of the first SPA slice.
 | M6  | Status pages                              | Complete    | M5 document shell                | M4                            |
 | M7  | Nitro passthrough                         | Complete    | M4 renderer work                 | M2                            |
 | M8  | Typed routing                             | Complete    | CLI doctor/routes commands       | M3                            |
-| M9  | Link and SPA navigation                   | Pending     | none                             | M4, M8                        |
+| M9  | Link and SPA navigation                   | In Progress | none                             | M4, M8                        |
 | M10 | MDX/Composed MDX fixture and Docs starter | Pending     | none                             | M3, M4, Satteri/Qwik proof    |
 | M11 | Data fetching prototype                   | Deferred    | none                             | M4, M9, data confidence gates |
 | M12 | Bun fixture                               | Deferred    | CLI/runtime format work after M1 | M1, M2, M4                    |
@@ -175,17 +187,19 @@ leaving prefetching, MDX, and data APIs out of the first SPA slice.
 
 ## Next Recommended Goal
 
-Start M9 SPA navigation with `Link` enhancement as the next focused slice:
+Continue M9 SPA navigation hardening from the proven `Link` surface:
 
-1. Re-read [`TYPED_ROUTING.md`](./TYPED_ROUTING.md), especially `Link And SPA
-   Navigation`, and keep native anchors as platform navigation.
-2. Add TDD evidence for `Link` click eligibility before runtime behavior:
-   same-origin page links may be enhanced, while external, `target`, `download`,
-   and `reload` links must remain normal browser navigation.
-3. Implement the smallest Navigation API/polyfill bridge needed for internal
-   `Link` navigation. Do not add prefetching, MDX, query/action data APIs, or
-   global native-anchor interception in this slice.
+1. Keep [`TYPED_ROUTING.md`](./TYPED_ROUTING.md), especially `Link And SPA
+Navigation`, as the source for platform-navigation boundaries.
+2. Preserve the current first slice: native anchors stay document navigation,
+   `Link` owns SPA navigation, and route preload graph entries come from
+   qwik-bundler.
+3. Add focused evidence before runtime changes for remaining gaps: abort/stale
+   navigation behavior, hash/focus details, and final status-page policy for
+   SPA transitions.
 
+Do not add MDX, `query$`/`action$`, a prefetch scheduler, global native-anchor
+interception, or a custom History API router in the next M9 hardening slice.
 Before changing SPA implementation, inspect local Qwik `build/v2`, use grep MCP
 for current Navigation API/polyfill/router patterns, and keep the implementation
 TDD-first.
@@ -743,15 +757,15 @@ Do not parallelize yet:
   `pnpm exec vp test libs/core/test/route-types.unit.ts` failed because the
   generated route declarations did not emit `ResumableLinkProps` and
   `@resumable.dev/core` did not export `Link`; `pnpm exec vp test
-  libs/core/test/vite/anchor-transform.unit.ts` failed because imported
+libs/core/test/vite/anchor-transform.unit.ts` failed because imported
   Resumable `Link` route patterns were not lowered or rejected.
 - M8 typed `Link` green evidence: generated route declarations now export
   `ResumableLinkProps`, augment `ResumableGeneratedRoutes["link"]`, and let
   imported `Link` usages type-check with the same static href, dynamic params,
   catch-all params, and invalid-route failures as native anchors. The public
   `Link` function component renders a real `<a>` and strips `params`,
-  `prefetch`, `replace`, `scroll`, and `reload` from DOM output until M9 adds
-  runtime SPA behavior. The Vite transform now lowers imported Resumable
+  `prefetch`, `replace`, and `scroll` from DOM output until M9 adds runtime SPA
+  behavior. The Vite transform now lowers imported Resumable
   `Link` route patterns through `__resumableHref(...)`, preserves normal anchor
   props and future SPA props for the runtime surface, ignores unrelated
   `Link` components, and leaves static links unchanged.
@@ -767,3 +781,34 @@ Do not parallelize yet:
   `pnpm --filter @resumable.dev/core build`,
   `pnpm exec vp test libs/core/test/minimal-fixture.unit.ts`, and
   `git diff --check`.
+- M9 first-slice research inspected local Navigation API usage patterns with
+  grep MCP and kept the runtime on the platform-shaped Navigation API instead
+  of adding a Resumable History API router.
+- M9 first-slice green evidence: `Link` now renders a real anchor marked with
+  `data-resumable-link`; the client entry starts
+  `__resumableStartSpaNavigation`; the runtime uses native
+  `window.navigation` when present and conditionally applies
+  `@virtualstate/navigation` with `interceptEvents: false`; same-origin page
+  `Link` clicks call `navigation.navigate(...)`; native anchors are not
+  intercepted; route updates dispatch through Qwik state instead of wrapper DOM
+  replacement.
+- M9 preload graph evidence: Resumable registers page route preload graph
+  entries with qwik-bundler through `registerPreloadGraphEntries`. The
+  generated minimal fixture manifest has `/links` as a route preload key and
+  reaches the counter QRL chunk, and browser QA showed the counter QRL was
+  already fetched before the counter click.
+- M9 hardening evidence: focused SPA navigation tests now cover same-origin
+  `Link` enhancement, native-anchor pass-through, external origins,
+  non-primary/modifier clicks, `target != "_self"`, `download`,
+  `rel="external"`, `replace`, `scroll={false}`, back/forward traverse
+  handling for known routes, and leaving unmatched/status-page fallback paths
+  to document navigation.
+- M9 browser QA evidence: the built minimal fixture showed SPA `Link`
+  navigation from `/about` to `/links` with no document request, the `Links`
+  counter click made no new network request after route preload, browser back
+  and forward traversed between `/about` and `/links` without document
+  requests, and a native anchor from `/` to `/links` still made a document
+  request.
+- M9 remaining gaps: abort/stale navigation behavior, hash/focus details, and
+  final status-page SPA policy still need direct evidence before M9 is marked
+  complete. Prefetch scheduling, MDX, and data fetching remain out of M9.

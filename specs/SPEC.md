@@ -218,12 +218,7 @@ The public core entrypoint exposes the framework-aware document component and
 shared runtime APIs:
 
 ```ts
-import {
-  Html,
-  Link,
-  action$,
-  query$
-} from "@resumable.dev/core";
+import { Html, Link, action$, query$ } from "@resumable.dev/core";
 import type {
   EndpointHttpContext,
   HttpContext,
@@ -572,8 +567,9 @@ export interface EndpointHttpContext<
   readonly params: Readonly<Params>;
 }
 
-export interface MiddlewareHttpContext<Locals extends object = AppLocals>
-  extends HttpContext<Locals> {}
+export interface MiddlewareHttpContext<
+  Locals extends object = AppLocals
+> extends HttpContext<Locals> {}
 ```
 
 Endpoint and middleware files receive an HTTP context. Public docs should use
@@ -914,6 +910,9 @@ Link is typed and SPA-capable.
 The `resumable()` Vite plugin owns route type generation and JSX lowering for
 route-pattern `href` values with `params`. Native anchors should not be globally
 intercepted for SPA navigation. `Link` is the explicit SPA navigation surface.
+`Link` enhancement should use the browser Navigation API shape, with
+`@virtualstate/navigation` only as a conditional fallback when the native API is
+missing.
 
 The detailed typed routing and navigation contract lives in
 `./TYPED_ROUTING.md`.
@@ -1385,9 +1384,7 @@ a `MiddlewareHttpContext` type for the normal path. A middleware file should be
 typed as if the user wrote:
 
 ```ts
-export default function (
-  http: import("@resumable.dev/core").MiddlewareHttpContext
-) {
+export default function (http: import("@resumable.dev/core").MiddlewareHttpContext) {
   http.locals.requestId = crypto.randomUUID();
   http.response.headers.set("x-request-id", http.locals.requestId);
 }
@@ -1815,8 +1812,9 @@ Runtime checks:
 - `document.tsx` can set route-specific `<html>` attributes through `Html` props.
 - `document.tsx` can set route-specific `<body>` attributes from `PageProps`.
 - `document.tsx` can set route-specific `<head>` content from `PageProps`.
-- Native `<a>` uses typed platform navigation.
-- `Link` uses the same route typing and opts into SPA navigation.
+- Native `<a>` uses typed platform navigation and is not globally intercepted.
+- `Link` uses the same route typing and opts into Navigation API-based SPA
+  navigation.
 - `GET /` renders `pages/index.tsx`.
 - `GET /docs` renders `pages/docs.mdx` when present.
 - A Composed MDX page renders its content body at the visible `<Content />`

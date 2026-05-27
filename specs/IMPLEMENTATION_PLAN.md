@@ -645,9 +645,9 @@ Build:
 - No custom `popstate`/History API router unless the Navigation API polyfill
   cannot satisfy a required behavior.
 - External links are not intercepted.
-- Download/reload behavior is preserved.
-- Internal page payload endpoint or renderer mode.
+- Download and ineligible-link behavior is preserved.
 - Route module transition.
+- Future page payload endpoint or renderer mode.
 - Status page behavior during SPA navigation.
 - Native anchors are not globally intercepted.
 
@@ -737,7 +737,8 @@ Can happen in parallel:
 
 Should wait:
 
-- `Link` SPA navigation waits for SSR route matching and manifest shape.
+- Remaining `Link` SPA navigation hardening waits for the first Navigation
+  API slice and route preload graph evidence.
 - MDX waits for route manifest and Qwik SSR skeleton.
 - Docs starter waits for MDX fixture.
 - Data fetching waits for SSR render context and SPA payload protocol.

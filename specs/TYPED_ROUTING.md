@@ -232,7 +232,6 @@ export type ResumableLinkProps = ResumableAnchorProps & {
   readonly prefetch?: boolean | "intent" | "viewport";
   readonly replace?: boolean;
   readonly scroll?: boolean;
-  readonly reload?: boolean;
 };
 
 declare module "@qwik.dev/core" {
@@ -392,8 +391,8 @@ Transform requirements:
 - Remove the `params` prop from the rendered DOM output.
 - Preserve all normal anchor props such as `class`, `target`, `rel`,
   `aria-*`, `data-*`, and event handlers.
-- Preserve `Link` SPA props such as `prefetch`, `replace`, `scroll`, and
-  `reload` for the `Link` runtime.
+- Preserve `Link` SPA props such as `prefetch`, `replace`, and `scroll` for
+  the `Link` runtime.
 - Run before Qwik consumes/transforms TSX.
 - Produce direct build errors for invalid route-pattern anchors when type
   checking is not running.
@@ -492,7 +491,6 @@ The `Link` navigation runtime should intercept a click only when:
 - No modifier key is pressed.
 - The rendered anchor does not have `download`.
 - The rendered anchor target is missing or `_self`.
-- The link does not opt out with `reload`.
 - The rendered anchor does not have `rel="external"`.
 
 If any condition fails, the browser should handle the anchor normally.
@@ -559,8 +557,7 @@ In polyfilled environments, normal anchor clicks may not produce the same native
 `navigate` event behavior. `Link` should keep a small click handler that
 performs the same eligibility checks, prevents the default browser navigation
 only for accepted SPA navigations, conditionally loads the polyfill when
-`window.navigation` is missing, and calls `navigation.navigate(...)` or
-`navigation.reload(...)` as appropriate.
+`window.navigation` is missing, and calls `navigation.navigate(...)`.
 
 The click bridge should not call `preventDefault()` until the link is eligible
 for SPA navigation. If the runtime cannot load or the link fails any eligibility
@@ -574,8 +571,8 @@ not remove the need for acceptance tests. SPA navigation fixtures should verify:
 - hash, scroll, and focus behavior match the public `Link` props;
 - aborted navigations do not commit stale payloads;
 - non-`Link` anchors are not intercepted;
-- `reload`, `download`, external, modifier-key, and non-`_self` target cases
-  remain native.
+- `download`, external, modifier-key, and non-`_self` target cases remain
+  native.
 
 ## Prefetching
 
@@ -695,7 +692,6 @@ SPA checks:
 - External `Link` hrefs are not intercepted.
 - `target="_blank"` links are not intercepted.
 - `download` links are not intercepted.
-- `reload` links are not intercepted.
 - All anchors and links still work as normal browser navigation without
   JavaScript.
 
