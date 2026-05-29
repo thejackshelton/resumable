@@ -52,8 +52,8 @@ importers:
         specifier: 3.0.260429-beta
         version: 3.0.260429-beta(rollup@4.60.4)(vite@8.0.14(@types/node@24.12.4))
       qwik-bundler:
-        specifier: link:../../../qwik-bundler
-        version: link:../../../qwik-bundler
+        specifier: '0.2'
+        version: 0.2.0(rolldown@1.0.2)(vite@8.0.14(@types/node@24.12.4))
       typescript:
         specifier: 'catalog:'
         version: 6.0.2
@@ -80,8 +80,8 @@ importers:
         specifier: 3.0.260429-beta
         version: 3.0.260429-beta(rollup@4.60.4)(vite@8.0.14(@types/node@24.12.4))
       qwik-bundler:
-        specifier: link:../../../qwik-bundler
-        version: link:../../../qwik-bundler
+        specifier: '0.2'
+        version: 0.2.0(rolldown@1.0.2)(vite@8.0.14(@types/node@24.12.4))
       typescript:
         specifier: 'catalog:'
         version: 6.0.2
@@ -108,8 +108,8 @@ importers:
         specifier: 3.0.260429-beta
         version: 3.0.260429-beta(rollup@4.60.4)(vite@8.0.14(@types/node@24.12.4))
       qwik-bundler:
-        specifier: link:../../../qwik-bundler
-        version: link:../../../qwik-bundler
+        specifier: '0.2'
+        version: 0.2.0(rolldown@1.0.2)(vite@8.0.14(@types/node@24.12.4))
       typescript:
         specifier: 'catalog:'
         version: 6.0.2
@@ -133,8 +133,8 @@ importers:
         specifier: 3.0.260429-beta
         version: 3.0.260429-beta(rollup@4.60.4)(vite@8.0.14(@types/node@24.12.4))
       qwik-bundler:
-        specifier: link:../../../qwik-bundler
-        version: link:../../../qwik-bundler
+        specifier: '0.2'
+        version: 0.2.0(rolldown@1.0.2)(vite@8.0.14(@types/node@24.12.4))
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -176,8 +176,8 @@ importers:
         specifier: 2.0.3
         version: 2.0.3
       qwik-bundler:
-        specifier: link:../../../qwik-bundler
-        version: link:../../../qwik-bundler
+        specifier: '0.2'
+        version: 0.2.0(rolldown@1.0.2)(vite@8.0.14(@types/node@24.10.1))
       satteri:
         specifier: 0.6.3
         version: 0.6.3
@@ -560,6 +560,10 @@ packages:
       vitest:
         optional: true
 
+  '@qwik.dev/optimizer@2.1.0-beta.2':
+    resolution: {integrity: sha512-/L7RA9voF9RBZX22xUcmzSVXIcobLlvEVs9v6XLduPjjrn6l6hP6Gq0Igi0vQfXYsIeBEr7fGEq9UV+jIHqMRg==}
+    engines: {node: ^20.3.0 || >=21.0.0}
+
   '@qwik.dev/optimizer@https://pkg.pr.new/QwikDev/qwik/@qwik.dev/optimizer@1f3647c':
     resolution: {tarball: https://pkg.pr.new/QwikDev/qwik/@qwik.dev/optimizer@1f3647c}
     version: 2.1.0-beta.3
@@ -784,6 +788,70 @@ packages:
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
+  '@thi.ng/api@8.12.25':
+    resolution: {integrity: sha512-5Xixty2r+t6LNixnKpVBICz6R7SINaG2KnUG/CVJ2cuiQhih0RztldItEFYk4aRUFthRibhsG2Ie5ULS7qr9Kg==}
+    engines: {node: '>=18'}
+
+  '@thi.ng/arrays@2.14.22':
+    resolution: {integrity: sha512-Zdw4dTRPIIgcmOzrB1DZzvUMStcqn+bXmAbCM4npDFcUtIbGvMGiRzYHrqb0Z2E4jKntTDy2wviCuUo1U7Evfw==}
+    engines: {node: '>=18'}
+
+  '@thi.ng/associative@7.1.42':
+    resolution: {integrity: sha512-J+fZZfnyIZ6975/VnjViUZ6wkDWtUrBg6M2aTdcgu/6dC1lWWPOB3XL7YPxnxZZSiS24MD2gTEFW0HD2e/aPzg==}
+    engines: {node: '>=18'}
+
+  '@thi.ng/binary@3.6.14':
+    resolution: {integrity: sha512-10ZvRzNdJQ30+5UC75VIF5MKzThWQDFBN2jD1ilkCAjTtOLzt/JaGXbcCTKy9x1IW2aUHuUEfUcjvYaMAHmM9Q==}
+    engines: {node: '>=18'}
+
+  '@thi.ng/checks@3.9.5':
+    resolution: {integrity: sha512-hxSqs6DtE/RDkzWSa3xqbYEwqAhicqKcWRZSvUmQ9I2NEDrR+qBUj6icjXMtS51k+Mp3FRiTQ0FDCI8FbOBBmw==}
+    engines: {node: '>=18'}
+
+  '@thi.ng/compare@2.5.13':
+    resolution: {integrity: sha512-tbz+rRgZz7EtYMj/RnseLZQPvbqjpCvewlixQMCPyfq+ORcWHdXDBe0dV67Mt74CofUQvsygOVTevT+bpkKPJg==}
+    engines: {node: '>=18'}
+
+  '@thi.ng/compose@3.0.62':
+    resolution: {integrity: sha512-sGgT+vcLjtCDnXwf2VkGiN6racMpo1E+OQcyq1+Eos4OKbUFxf+Src7SHTq0vGjW9FKfmwWAghe6T8l1BwttKQ==}
+    engines: {node: '>=18'}
+
+  '@thi.ng/dcons@3.2.198':
+    resolution: {integrity: sha512-KlwGc3/vxURs9vwJp8+P9xYUISORhU80fDbKx/o4dVK3JnNrdMJ+EZCcQq3dhJannXJORBZ4chHR97MxbQhF6g==}
+    engines: {node: '>=18'}
+
+  '@thi.ng/dgraph@2.1.205':
+    resolution: {integrity: sha512-Ft5kLFTvsvfp/C2dN+eO5ZTOixdW0ixlQqo8fiYh9AtM6xA5f1qWJ2xfTUFtQC4KYL0zbpgZcdElpvrmhNaIEA==}
+    engines: {node: '>=18'}
+
+  '@thi.ng/equiv@2.1.114':
+    resolution: {integrity: sha512-kQuEqiT+m54MO9UCjdL9qrDD5OT8K+ANa0EziMpkyYRIiRe50XHoBzKCu8++YsCdEv4nX6oOD4c1b1fyu7x1hg==}
+    engines: {node: '>=18'}
+
+  '@thi.ng/errors@2.6.14':
+    resolution: {integrity: sha512-dSqLPZh5wOe329Ks2pJqoDmtjSv2g4KpXEP5/IQ5J9qvrEyNrRBCuaKHUKYUltQ1OUHGd9L5hBqGJl65Hlnu+g==}
+    engines: {node: '>=18'}
+
+  '@thi.ng/math@5.15.14':
+    resolution: {integrity: sha512-8kqMbdFzHxiw3x/nELEyLkZdkVzTj7PTsIcCiqaIGMoRj1tDXSOmj4eBpZcdX8Ch5IwZ6riHwP6lyengNCjr7g==}
+    engines: {node: '>=18'}
+
+  '@thi.ng/object-utils@1.3.17':
+    resolution: {integrity: sha512-J/IBaaPJJ5XMfylmOigwluRxPpg0FmdQuuIgfkUN/AP0KFl6vn9FRI0dIID1u9xS2TpvZtW9d9Tm2UVT7trPRg==}
+    engines: {node: '>=18'}
+
+  '@thi.ng/random@4.1.51':
+    resolution: {integrity: sha512-3n1MUvGtTYv6Dyju9VfKN3jEJUul+EmMRPUvSZqeXWzCQtsG/2ulRtT4q+nyY/v9xF+LSR8AyQbHrayJQV/c4w==}
+    engines: {node: '>=18'}
+
+  '@thi.ng/timestamp@1.1.44':
+    resolution: {integrity: sha512-OOEP2ibgOMQzLFGciU6HrFi0/9fENm3k9vjp6iVV8zyqy9sd477TU2puZN9iQhFTnIEaXkgoz/S//FfWc5rfKQ==}
+    engines: {node: '>=18'}
+
+  '@thi.ng/transducers@9.6.39':
+    resolution: {integrity: sha512-NP7QNfs+MKLMaGWskyu1AH05mBSCpzo95HWqnwcxilRip05VEFFTiH3jMZg9Sln1fuyeFHqvqDzyAkyL75N5WA==}
+    engines: {node: '>=18'}
 
   '@tybys/wasm-util@0.10.2':
     resolution: {integrity: sha512-RoBvJ2X0wuKlWFIjrwffGw1IqZHKQqzIchKaadZZfnNpsAYp2mM0h36JtPCjNDAHGgYez/15uMBpfGwchhiMgg==}
@@ -1219,6 +1287,18 @@ packages:
   postcss@8.5.15:
     resolution: {integrity: sha512-FfR8sjd4em2T6fb3I2MwAJU7HWVMr9zba+enmQeeWFfCbm+UOC/0X4DS8XtpUTMwWMGbjKYP7xjfNekzyGmB3A==}
     engines: {node: ^10 || ^12 || >=14}
+
+  qwik-bundler@0.2.0:
+    resolution: {integrity: sha512-OgecUL6gsGNcvflCJ/ugpVyvnikndF0PvNQ/HgmGmYjBX/Fi18XvzWHX8222D+R0/f/5iCQhcIWHB+H006Qzow==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      rolldown: 1.0.2
+      vite: 8.0.10
+    peerDependenciesMeta:
+      rolldown:
+        optional: true
+      vite:
+        optional: true
 
   rolldown@1.0.2:
     resolution: {integrity: sha512-oZx5zVDtVB44AW3eaifgDml1gWRDZGvjcfdxonE4swNPG98PrrXjaO/KrnUjzlMnztCCRVlUueA1kCXhARGk6g==}
@@ -1672,6 +1752,8 @@ snapshots:
       rollup: 4.60.4
       vite: 8.0.14(@types/node@24.12.4)
 
+  '@qwik.dev/optimizer@2.1.0-beta.2': {}
+
   '@qwik.dev/optimizer@https://pkg.pr.new/QwikDev/qwik/@qwik.dev/optimizer@1f3647c': {}
 
   '@rolldown/binding-android-arm64@1.0.2':
@@ -1801,6 +1883,93 @@ snapshots:
     optional: true
 
   '@standard-schema/spec@1.1.0': {}
+
+  '@thi.ng/api@8.12.25': {}
+
+  '@thi.ng/arrays@2.14.22':
+    dependencies:
+      '@thi.ng/api': 8.12.25
+      '@thi.ng/checks': 3.9.5
+      '@thi.ng/compare': 2.5.13
+      '@thi.ng/equiv': 2.1.114
+      '@thi.ng/errors': 2.6.14
+      '@thi.ng/random': 4.1.51
+
+  '@thi.ng/associative@7.1.42':
+    dependencies:
+      '@thi.ng/api': 8.12.25
+      '@thi.ng/arrays': 2.14.22
+      '@thi.ng/binary': 3.6.14
+      '@thi.ng/checks': 3.9.5
+      '@thi.ng/dcons': 3.2.198
+      '@thi.ng/equiv': 2.1.114
+      '@thi.ng/object-utils': 1.3.17
+      '@thi.ng/transducers': 9.6.39
+
+  '@thi.ng/binary@3.6.14':
+    dependencies:
+      '@thi.ng/api': 8.12.25
+
+  '@thi.ng/checks@3.9.5': {}
+
+  '@thi.ng/compare@2.5.13':
+    dependencies:
+      '@thi.ng/api': 8.12.25
+
+  '@thi.ng/compose@3.0.62':
+    dependencies:
+      '@thi.ng/api': 8.12.25
+      '@thi.ng/errors': 2.6.14
+
+  '@thi.ng/dcons@3.2.198':
+    dependencies:
+      '@thi.ng/api': 8.12.25
+      '@thi.ng/checks': 3.9.5
+      '@thi.ng/compare': 2.5.13
+      '@thi.ng/equiv': 2.1.114
+      '@thi.ng/errors': 2.6.14
+      '@thi.ng/random': 4.1.51
+      '@thi.ng/transducers': 9.6.39
+
+  '@thi.ng/dgraph@2.1.205':
+    dependencies:
+      '@thi.ng/api': 8.12.25
+      '@thi.ng/associative': 7.1.42
+      '@thi.ng/equiv': 2.1.114
+      '@thi.ng/errors': 2.6.14
+      '@thi.ng/transducers': 9.6.39
+
+  '@thi.ng/equiv@2.1.114': {}
+
+  '@thi.ng/errors@2.6.14': {}
+
+  '@thi.ng/math@5.15.14':
+    dependencies:
+      '@thi.ng/api': 8.12.25
+
+  '@thi.ng/object-utils@1.3.17':
+    dependencies:
+      '@thi.ng/api': 8.12.25
+      '@thi.ng/checks': 3.9.5
+
+  '@thi.ng/random@4.1.51':
+    dependencies:
+      '@thi.ng/api': 8.12.25
+      '@thi.ng/errors': 2.6.14
+
+  '@thi.ng/timestamp@1.1.44': {}
+
+  '@thi.ng/transducers@9.6.39':
+    dependencies:
+      '@thi.ng/api': 8.12.25
+      '@thi.ng/arrays': 2.14.22
+      '@thi.ng/checks': 3.9.5
+      '@thi.ng/compare': 2.5.13
+      '@thi.ng/compose': 3.0.62
+      '@thi.ng/errors': 2.6.14
+      '@thi.ng/math': 5.15.14
+      '@thi.ng/random': 4.1.51
+      '@thi.ng/timestamp': 1.1.44
 
   '@tybys/wasm-util@0.10.2':
     dependencies:
@@ -2258,6 +2427,26 @@ snapshots:
       nanoid: 3.3.12
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  qwik-bundler@0.2.0(rolldown@1.0.2)(vite@8.0.14(@types/node@24.10.1)):
+    dependencies:
+      '@qwik.dev/optimizer': 2.1.0-beta.2
+      '@thi.ng/dgraph': 2.1.205
+      pathe: 2.0.3
+      ufo: 1.6.4
+    optionalDependencies:
+      rolldown: 1.0.2
+      vite: 8.0.14(@types/node@24.10.1)
+
+  qwik-bundler@0.2.0(rolldown@1.0.2)(vite@8.0.14(@types/node@24.12.4)):
+    dependencies:
+      '@qwik.dev/optimizer': 2.1.0-beta.2
+      '@thi.ng/dgraph': 2.1.205
+      pathe: 2.0.3
+      ufo: 1.6.4
+    optionalDependencies:
+      rolldown: 1.0.2
+      vite: 8.0.14(@types/node@24.12.4)
 
   rolldown@1.0.2:
     dependencies:
